@@ -1,0 +1,662 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>璁ょ煡璐熻嵎妯℃嫙鍣?/ untitled</title>
+    <link rel="stylesheet" href="styles.css?v=20260423-packedfix1" />
+  </head>
+  <body>
+    <button id="screen-locale-toggle" class="screen-locale-toggle" type="button">EN</button>
+
+    <section id="landing-screen" class="landing-screen" aria-labelledby="landing-title-line-1">
+      <video class="landing-screen__video" autoplay muted loop playsinline>
+        <source src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07IWA1P/hf_20260315_073750_51473149-4350-4920-ae24-c8214286f323.mp4" type="video/mp4" />
+      </video>
+      <div class="landing-screen__backdrop"></div>
+      <div class="landing-screen__wash"></div>
+      <div class="landing-screen__scanline" aria-hidden="true"></div>
+      <div class="landing-screen__content">
+        <div id="landing-tag" class="landing-screen__tag" data-i18n="landing.tag">Smart Urban Mobility Analysis</div>
+        <h1 class="landing-screen__title">
+          <span id="landing-title-line-1" class="landing-screen__title-line landing-screen__title-line-primary">Elderly Travel Burden</span>
+          <span id="landing-title-line-2" class="landing-screen__title-line landing-screen__title-line-accent">Intelligent Analysis Platform</span>
+        </h1>
+        <p id="landing-description" class="landing-screen__description" data-i18n="landing.description">
+          Based on a five-dimension capability model, using heatmap visualization and route diagnostics to assess elderly travel burden in metro stations.
+        </p>
+        <button id="landing-start-btn" class="landing-start-btn" type="button">
+          <span data-i18n="landing.start">Start Analysis ↓</span>
+        </button>
+      </div>
+      <div class="landing-screen__bottom-fade"></div>
+    </section>
+
+    <section id="settings-screen" class="settings-screen hidden" aria-labelledby="settings-title">
+      <div class="settings-screen__header">
+        <button id="settings-back-btn" class="settings-back-btn" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M15 18l-6-6 6-6"></path>
+            <path d="M9 12h12"></path>
+          </svg>
+          <span data-i18n="settings.backHome">Back to Home</span>
+        </button>
+        <div class="settings-screen__title-group">
+          <span class="settings-screen__eyebrow" data-i18n="settings.section">Section 01</span>
+          <h2 id="settings-title" class="settings-screen__title" data-i18n="settings.title">Route Settings</h2>
+        </div>
+      </div>
+
+      <div class="settings-screen__grid">
+        <section class="settings-card settings-card--form">
+          <h3 class="settings-card__heading" data-i18n="settings.uploadTitle">Data Upload</h3>
+
+          <button id="settings-upload-trigger" class="settings-upload-card" type="button" data-has-file="false">
+            <svg class="settings-icon settings-upload-card__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <path d="M17 8l-5-5-5 5"></path>
+              <path d="M12 3v12"></path>
+            </svg>
+            <span class="settings-upload-card__title" data-i18n="settings.uploadHint">Click to upload sim.json</span>
+            <strong id="settings-upload-file" class="settings-upload-card__file">No file selected</strong>
+            <span class="settings-upload-card__note" data-i18n="settings.uploadFormats">Supports .json / .sim.json</span>
+          </button>
+
+          <div class="settings-card__divider" aria-hidden="true"></div>
+
+          <section class="settings-card__section">
+            <h3 class="settings-card__subheading" data-i18n="settings.routeSettingsTitle">Route Settings</h3>
+
+            <div class="settings-route-fields">
+              <label class="settings-field">
+                <span class="settings-field__label settings-field__label--origin">
+                  <svg class="settings-icon settings-icon--primary" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M3 11l18-8-8 18-2-8-8-2z"></path>
+                  </svg>
+                  <span data-i18n="settings.originLabel">Origin</span>
+                </span>
+                <input id="settings-origin-value" class="settings-field__input settings-field__input--route" type="text" readonly value="--" />
+              </label>
+
+              <label class="settings-field">
+                <span class="settings-field__label settings-field__label--destination">
+                  <svg class="settings-icon settings-icon--destructive" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 21s-6-4.35-6-10a6 6 0 1 1 12 0c0 5.65-6 10-6 10z"></path>
+                    <circle cx="12" cy="11" r="2.5"></circle>
+                  </svg>
+                  <span data-i18n="settings.destinationLabel">Destination</span>
+                </span>
+                <div class="settings-select-shell">
+                  <button id="settings-destination-trigger" class="settings-field__select" type="button" aria-expanded="false">
+                    <span id="settings-destination-value">--</span>
+                    <svg class="settings-field__select-icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M7 10l5 5 5-5"></path>
+                    </svg>
+                  </button>
+                  <div id="settings-destination-menu" class="settings-select-menu hidden"></div>
+                </div>
+              </label>
+            </div>
+
+            <div class="settings-route-actions">
+              <button id="settings-route-clear-btn" class="settings-route-secondary-btn" type="button" data-i18n="button.clear">Clear</button>
+              <button id="settings-route-confirm-btn" class="settings-route-primary-btn" type="button" data-i18n="button.confirm">Confirm</button>
+            </div>
+          </section>
+
+          <div class="settings-card__divider" aria-hidden="true"></div>
+
+          <section class="settings-card__section settings-card__section--crowd">
+            <h3 class="settings-card__subheading" data-i18n="settings.crowdLabel">Crowd Density (ppl/h)</h3>
+
+            <div class="settings-crowd-control">
+              <div class="settings-crowd-slider-row">
+                <span class="settings-crowd-bound">100</span>
+                <input id="settings-background-crowd-slider" class="settings-crowd-slider" type="range" min="100" max="3000" step="5" value="1500" />
+                <span class="settings-crowd-bound">3000</span>
+                <input
+                  id="settings-background-crowd-input"
+                  class="settings-crowd-input"
+                  type="text"
+                  value="1500"
+                  inputmode="numeric"
+                />
+              </div>
+            </div>
+          </section>
+
+          <button id="settings-next-btn" class="settings-primary-btn" type="button">
+            <span data-i18n="settings.nextBtn">Set Agent Attribute</span>
+          </button>
+        </section>
+
+        <section class="settings-card settings-card--route-stage">
+          <div id="settings-route-map-stage" class="settings-route-map-stage">
+            <svg id="settings-route-map" class="settings-route-map" preserveAspectRatio="xMidYMid meet"></svg>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section id="agent-settings-screen" class="settings-screen hidden" aria-labelledby="agent-settings-title">
+      <div class="settings-screen__header">
+        <button id="agent-settings-back-btn" class="settings-back-btn" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M15 18l-6-6 6-6"></path>
+            <path d="M9 12h12"></path>
+          </svg>
+          <span data-i18n="agentSettings.back">Back to Route Settings</span>
+        </button>
+        <div class="settings-screen__title-group">
+          <span class="settings-screen__eyebrow" data-i18n="agentSettings.section">Section 02</span>
+          <h2 id="agent-settings-title" class="settings-screen__title" data-i18n="agentSettings.title">Attribute Settings</h2>
+        </div>
+      </div>
+
+      <div class="agent-settings-screen__grid">
+        <section class="settings-card settings-card--radar settings-card--agent-radar">
+          <h3 class="settings-radar-title" data-i18n="settings.radarTitle">Five-Dimension Radar Chart</h3>
+          <p class="settings-radar-hint" data-i18n="settings.radarHint">Drag points to adjust dimension scores</p>
+          <div id="settings-capacity-radar" class="settings-capacity-radar" role="img" aria-label="Five dimension radar editor"></div>
+          <button id="settings-start-analysis-btn" class="settings-primary-btn" type="button">
+            <span data-i18n="settings.analyzeBtn">Start Analysis</span>
+          </button>
+        </section>
+
+        <section id="settings-agent-visual-panel" class="settings-card settings-agent-preview" aria-label="Agent visual preview">
+          <div class="settings-agent-preview__figure">
+            <div id="settings-agent-figure-stage" class="settings-agent-preview__figure-stage" aria-hidden="true"></div>
+            <svg id="settings-agent-connector-layer" class="settings-agent-preview__connector-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </div>
+          <section id="settings-dimension-list" class="settings-agent-preview__cards" aria-label="Dimension descriptions"></section>
+        </section>
+      </div>
+    </section>
+
+    <section id="analysis-loading-screen" class="analysis-loading-screen hidden" aria-labelledby="analysis-loading-title">
+      <div class="analysis-loading-screen__panel">
+        <h2 id="analysis-loading-title" class="analysis-loading-screen__title" data-i18n="loading.title">Preparing Visualization Analysis</h2>
+        <button id="analysis-loading-progress-btn" class="analysis-loading-screen__progress-btn" type="button" disabled>Preparing Analysis</button>
+      </div>
+    </section>
+
+    <div id="legacy-app-shell" class="app-shell hidden">
+      <header class="app-topbar">
+        <div id="app-title" class="topbar-brand" aria-label="Project title">
+          <span id="app-product-name" class="app-product-name">璁ょ煡璐熻嵎妯℃嫙鍣</span>
+          <span class="app-title-separator">/</span>
+          <span class="file-name-editor">
+            <button id="app-file-name" class="app-file-name" type="button">untitled</button>
+            <input
+              id="app-file-name-input"
+              class="file-name-input hidden"
+              type="text"
+              value="untitled"
+              maxlength="48"
+              aria-label="File name"
+            />
+          </span>
+        </div>
+        <div class="topbar-actions">
+          <div class="locale-switch" aria-label="Language selector">
+            <button id="locale-zh" class="locale-btn active" type="button">CN</button>
+            <button id="locale-en" class="locale-btn" type="button">EN</button>
+          </div>
+          <div class="topbar-help" aria-hidden="true">?</div>
+          <div class="user-avatar" aria-hidden="true">user</div>
+        </div>
+      </header>
+
+      <section id="visualization-shell" class="visualization-shell">
+        <div class="visualization-shell__main">
+          <div class="visualization-shell__header">
+            <button id="visualization-back-btn" class="visualization-back-btn" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15 18l-6-6 6-6"></path>
+                <path d="M9 12h12"></path>
+              </svg>
+              <span data-i18n="visualization.back">返回上一级</span>
+            </button>
+            <div class="visualization-shell__heading">
+              <span id="visualization-shell-eyebrow" class="visualization-shell__eyebrow" data-i18n="visualization.section">Section 03</span>
+              <h2 id="visualization-shell-title" class="visualization-shell__title" data-i18n="visualization.title">Visualization Analysis</h2>
+            </div>
+          </div>
+
+          <div id="visualization-overview" class="visualization-overview">
+            <div class="visualization-grid">
+            <article class="visualization-card visualization-card--composite" data-viz-card="composite" data-viz-view="composite" role="button" tabindex="0">
+              <div class="visualization-card__stage">
+                <svg class="visualization-stage-base" data-viz-base="composite" preserveAspectRatio="xMidYMid meet"></svg>
+                <canvas class="visualization-stage-background" data-viz-background="composite"></canvas>
+                <canvas class="visualization-stage-heat" data-viz-heat="composite"></canvas>
+                <svg class="visualization-stage-overlay" data-viz-overlay="composite" preserveAspectRatio="xMidYMid meet"></svg>
+              </div>
+              <div class="visualization-card__meta">
+                <div class="visualization-card__titles">
+                  <h3 class="visualization-card__title" data-i18n="visualization.compositeTitle">Composite Burden Heatmap</h3>
+                </div>
+                <p class="visualization-card__copy" data-i18n="visualization.compositeCopy">Integrated spatial burden field combining all five dimensions for route-level overview.</p>
+                <div class="visualization-card__range">
+                  <span class="visualization-card__min" data-viz-min="composite">Min --</span>
+                  <span class="visualization-card__max" data-viz-max="composite">Max --</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="visualization-card visualization-card--locomotor" data-viz-card="locomotor" data-viz-view="locomotor" role="button" tabindex="0">
+              <span class="visualization-card__index">1</span>
+              <div class="visualization-card__stage">
+                <svg class="visualization-stage-base" data-viz-base="locomotor" preserveAspectRatio="xMidYMid meet"></svg>
+                <canvas class="visualization-stage-background" data-viz-background="locomotor"></canvas>
+                <canvas class="visualization-stage-heat" data-viz-heat="locomotor"></canvas>
+                <svg class="visualization-stage-overlay" data-viz-overlay="locomotor" preserveAspectRatio="xMidYMid meet"></svg>
+              </div>
+              <div class="visualization-card__meta">
+                <div class="visualization-card__titles">
+                  <h3 class="visualization-card__title" data-i18n="visualization.locomotorTitle">Locomotor Burden Heatmap</h3>
+                </div>
+                <p class="visualization-card__copy" data-i18n="visualization.locomotorCopy">Physical movement resistance caused by walking distance, vertical transfer, and queue interference.</p>
+                <div class="visualization-card__range">
+                  <span class="visualization-card__min" data-viz-min="locomotor">Min --</span>
+                  <span class="visualization-card__max" data-viz-max="locomotor">Max --</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="visualization-card visualization-card--sensory" data-viz-card="sensory" data-viz-view="sensory" role="button" tabindex="0">
+              <span class="visualization-card__index">2</span>
+              <div class="visualization-card__stage">
+                <svg class="visualization-stage-base" data-viz-base="sensory" preserveAspectRatio="xMidYMid meet"></svg>
+                <canvas class="visualization-stage-background" data-viz-background="sensory"></canvas>
+                <canvas class="visualization-stage-heat" data-viz-heat="sensory"></canvas>
+                <svg class="visualization-stage-overlay" data-viz-overlay="sensory" preserveAspectRatio="xMidYMid meet"></svg>
+              </div>
+              <div class="visualization-card__meta">
+                <div class="visualization-card__titles">
+                  <h3 class="visualization-card__title" data-i18n="visualization.sensoryTitle">Sensory Burden Heatmap</h3>
+                </div>
+                <p class="visualization-card__copy" data-i18n="visualization.sensoryCopy">Sensory burden from lighting, noise, visibility range, and sign recognition conditions.</p>
+                <div class="visualization-card__range">
+                  <span class="visualization-card__min" data-viz-min="sensory">Min --</span>
+                  <span class="visualization-card__max" data-viz-max="sensory">Max --</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="visualization-card visualization-card--cognitive" data-viz-card="cognitive" data-viz-view="cognitive" role="button" tabindex="0">
+              <span class="visualization-card__index">3</span>
+              <div class="visualization-card__stage">
+                <svg class="visualization-stage-base" data-viz-base="cognitive" preserveAspectRatio="xMidYMid meet"></svg>
+                <canvas class="visualization-stage-background" data-viz-background="cognitive"></canvas>
+                <canvas class="visualization-stage-heat" data-viz-heat="cognitive"></canvas>
+                <svg class="visualization-stage-overlay" data-viz-overlay="cognitive" preserveAspectRatio="xMidYMid meet"></svg>
+              </div>
+              <div class="visualization-card__meta">
+                <div class="visualization-card__titles">
+                  <h3 class="visualization-card__title" data-i18n="visualization.cognitiveTitle">Decision Burden Heatmap</h3>
+                </div>
+                <p class="visualization-card__copy" data-i18n="visualization.cognitiveCopy">Decision pressure from route choice, signage continuity, and hesitation at transfer nodes.</p>
+                <div class="visualization-card__range">
+                  <span class="visualization-card__min" data-viz-min="cognitive">Min --</span>
+                  <span class="visualization-card__max" data-viz-max="cognitive">Max --</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="visualization-card visualization-card--psychological" data-viz-card="psychological" data-viz-view="psychological" role="button" tabindex="0">
+              <span class="visualization-card__index">4</span>
+              <div class="visualization-card__stage">
+                <svg class="visualization-stage-base" data-viz-base="psychological" preserveAspectRatio="xMidYMid meet"></svg>
+                <canvas class="visualization-stage-background" data-viz-background="psychological"></canvas>
+                <canvas class="visualization-stage-heat" data-viz-heat="psychological"></canvas>
+                <svg class="visualization-stage-overlay" data-viz-overlay="psychological" preserveAspectRatio="xMidYMid meet"></svg>
+              </div>
+              <div class="visualization-card__meta">
+                <div class="visualization-card__titles">
+                  <h3 class="visualization-card__title" data-i18n="visualization.psychologicalTitle">Psychological Burden Heatmap</h3>
+                </div>
+                <p class="visualization-card__copy" data-i18n="visualization.psychologicalCopy">Stress hotspots caused by uncertainty, crowd pressure, and reduced sense of comfort or safety.</p>
+                <div class="visualization-card__range">
+                  <span class="visualization-card__min" data-viz-min="psychological">Min --</span>
+                  <span class="visualization-card__max" data-viz-max="psychological">Max --</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="visualization-card visualization-card--vitality" data-viz-card="vitality" data-viz-view="vitality" role="button" tabindex="0">
+              <span class="visualization-card__index">5</span>
+              <div class="visualization-card__stage">
+                <svg class="visualization-stage-base" data-viz-base="vitality" preserveAspectRatio="xMidYMid meet"></svg>
+                <canvas class="visualization-stage-background" data-viz-background="vitality"></canvas>
+                <canvas class="visualization-stage-heat" data-viz-heat="vitality"></canvas>
+                <svg class="visualization-stage-overlay" data-viz-overlay="vitality" preserveAspectRatio="xMidYMid meet"></svg>
+              </div>
+              <div class="visualization-card__meta">
+                <div class="visualization-card__titles">
+                  <h3 class="visualization-card__title" data-i18n="visualization.vitalityTitle">Fatigue Burden Heatmap</h3>
+                </div>
+                <p class="visualization-card__copy" data-i18n="visualization.vitalityCopy">Accumulated fatigue growth along the route, showing where recovery demand rises fastest.</p>
+                <div class="visualization-card__range">
+                  <span class="visualization-card__min" data-viz-min="vitality">Min --</span>
+                  <span class="visualization-card__max" data-viz-max="vitality">Max --</span>
+                </div>
+              </div>
+            </article>
+            </div>
+          </div>
+
+          <div id="visualization-detail" class="visualization-detail hidden">
+            <div class="visualization-detail__panel">
+              <section id="visualization-detail-summary" class="visualization-detail__summary">
+                <div class="visualization-detail__summary-block">
+                  <h3 class="visualization-detail__section-title" data-i18n="visualization.detailRadarTitle">Agent Attribute</h3>
+                  <div id="visualization-detail-radar" class="visualization-detail__radar"></div>
+                </div>
+                <div class="visualization-detail__summary-block">
+                  <h3 class="visualization-detail__section-title" data-i18n="visualization.detailStatusTitle">Agent Status</h3>
+                  <div id="visualization-detail-status" class="visualization-detail__status"></div>
+                </div>
+                <div class="visualization-detail__summary-block">
+                  <h3 class="visualization-detail__section-title" data-i18n="visualization.detailFeedbackTitle">Real-time Burden</h3>
+                  <div id="visualization-detail-feedback" class="visualization-detail__feedback"></div>
+                  <div class="visualization-detail__layer-picker">
+                    <div class="visualization-detail__layer-label" data-i18n="visualization.detailLayerFilter">Pressure Point Layer</div>
+                    <div class="visualization-detail__layer-control">
+                      <button id="visualization-detail-layer-select" class="visualization-detail__layer-select visualization-detail__layer-select-btn" type="button" aria-expanded="false"></button>
+                      <div id="visualization-detail-layer-menu" class="visualization-detail__layer-menu hidden"></div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <aside id="visualization-detail-report" class="visualization-detail__report">
+                <div class="visualization-detail__report-content">
+                  <section id="visualization-detail-cot" class="visualization-detail__report-block visualization-detail__report-block--cot"></section>
+                  <section id="visualization-detail-issues" class="visualization-detail__report-block visualization-detail__report-block--issues"></section>
+                  <button id="visualization-detail-export-report-btn" class="visualization-export-btn visualization-detail__export" type="button" data-i18n="visualization.exportReport">Export Analysis Report</button>
+                </div>
+              </aside>
+
+              <section id="visualization-detail-stage" class="visualization-detail__stage-panel">
+                <div class="visualization-detail__stage-head">
+                  <div class="visualization-detail__stage-copy">
+                    <h3 id="visualization-detail-stage-title" class="visualization-detail__stage-title">Composite Burden Heatmap</h3>
+                    <p id="visualization-detail-stage-description" class="visualization-detail__stage-description">Integrated spatial burden field combining all five dimensions for route-level overview.</p>
+                  </div>
+                  <div class="visualization-detail__view-control">
+                    <select id="visualization-detail-view-select" class="visualization-detail__view-select">
+                      <option value="composite">Composite Burden Heatmap</option>
+                      <option value="locomotor">Locomotor Burden Heatmap</option>
+                      <option value="sensory">Sensory Burden Heatmap</option>
+                      <option value="cognitive">Decision Burden Heatmap</option>
+                      <option value="psychological">Psychological Burden Heatmap</option>
+                      <option value="vitality">Fatigue Burden Heatmap</option>
+                    </select>
+                  </div>
+                  <div id="visualization-detail-stage-metrics" class="visualization-detail__stage-metrics"></div>
+                  <div id="visualization-detail-stage-legend" class="visualization-detail__stage-legend"></div>
+                </div>
+                <div id="visualization-detail-stage-frame" class="visualization-detail__stage-frame">
+                  <svg id="visualization-detail-base" class="visualization-stage-base" preserveAspectRatio="xMidYMid meet"></svg>
+                  <canvas id="visualization-detail-background" class="visualization-stage-background"></canvas>
+                  <canvas id="visualization-detail-heat" class="visualization-stage-heat"></canvas>
+                  <svg id="visualization-detail-overlay" class="visualization-stage-overlay" preserveAspectRatio="xMidYMid meet"></svg>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <aside class="visualization-sidebar">
+          <div id="visualization-sidebar-scroll" class="visualization-sidebar__scroll">
+            <section class="visualization-sidebar__section">
+              <h3 class="visualization-sidebar__section-title" data-i18n="visualization.environmentTitle">Live Environment Metrics</h3>
+              <div id="visualization-environment-panel" class="visualization-metric-grid"></div>
+            </section>
+
+            <section class="visualization-sidebar__section">
+              <h3 class="visualization-sidebar__section-title" data-i18n="visualization.statusTitle">Elderly Status Monitor</h3>
+              <div id="visualization-status-monitor" class="visualization-status-monitor"></div>
+            </section>
+
+            <section class="visualization-sidebar__section">
+              <h3 class="visualization-sidebar__section-title" data-i18n="visualization.radarTitle">Elderly Capability Radar</h3>
+              <div id="visualization-capability-radar" class="visualization-capability-radar"></div>
+            </section>
+
+            <section class="visualization-sidebar__section">
+              <h3 class="visualization-sidebar__section-title" data-i18n="visualization.feedbackTitle">Real-time Burden Feedback</h3>
+              <div id="visualization-burden-feedback" class="visualization-burden-feedback"></div>
+            </section>
+
+            <button id="visualization-export-report-btn" class="visualization-export-btn" type="button" data-i18n="visualization.exportReport">Export Analysis Report</button>
+          </div>
+        </aside>
+      </section>
+
+      <div class="workspace-layout workspace-layout--render-rig">
+        <aside class="panel controls-panel">
+          <div class="panel-scroll controls-scroll">
+            <section class="panel-section import-panel-section">
+              <label id="model-file-trigger" class="primary-btn edge-btn full-width" for="model-file-input" data-i18n="button.importLocal">瀵煎叆鏈湴鏂囦欢</label>
+              <input id="model-file-input" type="file" accept=".json,.sim.json" hidden />
+              <div id="model-source" class="support-text">鏈€夋嫨鏂囦欢</div>
+            </section>
+
+            <section class="panel-section route-panel-section">
+              <div class="section-head compact">
+                <h2 data-i18n="section.route">璇勪及璺嚎</h2>
+              </div>
+              <button id="route-pick-btn" class="ghost-btn edge-btn full-width" type="button" data-i18n="button.pickRoute">閫夋嫨璺嚎</button>
+              <div id="route-pick-hint" class="support-text" data-i18n="hint.routePickIdle">瀵煎叆妯″瀷鍚庣偣鍑绘寜閽紝閫夋嫨璧风偣涓庣粓鐐瑰尯鍩熴€</div>
+              <div class="selection-summary compact-grid left-summary-grid">
+                <div class="route-meta-inline">
+                  <span class="label" data-i18n="label.start">璧风偣</span>
+                  <strong id="selected-start">--</strong>
+                </div>
+                <div class="route-meta-inline">
+                  <span class="label" data-i18n="label.targetRegion">缁堢偣鍖哄煙</span>
+                  <strong id="selected-end">--</strong>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel-section agent-panel-section">
+              <div class="section-head compact">
+                <h2 data-i18n="section.agent">浠ｇ悊浜鸿缃</h2>
+              </div>
+              <button id="agent-settings-btn" class="ghost-btn edge-btn full-width" type="button" data-i18n="button.agentSettings">璁剧疆浠ｇ悊浜</button>
+              <div id="agent-profile-summary" class="agent-summary-plain"></div>
+
+              <div class="background-crowd-block">
+                <div class="background-crowd-head">
+                  <span class="label" data-i18n="label.backgroundCrowd">鑳屾櫙浜烘祦</span>
+                  <strong id="background-crowd-value">1500</strong>
+                </div>
+              <input id="background-crowd-slider" class="background-crowd-slider" type="range" min="100" max="3000" step="5" value="1500" />
+                <div class="background-crowd-marks" aria-hidden="true">
+                  <span>100</span>
+              <span id="background-crowd-peak-label">3000 路 楂樺嘲鏈</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel-section action-panel-section">
+              <button id="generate-crowd-btn" class="primary-btn edge-btn action-btn full-width" type="button" data-i18n="button.generateCrowd">鐢熸垚浜烘祦</button>
+              <button id="run-heatmap-btn" class="run-btn action-btn full-width" type="button" data-i18n="button.runHeatmap">杩愯鐑姏鍥</button>
+            </section>
+
+            <section class="panel-section compact-layer-panel">
+              <div class="section-head compact layer-panel-head">
+                <h2 class="layer-panel-title" data-i18n="layer.title">鐜璁炬柦</h2>
+              </div>
+              <div class="layer-category-grid" aria-label="Layer categories">
+                <button id="layer-category-flashing-ads" class="layer-category-btn" type="button" data-category="flashing-ads">flashing ads</button>
+                <button id="layer-category-static-ads" class="layer-category-btn" type="button" data-category="static-ads">Static ads</button>
+                <button id="layer-category-ai-virtual-service-ambassador" class="layer-category-btn" type="button" data-category="ai-virtual-service-ambassador">AI virtual service ambassador</button>
+                <button id="layer-category-common-direction-signs" class="layer-category-btn" type="button" data-category="common-direction-signs">Common direction Signs</button>
+                <button id="layer-category-customer-service-centre" class="layer-category-btn" type="button" data-category="customer-service-centre">Customer Service Centre</button>
+                <button id="layer-category-noise" class="layer-category-btn" type="button" data-category="noise">Noise</button>
+                <button id="layer-category-hanging-signs" class="layer-category-btn" type="button" data-category="hanging-signs">Hanging Signs</button>
+                <button id="layer-category-lcd" class="layer-category-btn" type="button" data-category="lcd">LCD</button>
+                <button id="layer-category-panoramic-guide-map" class="layer-category-btn" type="button" data-category="panoramic-guide-map">Panoramic guide map</button>
+                <button id="layer-category-seat" class="layer-category-btn" type="button" data-category="seat">Seat</button>
+              </div>
+            </section>
+          </div>
+        </aside>
+
+        <main class="panel viewport-panel">
+<div class="viewport-head">
+            <div class="viewport-title-group">
+              <h2 id="map-title">绌洪棿璇勪及瑙嗗浘</h2>
+              <div id="map-status" class="support-text"></div>
+            </div>
+            <div id="view-heat-legend" class="view-heat-legend" aria-live="polite"></div>
+            <div class="viewport-tools">
+              <label class="label viewport-select-label" for="view-mode-select">瑙嗗浘鍒囨崲</label>
+              <select id="view-mode-select" class="viewport-select"></select>
+              <button id="show-final-heatmap-btn" class="ghost-btn edge-btn viewport-tool-btn" type="button" data-i18n="button.showFinalHeatmap">显示最终热力图</button>
+            </div>
+            <span id="view-model-status" class="status-chip muted">鏈姞杞</span>
+          </div>
+          <div id="map-wrapper" class="map-wrapper">
+            <svg id="base-layer" class="map-layer" preserveAspectRatio="xMidYMid meet"></svg>
+            <canvas id="heatmap-layer" class="map-layer"></canvas>
+            <canvas id="background-crowd-canvas" class="map-layer background-crowd-canvas"></canvas>
+            <canvas id="dynamic-crowd-webgl-canvas" class="map-layer dynamic-crowd-webgl-canvas"></canvas>
+            <svg id="overlay-layer" class="map-layer interactive" preserveAspectRatio="xMidYMid meet"></svg>
+            <div id="point-popover" class="point-popover hidden">
+              <div id="point-popover-header" class="point-popover-header"></div>
+              <div id="point-popover-content" class="point-popover-content"></div>
+              <div class="point-popover-actions">
+                <button id="point-popover-confirm-btn" class="ghost-btn edge-btn" type="button" data-i18n="button.confirm">纭畾</button>
+                <button id="point-popover-reset-btn" class="ghost-btn edge-btn" type="button" data-i18n="button.reset">澶嶅師</button>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <aside class="panel inspector-panel">
+          <div class="panel-scroll inspector-scroll">
+            <section class="panel-section">
+              <div class="section-head compact">
+                <h2 data-i18n="panel.summary">场景摘要</h2>
+              </div>
+              <div id="run-summary" class="summary-grid"></div>
+            </section>
+
+            <section class="panel-section">
+              <div class="section-head compact">
+                <h2 data-i18n="panel.agentProfile">代理人属性</h2>
+              </div>
+              <div id="inspector-agent-summary" class="detail-card glass-card"></div>
+            </section>
+
+            <section class="panel-section">
+              <div class="section-head compact">
+                <h2 data-i18n="panel.object">对象属性</h2>
+              </div>
+              <div id="object-inspector" class="detail-card glass-card muted">点击节点、环境压力点或座位资源后，这里会显示对象属性。</div>
+            </section>
+
+            <section class="panel-section hotspots-section">
+              <div class="section-head compact">
+                <h2 data-i18n="panel.hotspots">问题点与建议</h2>
+              </div>
+              <div id="hotspots-list" class="stack-list"></div>
+            </section>
+
+            <section class="panel-section inspector-actions-section">
+              <button id="export-report-btn" class="ghost-btn edge-btn full-width report-export-btn" type="button" data-i18n="button.exportReport">导出报告</button>
+            </section>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div id="route-modal" class="modal-shell route-modal hidden">
+      <div class="modal-backdrop" data-modal-close="route"></div>
+      <div class="modal-panel route-modal-panel">
+        <div class="route-modal-sidebar">
+          <div id="route-modal-instruction" class="modal-instruction">璇烽€夋嫨璧风偣</div>
+          <div id="route-modal-start-display" class="detail-card glass-card compact-summary"></div>
+          <div id="route-region-list" class="route-region-list"></div>
+          <div class="modal-actions">
+            <button id="route-modal-clear-btn" class="ghost-btn edge-btn" type="button" data-i18n="button.clear">娓呴櫎</button>
+            <button id="route-modal-confirm-btn" class="run-btn" type="button" data-i18n="button.confirm">纭畾</button>
+          </div>
+        </div>
+        <div class="route-modal-map-stage">
+          <svg id="route-modal-map" class="route-modal-map" preserveAspectRatio="xMidYMid meet"></svg>
+        </div>
+      </div>
+    </div>
+
+    <div id="agent-modal" class="modal-shell agent-modal hidden">
+      <div class="modal-backdrop" data-modal-close="agent"></div>
+      <div class="modal-panel agent-modal-panel">
+        <div class="agent-modal-form agent-radar-panel">
+          <div class="section-head compact">
+            <h2 data-i18n="section.agent">浠ｇ悊浜鸿缃</h2>
+          </div>
+
+          <div class="control-group compact capacity-group">
+            <div class="capacity-group-head">
+              <div class="label capacity-group-title">浜旂淮鑳藉姏</div>
+              <div id="agent-radar-hint" class="support-text agent-radar-hint">拖动雷达图上的顶点，即可修改 1-5 分。</div>
+            </div>
+            <div id="agent-capacity-radar" class="agent-capacity-radar" role="img" aria-label="Five capacity radar editor"></div>
+            <div class="capacity-inputs-hidden" aria-hidden="true">
+              <input id="capacity-locomotor" type="range" min="1" max="5" step="1" value="3" />
+              <input id="capacity-sensory" type="range" min="1" max="5" step="1" value="3" />
+              <input id="capacity-cognitive" type="range" min="1" max="5" step="1" value="3" />
+              <input id="capacity-psychological" type="range" min="1" max="5" step="1" value="3" />
+              <input id="capacity-vitality" type="range" min="1" max="5" step="1" value="3" />
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button id="agent-modal-clear-btn" class="ghost-btn edge-btn" type="button" data-i18n="button.clear">娓呴櫎</button>
+            <button id="agent-modal-confirm-btn" class="run-btn" type="button" data-i18n="button.confirm">纭畾</button>
+          </div>
+        </div>
+
+        <div class="agent-behavior-panel">
+          <div class="section-head compact">
+            <h2 id="agent-behavior-title">琛屼负璇存槑</h2>
+          </div>
+          <div id="agent-behavior-panel" class="agent-behavior-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="report-modal" class="modal-shell report-modal hidden">
+      <div class="modal-backdrop" data-modal-close="report"></div>
+      <div class="modal-panel report-modal-panel">
+        <div class="section-head compact report-modal-head">
+          <h2 id="report-modal-title">预览报告</h2>
+        </div>
+        <div class="report-preview-stage">
+          <iframe id="report-preview-frame" class="report-preview-frame" title="Route diagnostic report preview"></iframe>
+        </div>
+        <div id="report-modal-status" class="support-text report-modal-status">运行热力图后可导出当前路线报告。</div>
+        <div class="modal-actions report-modal-actions">
+          <button id="report-modal-cancel-btn" class="ghost-btn edge-btn" type="button">取消</button>
+          <button id="report-modal-export-btn" class="run-btn" type="button">确认导出</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="./data/healthy-agents.js"></script>
+    <script src="./data/unified-rules.js"></script>
+    <script src="./src/core.js"></script>
+    <script src="./src/inspector-utils.js"></script>
+    <script src="./src/app.js?v=20260423-packedfix1"></script>
+  </body>
+</html>
+
+
+
+

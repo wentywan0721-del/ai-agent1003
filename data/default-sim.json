@@ -1,0 +1,3527 @@
+{
+  "meta": {
+    "sourceFile": "test.3dm",
+    "units": "Meters",
+    "floorId": "test",
+    "exportedAt": "2026-03-08T18:15:55.191141+00:00"
+  },
+  "walkableAreas": [
+    [
+      [
+        -2.1,
+        3.0
+      ],
+      [
+        -2.1,
+        25.164
+      ],
+      [
+        13.9,
+        25.164
+      ],
+      [
+        13.9,
+        29.164
+      ],
+      [
+        12.4,
+        29.164
+      ],
+      [
+        12.4,
+        36.164
+      ],
+      [
+        17.0,
+        36.164
+      ],
+      [
+        17.0,
+        41.164
+      ],
+      [
+        -2.1,
+        41.164
+      ],
+      [
+        -2.1,
+        44.164
+      ],
+      [
+        17.0,
+        44.164
+      ],
+      [
+        17.0,
+        55.4
+      ],
+      [
+        32.9,
+        55.4
+      ],
+      [
+        32.9,
+        22.164
+      ],
+      [
+        37.9,
+        22.164
+      ],
+      [
+        37.9,
+        27.164
+      ],
+      [
+        44.4,
+        27.164
+      ],
+      [
+        44.4,
+        22.164
+      ],
+      [
+        54.4,
+        22.164
+      ],
+      [
+        136.203,
+        56.887
+      ],
+      [
+        139.016,
+        50.259
+      ],
+      [
+        136.254,
+        49.087
+      ],
+      [
+        138.599,
+        43.564
+      ],
+      [
+        126.172,
+        38.289
+      ],
+      [
+        126.641,
+        37.184
+      ],
+      [
+        79.426,
+        17.143
+      ],
+      [
+        79.426,
+        9.493
+      ],
+      [
+        91.587,
+        9.493
+      ],
+      [
+        91.587,
+        13.993
+      ],
+      [
+        103.087,
+        13.993
+      ],
+      [
+        103.087,
+        6.0
+      ],
+      [
+        116.0,
+        6.0
+      ],
+      [
+        116.0,
+        3.0
+      ]
+    ]
+  ],
+  "obstacles": [
+    [
+      [
+        124.531,
+        42.155
+      ],
+      [
+        123.827,
+        43.812
+      ],
+      [
+        129.351,
+        46.157
+      ],
+      [
+        130.054,
+        44.5
+      ]
+    ],
+    [
+      [
+        112.104,
+        36.88
+      ],
+      [
+        111.401,
+        38.537
+      ],
+      [
+        116.924,
+        40.882
+      ],
+      [
+        117.627,
+        39.225
+      ]
+    ],
+    [
+      [
+        99.677,
+        31.605
+      ],
+      [
+        98.974,
+        33.262
+      ],
+      [
+        104.497,
+        35.607
+      ],
+      [
+        105.2,
+        33.95
+      ]
+    ],
+    [
+      [
+        87.25,
+        26.331
+      ],
+      [
+        86.547,
+        27.988
+      ],
+      [
+        92.07,
+        30.332
+      ],
+      [
+        92.773,
+        28.675
+      ]
+    ],
+    [
+      [
+        74.12,
+        22.713
+      ],
+      [
+        79.643,
+        25.057
+      ],
+      [
+        80.347,
+        23.4
+      ],
+      [
+        74.824,
+        21.056
+      ]
+    ],
+    [
+      [
+        64.142,
+        11.08
+      ],
+      [
+        65.142,
+        11.08
+      ],
+      [
+        71.142,
+        13.626
+      ],
+      [
+        71.142,
+        6.0
+      ],
+      [
+        64.142,
+        6.0
+      ]
+    ],
+    [
+      [
+        5.9,
+        16.496
+      ],
+      [
+        13.9,
+        16.496
+      ],
+      [
+        13.9,
+        9.302
+      ],
+      [
+        5.9,
+        9.302
+      ]
+    ]
+  ],
+  "nodes": [
+    {
+      "id": "train_door5",
+      "label": "train_door5",
+      "kind": "platform",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 9.71,
+      "y": 3.0,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "train_door5"
+      }
+    },
+    {
+      "id": "train_door4",
+      "label": "train_door4",
+      "kind": "platform",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 33.33,
+      "y": 3.0,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "train_door4"
+      }
+    },
+    {
+      "id": "train_door3",
+      "label": "train_door3",
+      "kind": "platform",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 56.95,
+      "y": 3.0,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "train_door3"
+      }
+    },
+    {
+      "id": "train_door2",
+      "label": "train_door2",
+      "kind": "platform",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 80.57,
+      "y": 3.0,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "train_door2"
+      }
+    },
+    {
+      "id": "train_door1",
+      "label": "train_door1",
+      "kind": "platform",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 104.19,
+      "y": 3.0,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "train_door1"
+      }
+    },
+    {
+      "id": "es_down_6_top",
+      "label": "es_down_6_top",
+      "kind": "escalator",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 123.259,
+      "y": 42.593,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "es_down_6_top"
+      }
+    },
+    {
+      "id": "stair_2_top",
+      "label": "stair_2_top",
+      "kind": "stair",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 5.9,
+      "y": 12.039,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "stair_2_top"
+      }
+    },
+    {
+      "id": "es_up_2_top",
+      "label": "es_up_2_top",
+      "kind": "escalator",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 5.9,
+      "y": 13.788,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "es_up_2_top"
+      }
+    },
+    {
+      "id": "es_down_4_top",
+      "label": "es_down_4_top",
+      "kind": "escalator",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 14.9,
+      "y": 10.052,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "es_down_4_top"
+      }
+    },
+    {
+      "id": "es_up_4_top",
+      "label": "es_up_4_top",
+      "kind": "escalator",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 14.9,
+      "y": 15.746,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "es_up_4_top"
+      }
+    },
+    {
+      "id": "gate_out_1",
+      "label": "gate_out_1",
+      "kind": "gate",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 12.4,
+      "y": 30.914,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "gate_out_1"
+      }
+    },
+    {
+      "id": "gate_in_1",
+      "label": "gate_in_1",
+      "kind": "gate",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 12.4,
+      "y": 34.414,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "gate_in_1"
+      }
+    },
+    {
+      "id": "es_up_1_top",
+      "label": "es_up_1_top",
+      "kind": "escalator",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 64.142,
+      "y": 8.25,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "es_up_1_top"
+      }
+    },
+    {
+      "id": "es_down_1_top",
+      "label": "es_down_1_top",
+      "kind": "escalator",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 64.142,
+      "y": 6.75,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "es_down_1_top"
+      }
+    },
+    {
+      "id": "elev_3",
+      "label": "elev_3",
+      "kind": "elevator",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 55.444,
+      "y": 13.748,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "elev_3"
+      }
+    },
+    {
+      "id": "es_up_5_top",
+      "label": "es_up_5_top",
+      "kind": "escalator",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 73.551,
+      "y": 21.493,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "es_up_5_top"
+      }
+    },
+    {
+      "id": "es_up_6_top",
+      "label": "es_up_6_top",
+      "kind": "escalator",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 85.978,
+      "y": 26.768,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "es_up_6_top"
+      }
+    },
+    {
+      "id": "es_down_5_top",
+      "label": "es_down_5_top",
+      "kind": "escalator",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 98.405,
+      "y": 32.043,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "es_down_5_top"
+      }
+    },
+    {
+      "id": "es_up_7_top",
+      "label": "es_up_7_top",
+      "kind": "escalator",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 110.832,
+      "y": 37.318,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "es_up_7_top"
+      }
+    },
+    {
+      "id": "gate_out_2",
+      "label": "gate_out_2",
+      "kind": "gate",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 126.406,
+      "y": 37.737,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "gate_out_2"
+      }
+    },
+    {
+      "id": "gate_in_2",
+      "label": "gate_in_2",
+      "kind": "gate",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 137.609,
+      "y": 53.573,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "gate_in_2"
+      }
+    },
+    {
+      "id": "es_up_8_top",
+      "label": "es_up_8_top",
+      "kind": "escalator",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 135.685,
+      "y": 47.868,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "es_up_8_top"
+      }
+    },
+    {
+      "id": "gate_out_3",
+      "label": "gate_out_3",
+      "kind": "gate",
+      "selectableAsStart": true,
+      "selectableAsEnd": true,
+      "x": 137.778,
+      "y": 45.497,
+      "z": 10.5,
+      "sourceLayer": "NODE",
+      "attributes": {
+        "name": "gate_out_3"
+      }
+    }
+  ],
+  "pressureObjects": [
+    {
+      "id": "Ground advertising",
+      "name": "Ground advertising",
+      "feature": "Slowing down movement to capture information",
+      "x": 41.15,
+      "y": 18.5,
+      "z": 10.5,
+      "category": "advert",
+      "strength": 0.65,
+      "range": 2.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 1.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "feature": "Slowing down movement to capture information",
+        "name": "Ground advertising"
+      }
+    },
+    {
+      "id": "Ground advertising",
+      "name": "Ground advertising",
+      "feature": "Slowing down movement to capture information",
+      "x": 84.838,
+      "y": 22.417,
+      "z": 10.5,
+      "category": "advert",
+      "strength": 0.65,
+      "range": 2.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 1.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Ground advertising",
+        "feature": "Slowing down movement to capture information"
+      }
+    },
+    {
+      "id": "Ground advertising",
+      "name": "Ground advertising",
+      "feature": "Slowing down movement to capture information",
+      "x": 109.692,
+      "y": 32.966,
+      "z": 10.5,
+      "category": "advert",
+      "strength": 0.65,
+      "range": 2.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 1.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Ground advertising",
+        "feature": "Slowing down movement to capture information"
+      }
+    },
+    {
+      "id": "Ground ATM signage",
+      "name": "Ground ATM signage",
+      "feature": "Cantonese and English text may confuse mainland tourists",
+      "x": 24.95,
+      "y": 46.253,
+      "z": 10.5,
+      "category": "signage",
+      "strength": 0.6,
+      "range": 2.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 1.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "feature": "Cantonese and English text may confuse mainland tourists",
+        "name": "Ground ATM signage"
+      }
+    },
+    {
+      "id": "Ground advertising",
+      "name": "Ground advertising",
+      "feature": "Slowing down movement to capture information",
+      "x": 25.034,
+      "y": 44.164,
+      "z": 10.5,
+      "category": "advert",
+      "strength": 0.65,
+      "range": 2.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 1.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Ground advertising",
+        "feature": "Slowing down movement to capture information"
+      }
+    },
+    {
+      "id": "End point of tactile paving",
+      "name": "End point of tactile paving",
+      "feature": "Blind elderly people may be confused",
+      "x": 53.444,
+      "y": 18.551,
+      "z": 10.621,
+      "category": "decision",
+      "strength": 0.6,
+      "range": 2.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.8,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "End point of tactile paving",
+        "feature": "Blind elderly people may be confused"
+      }
+    },
+    {
+      "id": "Noise from wall advertisements",
+      "name": "Noise from wall advertisements",
+      "feature": "80 decibels; train noise drowns out the broadcast",
+      "x": 68.142,
+      "y": 12.353,
+      "z": 10.5,
+      "category": "noise",
+      "strength": 1.0,
+      "range": 6.0,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 1.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 80.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Noise from wall advertisements",
+        "feature": "80 decibels; train noise drowns out the broadcast"
+      }
+    },
+    {
+      "id": "escalator entrance",
+      "name": "escalator entrance",
+      "feature": "Noise level 74 decibels, noisy",
+      "x": 72.999,
+      "y": 21.259,
+      "z": 10.5,
+      "category": "noise_congestion",
+      "strength": 0.75,
+      "range": 4.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.7,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 74.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "escalator entrance",
+        "feature": "Noise level 74 decibels, noisy"
+      }
+    },
+    {
+      "id": "Escalator entrance",
+      "name": "Escalator entrance",
+      "feature": "Noise level 74 decibels, noisy",
+      "x": 85.426,
+      "y": 26.534,
+      "z": 10.5,
+      "category": "noise_congestion",
+      "strength": 0.75,
+      "range": 4.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.7,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 74.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Escalator entrance",
+        "feature": "Noise level 74 decibels, noisy"
+      }
+    },
+    {
+      "id": "Escalator Entrance",
+      "name": "Escalator Entrance",
+      "feature": "Noise level 74 decibels, noisy",
+      "x": 97.853,
+      "y": 31.809,
+      "z": 10.5,
+      "category": "noise_congestion",
+      "strength": 0.75,
+      "range": 4.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.7,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 74.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Escalator Entrance",
+        "feature": "Noise level 74 decibels, noisy"
+      }
+    },
+    {
+      "id": "Escalator Entrance",
+      "name": "Escalator Entrance",
+      "feature": "Noise level 74 decibels, noisy",
+      "x": 110.28,
+      "y": 37.084,
+      "z": 10.5,
+      "category": "noise_congestion",
+      "strength": 0.75,
+      "range": 4.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.7,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 74.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Escalator Entrance",
+        "feature": "Noise level 74 decibels, noisy"
+      }
+    },
+    {
+      "id": "Escalator Entrance",
+      "name": "Escalator Entrance",
+      "feature": "Noise level 74 decibels, noisy",
+      "x": 122.706,
+      "y": 42.358,
+      "z": 10.5,
+      "category": "noise_congestion",
+      "strength": 0.75,
+      "range": 4.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.7,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 74.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Escalator Entrance",
+        "feature": "Noise level 74 decibels, noisy"
+      }
+    },
+    {
+      "id": "Escalator Entrance",
+      "name": "Escalator Entrance",
+      "feature": "Noise level 74 decibels, noisy",
+      "x": 135.133,
+      "y": 47.633,
+      "z": 10.5,
+      "category": "noise_congestion",
+      "strength": 0.75,
+      "range": 4.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.7,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 74.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Escalator Entrance",
+        "feature": "Noise level 74 decibels, noisy"
+      }
+    },
+    {
+      "id": "Escalator Entrance",
+      "name": "Escalator Entrance",
+      "feature": "Noise level 74 decibels, noisy",
+      "x": 43.65,
+      "y": 25.564,
+      "z": 10.5,
+      "category": "noise_congestion",
+      "strength": 0.75,
+      "range": 4.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.7,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 74.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Escalator Entrance",
+        "feature": "Noise level 74 decibels, noisy"
+      }
+    },
+    {
+      "id": "Escalator Entrance",
+      "name": "Escalator Entrance",
+      "feature": "Noise level 74 decibels, noisy",
+      "x": 41.15,
+      "y": 25.564,
+      "z": 10.5,
+      "category": "noise_congestion",
+      "strength": 0.75,
+      "range": 4.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.7,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 74.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Escalator Entrance",
+        "feature": "Noise level 74 decibels, noisy"
+      }
+    },
+    {
+      "id": "Escalator Entrance",
+      "name": "Escalator Entrance",
+      "feature": "Noise level 74 decibels, noisy",
+      "x": 38.65,
+      "y": 25.564,
+      "z": 10.5,
+      "category": "noise_congestion",
+      "strength": 0.75,
+      "range": 4.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.7,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 74.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Escalator Entrance",
+        "feature": "Noise level 74 decibels, noisy"
+      }
+    },
+    {
+      "id": "Escalator Entrance",
+      "name": "Escalator Entrance",
+      "feature": "Noise level 74 decibels, noisy",
+      "x": 15.5,
+      "y": 15.746,
+      "z": 10.5,
+      "category": "noise_congestion",
+      "strength": 0.75,
+      "range": 4.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.7,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 74.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Escalator Entrance",
+        "feature": "Noise level 74 decibels, noisy"
+      }
+    },
+    {
+      "id": "Escalator Entrance",
+      "name": "Escalator Entrance",
+      "feature": "Noise level 74 decibels, noisy",
+      "x": 102.337,
+      "y": 12.393,
+      "z": 10.5,
+      "category": "noise_congestion",
+      "strength": 0.75,
+      "range": 4.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.7,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 74.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Escalator Entrance",
+        "feature": "Noise level 74 decibels, noisy"
+      }
+    },
+    {
+      "id": "Escalator Entrance",
+      "name": "Escalator Entrance",
+      "feature": "Noise level 74 decibels, noisy",
+      "x": 99.837,
+      "y": 12.393,
+      "z": 10.5,
+      "category": "noise_congestion",
+      "strength": 0.75,
+      "range": 4.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.7,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 74.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Escalator Entrance",
+        "feature": "Noise level 74 decibels, noisy"
+      }
+    },
+    {
+      "id": "Escalator Entrance",
+      "name": "Escalator Entrance",
+      "feature": "Noise level 74 decibels, noisy",
+      "x": 97.337,
+      "y": 12.393,
+      "z": 10.5,
+      "category": "noise_congestion",
+      "strength": 0.75,
+      "range": 4.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.7,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 74.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Escalator Entrance",
+        "feature": "Noise level 74 decibels, noisy"
+      }
+    },
+    {
+      "id": "Escalator Entrance",
+      "name": "Escalator Entrance",
+      "feature": "Noise level 74 decibels, noisy",
+      "x": 94.837,
+      "y": 12.393,
+      "z": 10.5,
+      "category": "noise_congestion",
+      "strength": 0.75,
+      "range": 4.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.7,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 74.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Escalator Entrance",
+        "feature": "Noise level 74 decibels, noisy"
+      }
+    },
+    {
+      "id": "Escalator Entrance",
+      "name": "Escalator Entrance",
+      "feature": "Noise level 74 decibels, noisy",
+      "x": 92.337,
+      "y": 12.393,
+      "z": 10.5,
+      "category": "noise_congestion",
+      "strength": 0.75,
+      "range": 4.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.7,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 74.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Escalator Entrance",
+        "feature": "Noise level 74 decibels, noisy"
+      }
+    },
+    {
+      "id": "Escalator Entrance",
+      "name": "Escalator Entrance",
+      "feature": "Noise level 74 decibels, noisy",
+      "x": 63.542,
+      "y": 7.5,
+      "z": 10.5,
+      "category": "noise_congestion",
+      "strength": 0.75,
+      "range": 4.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.7,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 74.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Escalator Entrance",
+        "feature": "Noise level 74 decibels, noisy"
+      }
+    },
+    {
+      "id": "Customer Service Centre",
+      "name": "Customer Service Centre",
+      "feature": "",
+      "x": 13.678,
+      "y": 38.664,
+      "z": 10.5,
+      "category": "facility",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "facility",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 1.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Customer Service Centre"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 17.142,
+      "y": 9.08,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 27.142,
+      "y": 9.08,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 37.142,
+      "y": 9.08,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 47.142,
+      "y": 9.08,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "LCD",
+      "name": "LCD",
+      "feature": "providing train arrival information at the platform",
+      "x": 85.456,
+      "y": 4.132,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "LCD",
+        "feature": "providing train arrival information at the platform"
+      }
+    },
+    {
+      "id": "LCD",
+      "name": "LCD",
+      "feature": "providing train arrival information at the platform",
+      "x": 105.449,
+      "y": 3.629,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "LCD",
+        "feature": "providing train arrival information at the platform"
+      }
+    },
+    {
+      "id": "LCD",
+      "name": "LCD",
+      "feature": "providing train arrival information at the platform",
+      "x": 5.481,
+      "y": 6.145,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "LCD",
+        "feature": "providing train arrival information at the platform"
+      }
+    },
+    {
+      "id": "LCD",
+      "name": "LCD",
+      "feature": "providing train arrival information at the platform",
+      "x": 25.475,
+      "y": 5.642,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "LCD",
+        "feature": "providing train arrival information at the platform"
+      }
+    },
+    {
+      "id": "LCD",
+      "name": "LCD",
+      "feature": "providing train arrival information at the platform",
+      "x": 45.468,
+      "y": 5.138,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "LCD",
+        "feature": "providing train arrival information at the platform"
+      }
+    },
+    {
+      "id": "LCD",
+      "name": "LCD",
+      "feature": "providing train arrival information at the platform",
+      "x": 65.462,
+      "y": 4.635,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "LCD",
+        "feature": "providing train arrival information at the platform"
+      }
+    },
+    {
+      "id": "LCD",
+      "name": "LCD",
+      "feature": "providing train arrival information at the platform",
+      "x": 85.456,
+      "y": 4.132,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "LCD",
+        "feature": "providing train arrival information at the platform"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 24.9,
+      "y": 38.164,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 5.9,
+      "y": 15.746,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": -2.1,
+      "y": 15.746,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 22.0,
+      "y": 53.4,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 29.9,
+      "y": 33.164,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 24.9,
+      "y": 28.164,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 13.9,
+      "y": 19.746,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 13.9,
+      "y": 15.746,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 27.9,
+      "y": 14.914,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 41.142,
+      "y": 19.914,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 41.142,
+      "y": 14.914,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 57.142,
+      "y": 9.08,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 59.142,
+      "y": 9.08,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 61.642,
+      "y": 11.08,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 71.142,
+      "y": 7.0,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 86.587,
+      "y": 7.93,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 77.905,
+      "y": 7.93,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 96.587,
+      "y": 7.93,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 74.824,
+      "y": 15.189,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 75.644,
+      "y": 19.123,
+      "z": 13.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 117.527,
+      "y": 36.901,
+      "z": 13.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 130.219,
+      "y": 54.347,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 136.606,
+      "y": 48.259,
+      "z": 13.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 69.518,
+      "y": 20.759,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 64.915,
+      "y": 18.805,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 74.472,
+      "y": 21.884,
+      "z": 13.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 86.899,
+      "y": 27.159,
+      "z": 13.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 99.326,
+      "y": 32.434,
+      "z": 13.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 111.752,
+      "y": 37.709,
+      "z": 13.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 124.179,
+      "y": 42.984,
+      "z": 13.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 79.592,
+      "y": 32.857,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Hanging Signs",
+      "name": "Hanging Signs",
+      "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities",
+      "x": 102.604,
+      "y": 42.625,
+      "z": 13.5,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Hanging Signs",
+        "feature": "Provide high-visibility guidance in the form of icons, including exits, metro lines, escalators, straight ladders and other facilities"
+      }
+    },
+    {
+      "id": "Help line",
+      "name": "Help line",
+      "feature": "Contact the subway customer services when needed",
+      "x": 112.782,
+      "y": 29.346,
+      "z": 11.5,
+      "category": "facility",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "facility",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 1.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Help line",
+        "feature": "Contact the subway customer services when needed"
+      }
+    },
+    {
+      "id": "AED",
+      "name": "AED",
+      "feature": "Automated External Defibrillator",
+      "x": 49.334,
+      "y": 13.477,
+      "z": 10.5,
+      "category": "facility",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "facility",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 1.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "AED",
+        "feature": "Automated External Defibrillator"
+      }
+    },
+    {
+      "id": "Toilet",
+      "name": "Toilet",
+      "feature": "",
+      "x": 29.197,
+      "y": 55.4,
+      "z": 10.5,
+      "category": "facility",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "facility",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 1.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Toilet"
+      }
+    },
+    {
+      "id": "Customer Service Centre",
+      "name": "Customer Service Centre",
+      "feature": "",
+      "x": 54.547,
+      "y": 9.203,
+      "z": 10.5,
+      "category": "facility",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "facility",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 1.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Customer Service Centre"
+      }
+    },
+    {
+      "id": "Book Drop",
+      "name": "Book Drop",
+      "feature": "For returning library materials borrowed from public library",
+      "x": 92.422,
+      "y": 29.503,
+      "z": 10.5,
+      "category": "facility",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "facility",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 1.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Book Drop",
+        "feature": "For returning library materials borrowed from public library"
+      }
+    },
+    {
+      "id": "Newspaper box",
+      "name": "Newspaper box",
+      "feature": "Purchase or pick up newspapers",
+      "x": 91.23,
+      "y": 29.975,
+      "z": 10.5,
+      "category": "facility",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "facility",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 1.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Newspaper box",
+        "feature": "Purchase or pick up newspapers"
+      }
+    },
+    {
+      "id": "Book Drop",
+      "name": "Book Drop",
+      "feature": "For returning library materials borrowed from public library",
+      "x": 117.275,
+      "y": 40.053,
+      "z": 10.5,
+      "category": "facility",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "facility",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 1.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Book Drop",
+        "feature": "For returning library materials borrowed from public library"
+      }
+    },
+    {
+      "id": "Book Drop",
+      "name": "Book Drop",
+      "feature": "For returning library materials borrowed from public library",
+      "x": 25.966,
+      "y": 51.087,
+      "z": 10.5,
+      "category": "facility",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "facility",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 1.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Book Drop",
+        "feature": "For returning library materials borrowed from public library"
+      }
+    },
+    {
+      "id": "Book Drop",
+      "name": "Book Drop",
+      "feature": "For returning library materials borrowed from public library",
+      "x": 25.131,
+      "y": 51.087,
+      "z": 10.5,
+      "category": "facility",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "facility",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 1.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Book Drop",
+        "feature": "For returning library materials borrowed from public library"
+      }
+    },
+    {
+      "id": "Panoramic guide map",
+      "name": "Panoramic guide map",
+      "feature": "Provide detailed directional guidance with maps",
+      "x": 63.605,
+      "y": 26.071,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Panoramic guide map",
+        "feature": "Provide detailed directional guidance with maps",
+        "height": "1.5-2m"
+      }
+    },
+    {
+      "id": "Panoramic guide map",
+      "name": "Panoramic guide map",
+      "feature": "Provide detailed directional guidance with maps",
+      "x": 128.43,
+      "y": 45.766,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Panoramic guide map",
+        "feature": "Provide detailed directional guidance with maps",
+        "height": "1.5-2m"
+      }
+    },
+    {
+      "id": "Common direction Signs",
+      "name": "Common direction Signs",
+      "feature": "signs provide quick and brief information about destinations and directions",
+      "x": 125.617,
+      "y": 52.393,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Common direction Signs",
+        "feature": "signs provide quick and brief information about destinations and directions",
+        "height": "1.5-1.8m"
+      }
+    },
+    {
+      "id": "Common direction Signs",
+      "name": "Common direction Signs",
+      "feature": "signs provide quick and brief information about destinations and directions",
+      "x": 131.947,
+      "y": 37.481,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Common direction Signs",
+        "feature": "signs provide quick and brief information about destinations and directions",
+        "height": "1.5-1.8m"
+      }
+    },
+    {
+      "id": "Common direction Signs",
+      "name": "Common direction Signs",
+      "feature": "signs provide quick and brief information about destinations and directions",
+      "x": 108.934,
+      "y": 27.713,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Common direction Signs",
+        "feature": "signs provide quick and brief information about destinations and directions",
+        "height": "1.5-1.8m"
+      }
+    },
+    {
+      "id": "Common direction Signs",
+      "name": "Common direction Signs",
+      "feature": "signs provide quick and brief information about destinations and directions",
+      "x": 102.604,
+      "y": 42.625,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Common direction Signs",
+        "feature": "signs provide quick and brief information about destinations and directions",
+        "height": "1.5-1.8m"
+      }
+    },
+    {
+      "id": "Common direction Signs",
+      "name": "Common direction Signs",
+      "feature": "signs provide quick and brief information about destinations and directions",
+      "x": 79.592,
+      "y": 32.857,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Common direction Signs",
+        "feature": "signs provide quick and brief information about destinations and directions",
+        "height": "1.5-1.8m"
+      }
+    },
+    {
+      "id": "Common direction Signs",
+      "name": "Common direction Signs",
+      "feature": "signs provide quick and brief information about destinations and directions",
+      "x": 74.824,
+      "y": 15.189,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Common direction Signs",
+        "feature": "signs provide quick and brief information about destinations and directions",
+        "height": "1.5-1.8m"
+      }
+    },
+    {
+      "id": "Panoramic guide map",
+      "name": "Panoramic guide map",
+      "feature": "Provide detailed directional guidance with maps",
+      "x": 103.087,
+      "y": 8.0,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Panoramic guide map",
+        "feature": "Provide detailed directional guidance with maps",
+        "height": "1.5-2m"
+      }
+    },
+    {
+      "id": "Panoramic guide map",
+      "name": "Panoramic guide map",
+      "feature": "Provide detailed directional guidance with maps",
+      "x": 77.905,
+      "y": 7.93,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Panoramic guide map",
+        "feature": "Provide detailed directional guidance with maps",
+        "height": "1.5-2m"
+      }
+    },
+    {
+      "id": "Panoramic guide map",
+      "name": "Panoramic guide map",
+      "feature": "Provide detailed directional guidance with maps",
+      "x": 86.587,
+      "y": 7.93,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Panoramic guide map",
+        "feature": "Provide detailed directional guidance with maps",
+        "height": "1.5-2m"
+      }
+    },
+    {
+      "id": "Common direction Signs",
+      "name": "Common direction Signs",
+      "feature": "signs provide quick and brief information about destinations and directions",
+      "x": 59.142,
+      "y": 11.08,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Common direction Signs",
+        "feature": "signs provide quick and brief information about destinations and directions",
+        "height": "1.5-1.8m"
+      }
+    },
+    {
+      "id": "Common direction Signs",
+      "name": "Common direction Signs",
+      "feature": "signs provide quick and brief information about destinations and directions",
+      "x": 36.9,
+      "y": 22.164,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Common direction Signs",
+        "feature": "signs provide quick and brief information about destinations and directions",
+        "height": "1.5-1.8m"
+      }
+    },
+    {
+      "id": "Common direction Signs",
+      "name": "Common direction Signs",
+      "feature": "signs provide quick and brief information about destinations and directions",
+      "x": 45.4,
+      "y": 22.164,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Common direction Signs",
+        "feature": "signs provide quick and brief information about destinations and directions",
+        "height": "1.5-1.8m"
+      }
+    },
+    {
+      "id": "Common direction Signs",
+      "name": "Common direction Signs",
+      "feature": "signs provide quick and brief information about destinations and directions",
+      "x": 17.0,
+      "y": 25.164,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Common direction Signs",
+        "feature": "signs provide quick and brief information about destinations and directions",
+        "height": "1.5-1.8m"
+      }
+    },
+    {
+      "id": "Common direction Signs",
+      "name": "Common direction Signs",
+      "feature": "signs provide quick and brief information about destinations and directions",
+      "x": 22.0,
+      "y": 38.664,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Common direction Signs",
+        "feature": "signs provide quick and brief information about destinations and directions",
+        "height": "1.5-1.8m"
+      }
+    },
+    {
+      "id": "Panoramic guide map",
+      "name": "Panoramic guide map",
+      "feature": "Provide detailed directional guidance with maps",
+      "x": 32.9,
+      "y": 32.546,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Panoramic guide map",
+        "feature": "Provide detailed directional guidance with maps",
+        "height": "1.5-2m"
+      }
+    },
+    {
+      "id": "Common direction Signs",
+      "name": "Common direction Signs",
+      "feature": "signs provide quick and brief information about destinations and directions",
+      "x": 22.0,
+      "y": 29.164,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Common direction Signs",
+        "feature": "signs provide quick and brief information about destinations and directions",
+        "height": "1.5-1.8m"
+      }
+    },
+    {
+      "id": "Panoramic guide map",
+      "name": "Panoramic guide map",
+      "feature": "Provide detailed directional guidance with maps",
+      "x": 27.9,
+      "y": 38.664,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Panoramic guide map",
+        "feature": "Provide detailed directional guidance with maps",
+        "height": "1.5-2m"
+      }
+    },
+    {
+      "id": "AI virtual service ambassador",
+      "name": "AI virtual service ambassador",
+      "feature": "Unable to capture the conversation precisely or even without being able to tap the screen to get the established options",
+      "x": 32.9,
+      "y": 31.046,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "AI virtual service ambassador",
+        "feature": "Unable to capture the conversation precisely or even without being able to tap the screen to get the established options"
+      }
+    },
+    {
+      "id": "Common direction Signs",
+      "name": "Common direction Signs",
+      "feature": "signs provide quick and brief information about destinations and directions",
+      "x": 22.0,
+      "y": 36.164,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Common direction Signs",
+        "feature": "signs provide quick and brief information about destinations and directions",
+        "height": "1.5-1.8m"
+      }
+    },
+    {
+      "id": "Common direction Signs",
+      "name": "Common direction Signs",
+      "feature": "signs provide quick and brief information about destinations and directions",
+      "x": 22.0,
+      "y": 46.164,
+      "z": 12.0,
+      "category": "unknown",
+      "strength": 0.0,
+      "range": 0.0,
+      "activeForSimulation": false,
+      "simRole": "neutral",
+      "metrics": {
+        "advert": 0.0,
+        "lighting": 0.0,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 0.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "Common direction Signs",
+        "feature": "signs provide quick and brief information about destinations and directions",
+        "height": "1.5-1.8m"
+      }
+    },
+    {
+      "id": "advertisement",
+      "name": "advertisement",
+      "feature": "370lux",
+      "x": 32.9,
+      "y": 51.164,
+      "z": 12.0,
+      "category": "advert",
+      "strength": 0.65,
+      "range": 2.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 1.0,
+        "lighting": 0.529,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 370.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "advertisement",
+        "feature": "370lux"
+      }
+    },
+    {
+      "id": "advertisement",
+      "name": "advertisement",
+      "feature": "540lux",
+      "x": 22.0,
+      "y": 49.164,
+      "z": 12.0,
+      "category": "advert",
+      "strength": 0.65,
+      "range": 2.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 1.0,
+        "lighting": 0.771,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 540.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "advertisement",
+        "feature": "540lux"
+      }
+    },
+    {
+      "id": "advertisement",
+      "name": "advertisement",
+      "feature": "210lux",
+      "x": 17.0,
+      "y": 46.164,
+      "z": 12.0,
+      "category": "advert",
+      "strength": 0.65,
+      "range": 2.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 1.0,
+        "lighting": 0.3,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 210.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "advertisement",
+        "feature": "210lux"
+      }
+    },
+    {
+      "id": "advertisement",
+      "name": "advertisement",
+      "feature": "1060lux",
+      "x": 76.83,
+      "y": 31.685,
+      "z": 12.0,
+      "category": "advert",
+      "strength": 0.65,
+      "range": 2.5,
+      "activeForSimulation": true,
+      "simRole": "pressure",
+      "metrics": {
+        "advert": 1.0,
+        "lighting": 1.5,
+        "noise": 0.0,
+        "signage": 0.0,
+        "amenity": 0.0
+      },
+      "lux": 1060.0,
+      "decibel": 0.0,
+      "sourceLayer": "PRESSURE",
+      "attributes": {
+        "name": "advertisement",
+        "feature": "1060lux"
+      }
+    }
+  ],
+  "seats": [
+    {
+      "id": "Seat",
+      "label": "Seat",
+      "x": 57.652,
+      "y": 12.914,
+      "z": 10.52,
+      "seatCount": 2,
+      "reliefStrength": 0.6,
+      "reliefRange": 2.5,
+      "sourceLayer": "SEAT",
+      "attributes": {
+        "name": "Seat",
+        "feature": "Two-seater bench"
+      }
+    },
+    {
+      "id": "Seat",
+      "label": "Seat",
+      "x": 55.694,
+      "y": 10.6,
+      "z": 10.52,
+      "seatCount": 2,
+      "reliefStrength": 0.6,
+      "reliefRange": 2.5,
+      "sourceLayer": "SEAT",
+      "attributes": {
+        "name": "Seat",
+        "feature": "Two-seater bench"
+      }
+    },
+    {
+      "id": "Seat",
+      "label": "Seat",
+      "x": 55.694,
+      "y": 9.06,
+      "z": 10.52,
+      "seatCount": 2,
+      "reliefStrength": 0.6,
+      "reliefRange": 2.5,
+      "sourceLayer": "SEAT",
+      "attributes": {
+        "name": "Seat",
+        "feature": "Two-seater bench"
+      }
+    },
+    {
+      "id": "Seat",
+      "label": "Seat",
+      "x": 18.012,
+      "y": 12.914,
+      "z": 10.52,
+      "seatCount": 2,
+      "reliefStrength": 0.6,
+      "reliefRange": 2.5,
+      "sourceLayer": "SEAT",
+      "attributes": {
+        "name": "Seat",
+        "feature": "Two-seater bench"
+      }
+    },
+    {
+      "id": "Seat",
+      "label": "Seat",
+      "x": 34.012,
+      "y": 12.914,
+      "z": 10.52,
+      "seatCount": 2,
+      "reliefStrength": 0.6,
+      "reliefRange": 2.5,
+      "sourceLayer": "SEAT",
+      "attributes": {
+        "name": "Seat",
+        "feature": "Two-seater bench"
+      }
+    },
+    {
+      "id": "Seat",
+      "label": "Seat",
+      "x": 27.001,
+      "y": 12.914,
+      "z": 10.52,
+      "seatCount": 2,
+      "reliefStrength": 0.6,
+      "reliefRange": 2.5,
+      "sourceLayer": "SEAT",
+      "attributes": {
+        "name": "Seat",
+        "feature": "Two-seater bench"
+      }
+    },
+    {
+      "id": "Seat",
+      "label": "Seat",
+      "x": 27.501,
+      "y": 12.914,
+      "z": 10.52,
+      "seatCount": 2,
+      "reliefStrength": 0.6,
+      "reliefRange": 2.5,
+      "sourceLayer": "SEAT",
+      "attributes": {
+        "name": "Seat",
+        "feature": "Two-seater bench"
+      }
+    },
+    {
+      "id": "Seat",
+      "label": "Seat",
+      "x": 28.001,
+      "y": 12.914,
+      "z": 10.52,
+      "seatCount": 2,
+      "reliefStrength": 0.6,
+      "reliefRange": 2.5,
+      "sourceLayer": "SEAT",
+      "attributes": {
+        "name": "Seat",
+        "feature": "Two-seater bench"
+      }
+    },
+    {
+      "id": "Seat",
+      "label": "Seat",
+      "x": 28.501,
+      "y": 12.914,
+      "z": 10.52,
+      "seatCount": 2,
+      "reliefStrength": 0.6,
+      "reliefRange": 2.5,
+      "sourceLayer": "SEAT",
+      "attributes": {
+        "name": "Seat",
+        "feature": "Two-seater bench"
+      }
+    },
+    {
+      "id": "Seat",
+      "label": "Seat",
+      "x": 22.984,
+      "y": 12.914,
+      "z": 10.52,
+      "seatCount": 2,
+      "reliefStrength": 0.6,
+      "reliefRange": 2.5,
+      "sourceLayer": "SEAT",
+      "attributes": {
+        "name": "Seat",
+        "feature": "Two-seater bench"
+      }
+    }
+  ],
+  "warnings": []
+}

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"C:\\\\Users\\\\Wenty\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python311\\\\python.exe\" -m playwright install chromium)",
+      "Bash(\"C:\\\\Users\\\\Wenty\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python311\\\\python.exe\" \"e:\\\\courses\\\\S4\\\\MUDT1003设计\\\\新建文件夹\\\\codex\\\\tmp\\\\inspect_app.py\")"
+    ]
+  }
+}

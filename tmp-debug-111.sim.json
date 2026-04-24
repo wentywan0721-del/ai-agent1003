@@ -1,0 +1,3112 @@
+{
+  "seats": [
+    {
+      "attributes": {
+        "name": "Seat", 
+        "feature": "Two-seater bench"
+      }, 
+      "label": "Seat", 
+      "reliefStrength": 0.59999999999999998, 
+      "x": 57.652000000000001, 
+      "reliefRange": 2.5, 
+      "z": 10.520000000000000, 
+      "y": 12.914000000000000, 
+      "id": "Seat", 
+      "seatCount": 2, 
+      "sourceLayer": "SEAT"
+    }, 
+    {
+      "attributes": {
+        "name": "Seat", 
+        "feature": "Two-seater bench"
+      }, 
+      "label": "Seat", 
+      "reliefStrength": 0.59999999999999998, 
+      "x": 55.694000000000003, 
+      "reliefRange": 2.5, 
+      "z": 10.520000000000000, 
+      "y": 10.600000000000000, 
+      "id": "Seat", 
+      "seatCount": 2, 
+      "sourceLayer": "SEAT"
+    }, 
+    {
+      "attributes": {
+        "name": "Seat", 
+        "feature": "Two-seater bench"
+      }, 
+      "label": "Seat", 
+      "reliefStrength": 0.59999999999999998, 
+      "x": 55.694000000000003, 
+      "reliefRange": 2.5, 
+      "z": 10.520000000000000, 
+      "y": 9.0600000000000005, 
+      "id": "Seat", 
+      "seatCount": 2, 
+      "sourceLayer": "SEAT"
+    }, 
+    {
+      "attributes": {
+        "name": "Seat", 
+        "feature": "Two-seater bench"
+      }, 
+      "label": "Seat", 
+      "reliefStrength": 0.59999999999999998, 
+      "x": 18.012000000000000, 
+      "reliefRange": 2.5, 
+      "z": 10.520000000000000, 
+      "y": 12.914000000000000, 
+      "id": "Seat", 
+      "seatCount": 2, 
+      "sourceLayer": "SEAT"
+    }, 
+    {
+      "attributes": {
+        "name": "Seat", 
+        "feature": "Two-seater bench"
+      }, 
+      "label": "Seat", 
+      "reliefStrength": 0.59999999999999998, 
+      "x": 34.012000000000000, 
+      "reliefRange": 2.5, 
+      "z": 10.520000000000000, 
+      "y": 12.914000000000000, 
+      "id": "Seat", 
+      "seatCount": 2, 
+      "sourceLayer": "SEAT"
+    }, 
+    {
+      "attributes": {
+        "name": "Seat", 
+        "feature": "Two-seater bench"
+      }, 
+      "label": "Seat", 
+      "reliefStrength": 0.59999999999999998, 
+      "x": 27.001000000000001, 
+      "reliefRange": 2.5, 
+      "z": 10.520000000000000, 
+      "y": 12.914000000000000, 
+      "id": "Seat", 
+      "seatCount": 2, 
+      "sourceLayer": "SEAT"
+    }, 
+    {
+      "attributes": {
+        "name": "Seat", 
+        "feature": "Two-seater bench"
+      }, 
+      "label": "Seat", 
+      "reliefStrength": 0.59999999999999998, 
+      "x": 27.501000000000001, 
+      "reliefRange": 2.5, 
+      "z": 10.520000000000000, 
+      "y": 12.914000000000000, 
+      "id": "Seat", 
+      "seatCount": 2, 
+      "sourceLayer": "SEAT"
+    }, 
+    {
+      "attributes": {
+        "name": "Seat", 
+        "feature": "Two-seater bench"
+      }, 
+      "label": "Seat", 
+      "reliefStrength": 0.59999999999999998, 
+      "x": 28.001000000000001, 
+      "reliefRange": 2.5, 
+      "z": 10.520000000000000, 
+      "y": 12.914000000000000, 
+      "id": "Seat", 
+      "seatCount": 2, 
+      "sourceLayer": "SEAT"
+    }, 
+    {
+      "attributes": {
+        "name": "Seat", 
+        "feature": "Two-seater bench"
+      }, 
+      "label": "Seat", 
+      "reliefStrength": 0.59999999999999998, 
+      "x": 28.501000000000001, 
+      "reliefRange": 2.5, 
+      "z": 10.520000000000000, 
+      "y": 12.914000000000000, 
+      "id": "Seat", 
+      "seatCount": 2, 
+      "sourceLayer": "SEAT"
+    }, 
+    {
+      "attributes": {
+        "name": "Seat", 
+        "feature": "Two-seater bench"
+      }, 
+      "label": "Seat", 
+      "reliefStrength": 0.59999999999999998, 
+      "x": 22.984000000000002, 
+      "reliefRange": 2.5, 
+      "z": 10.520000000000000, 
+      "y": 12.914000000000000, 
+      "id": "Seat", 
+      "seatCount": 2, 
+      "sourceLayer": "SEAT"
+    }
+  ], 
+  "meta": {
+    "units": "Meters", 
+    "exportedAt": "2026-03-25T13:08:18.797000Z", 
+    "floorId": "111", 
+    "sourceFile": "111.3dm"
+  }, 
+  "obstacles": [
+    [
+      [
+        124.53100000000001, 
+        42.155000000000001
+      ], 
+      [
+        123.82700000000000, 
+        43.811999999999998
+      ], 
+      [
+        129.35100000000000, 
+        46.156999999999996
+      ], 
+      [
+        130.05400000000000, 
+        44.5
+      ]
+    ], 
+    [
+      [
+        112.10400000000000, 
+        36.880000000000003
+      ], 
+      [
+        111.40100000000000, 
+        38.536999999999999
+      ], 
+      [
+        116.92400000000001, 
+        40.881999999999998
+      ], 
+      [
+        117.62700000000000, 
+        39.225000000000001
+      ]
+    ], 
+    [
+      [
+        99.677000000000007, 
+        31.605000000000000
+      ], 
+      [
+        98.974000000000004, 
+        33.262000000000000
+      ], 
+      [
+        104.49700000000000, 
+        35.606999999999999
+      ], 
+      [
+        105.20000000000000, 
+        33.950000000000003
+      ]
+    ], 
+    [
+      [
+        87.25, 
+        26.331000000000000
+      ], 
+      [
+        86.546999999999997, 
+        27.988000000000000
+      ], 
+      [
+        92.069999999999993, 
+        30.332000000000001
+      ], 
+      [
+        92.772999999999996, 
+        28.675000000000001
+      ]
+    ], 
+    [
+      [
+        74.120000000000005, 
+        22.713000000000001
+      ], 
+      [
+        79.643000000000001, 
+        25.056999999999999
+      ], 
+      [
+        80.346999999999994, 
+        23.399999999999999
+      ], 
+      [
+        74.823999999999998, 
+        21.056000000000001
+      ]
+    ], 
+    [
+      [
+        64.141999999999996, 
+        11.080000000000000
+      ], 
+      [
+        65.141999999999996, 
+        11.080000000000000
+      ], 
+      [
+        71.141999999999996, 
+        13.625999999999999
+      ], 
+      [
+        71.141999999999996, 
+        6.0
+      ], 
+      [
+        64.141999999999996, 
+        6.0
+      ]
+    ], 
+    [
+      [
+        5.9000000000000004, 
+        16.495999999999999
+      ], 
+      [
+        13.900000000000000, 
+        16.495999999999999
+      ], 
+      [
+        13.900000000000000, 
+        9.3019999999999996
+      ], 
+      [
+        5.9000000000000004, 
+        9.3019999999999996
+      ]
+    ]
+  ], 
+  "nodes": [
+    {
+      "attributes": {
+        "name": "gate_out_5"
+      }, 
+      "selectableAsStart": true, 
+      "label": "gate_out_5", 
+      "x": 100.21200000000000, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "gate", 
+      "y": 13.993000000000000, 
+      "id": "gate_out_5", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "gate_in_4"
+      }, 
+      "selectableAsStart": true, 
+      "label": "gate_in_4", 
+      "x": 94.462000000000003, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "gate", 
+      "y": 13.993000000000000, 
+      "id": "gate_in_4", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "gate_in_3"
+      }, 
+      "selectableAsStart": true, 
+      "label": "gate_in_3", 
+      "x": 39.524999999999999, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "gate", 
+      "y": 27.164000000000001, 
+      "id": "gate_in_3", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "gate_out_4"
+      }, 
+      "selectableAsStart": true, 
+      "label": "gate_out_4", 
+      "x": 42.774999999999999, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "gate", 
+      "y": 27.164000000000001, 
+      "id": "gate_out_4", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "train_door_5"
+      }, 
+      "selectableAsStart": true, 
+      "label": "train_door_5", 
+      "x": 9.7100000000000009, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "platform", 
+      "y": 3.0, 
+      "id": "train_door_5", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "train_door_4"
+      }, 
+      "selectableAsStart": true, 
+      "label": "train_door_4", 
+      "x": 33.329999999999998, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "platform", 
+      "y": 3.0, 
+      "id": "train_door_4", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "train_door_3"
+      }, 
+      "selectableAsStart": true, 
+      "label": "train_door_3", 
+      "x": 56.950000000000003, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "platform", 
+      "y": 3.0, 
+      "id": "train_door_3", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "train_door_2"
+      }, 
+      "selectableAsStart": true, 
+      "label": "train_door_2", 
+      "x": 80.569999999999993, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "platform", 
+      "y": 3.0, 
+      "id": "train_door_2", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "train_door_1"
+      }, 
+      "selectableAsStart": true, 
+      "label": "train_door_1", 
+      "x": 104.19000000000000, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "platform", 
+      "y": 3.0, 
+      "id": "train_door_1", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "es_down_6_top"
+      }, 
+      "selectableAsStart": true, 
+      "label": "es_down_6_top", 
+      "x": 123.25900000000000, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "escalator", 
+      "y": 42.593000000000004, 
+      "id": "es_down_6_top", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "stair_2_top"
+      }, 
+      "selectableAsStart": true, 
+      "label": "stair_2_top", 
+      "x": 5.9000000000000004, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "stair", 
+      "y": 12.039000000000000, 
+      "id": "stair_2_top", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "es_up_2_top"
+      }, 
+      "selectableAsStart": true, 
+      "label": "es_up_2_top", 
+      "x": 5.9000000000000004, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "escalator", 
+      "y": 13.788000000000000, 
+      "id": "es_up_2_top", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "es_down_4_top"
+      }, 
+      "selectableAsStart": true, 
+      "label": "es_down_4_top", 
+      "x": 14.900000000000000, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "escalator", 
+      "y": 10.052000000000000, 
+      "id": "es_down_4_top", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "es_up_4_top"
+      }, 
+      "selectableAsStart": true, 
+      "label": "es_up_4_top", 
+      "x": 14.900000000000000, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "escalator", 
+      "y": 15.746000000000000, 
+      "id": "es_up_4_top", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "gate_out_1"
+      }, 
+      "selectableAsStart": true, 
+      "label": "gate_out_1", 
+      "x": 12.400000000000000, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "gate", 
+      "y": 30.914000000000001, 
+      "id": "gate_out_1", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "gate_in_1"
+      }, 
+      "selectableAsStart": true, 
+      "label": "gate_in_1", 
+      "x": 12.400000000000000, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "gate", 
+      "y": 34.414000000000001, 
+      "id": "gate_in_1", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "es_up_1_top"
+      }, 
+      "selectableAsStart": true, 
+      "label": "es_up_1_top", 
+      "x": 64.141999999999996, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "escalator", 
+      "y": 8.25, 
+      "id": "es_up_1_top", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "es_down_1_top"
+      }, 
+      "selectableAsStart": true, 
+      "label": "es_down_1_top", 
+      "x": 64.141999999999996, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "escalator", 
+      "y": 6.75, 
+      "id": "es_down_1_top", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "elev_3"
+      }, 
+      "selectableAsStart": true, 
+      "label": "elev_3", 
+      "x": 55.444000000000003, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "elevator", 
+      "y": 13.747999999999999, 
+      "id": "elev_3", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "es_up_5_top"
+      }, 
+      "selectableAsStart": true, 
+      "label": "es_up_5_top", 
+      "x": 73.551000000000002, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "escalator", 
+      "y": 21.492999999999999, 
+      "id": "es_up_5_top", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "es_up_6_top"
+      }, 
+      "selectableAsStart": true, 
+      "label": "es_up_6_top", 
+      "x": 85.977999999999994, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "escalator", 
+      "y": 26.768000000000001, 
+      "id": "es_up_6_top", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "es_down_5_top"
+      }, 
+      "selectableAsStart": true, 
+      "label": "es_down_5_top", 
+      "x": 98.405000000000001, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "escalator", 
+      "y": 32.042999999999999, 
+      "id": "es_down_5_top", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "es_up_7_top"
+      }, 
+      "selectableAsStart": true, 
+      "label": "es_up_7_top", 
+      "x": 110.83199999999999, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "escalator", 
+      "y": 37.317999999999998, 
+      "id": "es_up_7_top", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "gate_out_2"
+      }, 
+      "selectableAsStart": true, 
+      "label": "gate_out_2", 
+      "x": 126.40600000000001, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "gate", 
+      "y": 37.737000000000002, 
+      "id": "gate_out_2", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "gate_in_2"
+      }, 
+      "selectableAsStart": true, 
+      "label": "gate_in_2", 
+      "x": 137.60900000000001, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "gate", 
+      "y": 53.573000000000000, 
+      "id": "gate_in_2", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "es_up_8_top"
+      }, 
+      "selectableAsStart": true, 
+      "label": "es_up_8_top", 
+      "x": 135.68500000000000, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "escalator", 
+      "y": 47.868000000000002, 
+      "id": "es_up_8_top", 
+      "sourceLayer": "NODE"
+    }, 
+    {
+      "attributes": {
+        "name": "gate_out_3"
+      }, 
+      "selectableAsStart": true, 
+      "label": "gate_out_3", 
+      "x": 137.77799999999999, 
+      "z": 10.5, 
+      "selectableAsEnd": true, 
+      "kind": "gate", 
+      "y": 45.497000000000000, 
+      "id": "gate_out_3", 
+      "sourceLayer": "NODE"
+    }
+  ], 
+  "pressureObjects": [
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Exit types and direction icon"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 32.744000000000000, 
+      "x": 17.0, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_c25850b0-05a6-4811-8b78-43d5b55fe89d", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Exit types and direction icon", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 14.914000000000000, 
+      "x": 19.792999999999999, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_39de073f-eae6-47ea-a397-49d46e6afc63", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines and two-way terminus icon and direction，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 14.914000000000000, 
+      "x": 29.582000000000001, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_543da3d8-e887-4814-9542-cfa4c181eb56", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines and two-way terminus icon and direction，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 19.829999999999998, 
+      "x": 24.899999999999999, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_410d9140-a649-4883-9fe3-105b33934d9b", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines icon and direction，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 9.0800000000000001, 
+      "x": 17.141999999999999, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_e50d7349-b442-451b-9c97-2f72bc117e41", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines icon and direction，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines icon and direction，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 9.0800000000000001, 
+      "x": 27.141999999999999, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_cb62607e-df45-47ca-8439-682a2400cc56", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines icon and direction，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines icon and direction，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 9.0800000000000001, 
+      "x": 37.142000000000003, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_f7d60e52-8461-4316-bbac-8caa5b0cb741", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines icon and direction，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines icon and direction，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 9.0800000000000001, 
+      "x": 47.142000000000003, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_be88e6a1-e7d6-4a25-8c89-15b74ef9fb15", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines icon and direction，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "LCD", 
+        "feature": "Destination & Status，Platform Allocation，Real-time arrival time Countdown，Weather & Temperature"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 4.1319999999999997, 
+      "x": 85.456000000000003, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_lcd_9682f039-62a6-4c8d-98e7-069c8dd25059", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Destination & Status，Platform Allocation，Real-time arrival time Countdown，Weather & Temperature", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "LCD", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "LCD", 
+        "feature": "Destination & Status，Platform Allocation，Real-time arrival time Countdown，Weather & Temperature"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 3.629, 
+      "x": 105.44900000000000, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_lcd_5e8ea605-419b-4641-89a9-b1d2b5c9bdc0", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Destination & Status，Platform Allocation，Real-time arrival time Countdown，Weather & Temperature", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "LCD", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "LCD", 
+        "feature": "Destination & Status，Platform Allocation，Real-time arrival time Countdown，Weather & Temperature"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 6.1449999999999996, 
+      "x": 5.4809999999999999, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_lcd_77e04679-1bb9-4c0c-847b-4838ec0fe4f8", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Destination & Status，Platform Allocation，Real-time arrival time Countdown，Weather & Temperature", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "LCD", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "LCD", 
+        "feature": "Destination & Status，Platform Allocation，Real-time arrival time Countdown，Weather & Temperature"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 5.6420000000000003, 
+      "x": 25.475000000000001, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_lcd_09944599-3e44-496c-aa02-b88c335f2f80", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Destination & Status，Platform Allocation，Real-time arrival time Countdown，Weather & Temperature", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "LCD", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "LCD", 
+        "feature": "Destination & Status，Platform Allocation，Real-time arrival time Countdown，Weather & Temperature"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 5.1379999999999999, 
+      "x": 45.468000000000004, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_lcd_9920ccff-d569-46c5-8348-278835331de3", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Destination & Status，Platform Allocation，Real-time arrival time Countdown，Weather & Temperature", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "LCD", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "LCD", 
+        "feature": "Destination & Status，Platform Allocation，Real-time arrival time Countdown，Weather & Temperature"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 4.6349999999999998, 
+      "x": 65.462000000000003, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_lcd_8c96de7f-f735-437e-852a-6aac04fc6130", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Destination & Status，Platform Allocation，Real-time arrival time Countdown，Weather & Temperature", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "LCD", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "LCD", 
+        "feature": "Destination & Status，Platform Allocation，Real-time arrival time Countdown，Weather & Temperature"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 4.1319999999999997, 
+      "x": 85.456000000000003, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_lcd_3084fdee-e0ef-418f-9997-a57d1bf7f285", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Destination & Status，Platform Allocation，Real-time arrival time Countdown，Weather & Temperature", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "LCD", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines icon and direction，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 15.746000000000000, 
+      "x": 5.9000000000000004, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_e91099da-3a24-4c28-a109-194749c9a81f", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines icon and direction，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines icon and direction，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 15.746000000000000, 
+      "x": -2.1000000000000001, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_4af3d1b2-6872-4b42-bf2a-08f9f3ae21c7", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines icon and direction，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 33.164000000000001, 
+      "x": 29.899999999999999, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_6f0b3972-dbaf-4f91-af62-a602edd96ee0", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 28.164000000000001, 
+      "x": 24.899999999999999, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_1bd7a6a3-625c-4fe6-a389-e5b4f101ec7d", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines and two-way terminus icon and direction，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 19.745999999999999, 
+      "x": 13.900000000000000, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_a9e016c7-fa86-481b-b72a-2d93eb73e32f", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines and two-way terminus icon and direction，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines icon and direction，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 15.746000000000000, 
+      "x": 13.900000000000000, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_4b01fe67-fe78-48ad-8c36-f6d55e75487b", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines icon and direction，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Exit types and direction icon"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 19.914000000000001, 
+      "x": 41.142000000000003, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_10657fae-1b45-4749-b660-8bff5a76ceb0", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Exit types and direction icon", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 14.914000000000000, 
+      "x": 41.142000000000003, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_bd67e176-3c4a-49fb-9b62-88456e50a9ad", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Accessibility and infrastructure"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 9.0800000000000001, 
+      "x": 57.142000000000003, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_40a0a8d1-e4c3-4924-9482-1447dd87859a", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Accessibility and infrastructure", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines icon and direction，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 9.0800000000000001, 
+      "x": 59.142000000000003, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_7875c83a-43c9-4d48-89f7-e3076ff536b5", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines icon and direction，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines icon and direction，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 11.080000000000000, 
+      "x": 61.642000000000003, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_57217ab0-4ad6-4e8c-a5aa-0b15e79e9bf2", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines icon and direction，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines and two-way terminus icon and direction，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 7.0, 
+      "x": 71.141999999999996, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_6c817d75-3436-4096-a3df-e4186aed53d0", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines and two-way terminus icon and direction，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Exit types and direction icon，Metro lines icon and direction"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 7.9299999999999997, 
+      "x": 86.587000000000003, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_384d590b-53c6-43b4-aa61-21a2f46e381e", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Exit types and direction icon，Metro lines icon and direction", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Exit types and direction icon，Metro lines icon and direction"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 7.9299999999999997, 
+      "x": 77.905000000000001, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_05d6f966-2236-46f8-80bb-9b6f1651f661", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Exit types and direction icon，Metro lines icon and direction", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 7.9299999999999997, 
+      "x": 96.587000000000003, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_22f35dbd-117d-4c78-8ec8-93d063682d37", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 15.189000000000000, 
+      "x": 74.823999999999998, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_ac0415c6-55b0-4f6b-9078-ab77148bd54f", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 19.123000000000001, 
+      "x": 75.644000000000005, 
+      "strength": 0.59999999999999998, 
+      "z": 13.0, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_7689fb12-dcbb-4d47-a3f8-38c913f6378f", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines and two-way terminus icon and direction，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 36.901000000000003, 
+      "x": 117.52700000000000, 
+      "strength": 0.59999999999999998, 
+      "z": 13.0, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_82e036de-fef4-4c02-b781-9c63a2e64d68", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines and two-way terminus icon and direction，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 54.347000000000001, 
+      "x": 130.21899999999999, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_7bafcfb4-5b35-487d-ac21-94d5efb89d33", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines icon，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 48.259000000000000, 
+      "x": 136.60599999999999, 
+      "strength": 0.59999999999999998, 
+      "z": 13.0, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_0788eaea-ba24-4ea2-b1db-ccc6e69ba2dd", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines icon，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 20.759000000000000, 
+      "x": 69.518000000000001, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_1bc6d4a8-5f5e-405f-beb3-9e98eeb47325", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines and two-way terminus icon and direction，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 18.805000000000000, 
+      "x": 64.915000000000006, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_6e35e267-af69-44c4-a1ed-f6a1360e0748", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines and two-way terminus icon and direction，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines icon，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 21.884000000000000, 
+      "x": 74.471999999999994, 
+      "strength": 0.59999999999999998, 
+      "z": 13.0, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_d1ac00af-3908-4de8-b970-36856de2ee2d", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines icon，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines icon，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 27.158999999999999, 
+      "x": 86.899000000000001, 
+      "strength": 0.59999999999999998, 
+      "z": 13.0, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_063a0d4a-d754-41ff-85aa-342899191491", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines icon，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines icon，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 32.433999999999997, 
+      "x": 99.325999999999993, 
+      "strength": 0.59999999999999998, 
+      "z": 13.0, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_9e671617-a7b9-4cb9-8588-a20d563160c9", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines icon，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines icon，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 37.709000000000003, 
+      "x": 111.75200000000000, 
+      "strength": 0.59999999999999998, 
+      "z": 13.0, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_32d8bb1e-2032-402c-ad4a-b929714bb027", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines icon，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Metro lines icon，Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 42.984000000000002, 
+      "x": 124.17900000000000, 
+      "strength": 0.59999999999999998, 
+      "z": 13.0, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_ed4992c3-7e97-4519-b3f7-b964dcd44152", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Metro lines icon，Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 32.856999999999999, 
+      "x": 79.591999999999999, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_8e02dfb9-43a9-497a-8223-0bbe358bce89", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 42.625, 
+      "x": 102.60400000000000, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_e977d20d-1f3a-42c1-acaf-d0b37c5703d1", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Exit types and direction icon，Metro lines icon and direction，Accessibility and infrastructure icon and direction， Bilingual", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Panoramic guide map", 
+        "feature": "Central Station location map topology and two-dimensional visual mapping of physical space; Point of Interest (POI) data; Accessibility legend;"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 26.071000000000002, 
+      "x": 63.604999999999997, 
+      "strength": 0.59999999999999998, 
+      "z": 12.0, 
+      "range": 2.5, 
+      "id": "pressure_panoramic_guide_map_36ef434c-aadf-474c-b70b-d2fdb441e26a", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Central Station location map topology and two-dimensional visual mapping of physical space; Point of Interest (POI) data; Accessibility legend;", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Panoramic guide map", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Panoramic guide map", 
+        "feature": "Central Station location map topology and two-dimensional visual mapping of physical space; Point of Interest (POI) data; Accessibility legend;"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 45.765999999999998, 
+      "x": 128.43000000000001, 
+      "strength": 0.59999999999999998, 
+      "z": 12.0, 
+      "range": 2.5, 
+      "id": "pressure_panoramic_guide_map_4973876d-9cd2-422d-8ac9-bc2202d2eed7", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Central Station location map topology and two-dimensional visual mapping of physical space; Point of Interest (POI) data; Accessibility legend;", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Panoramic guide map", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Common direction Signs", 
+        "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 52.393000000000001, 
+      "x": 125.61700000000000, 
+      "strength": 0.59999999999999998, 
+      "z": 12.0, 
+      "range": 2.5, 
+      "id": "pressure_common_direction_signs_758d0c37-43c5-4030-90a4-27482ef6fb40", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Common direction Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Common direction Signs", 
+        "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 42.625, 
+      "x": 102.60400000000000, 
+      "strength": 0.59999999999999998, 
+      "z": 12.0, 
+      "range": 2.5, 
+      "id": "pressure_common_direction_signs_37d9228e-3a73-4d12-b49b-716df3ba98c0", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Common direction Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Common direction Signs", 
+        "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 32.856999999999999, 
+      "x": 79.591999999999999, 
+      "strength": 0.59999999999999998, 
+      "z": 12.0, 
+      "range": 2.5, 
+      "id": "pressure_common_direction_signs_c8dbadee-28eb-4b87-848a-baa5ad32146a", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Common direction Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Common direction Signs", 
+        "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 15.189000000000000, 
+      "x": 74.823999999999998, 
+      "strength": 0.59999999999999998, 
+      "z": 12.0, 
+      "range": 2.5, 
+      "id": "pressure_common_direction_signs_4ecb405c-4c34-4069-93c0-40418f835337", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Common direction Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Panoramic guide map", 
+        "feature": "Central Station location map topology and two-dimensional visual mapping of physical space; Point of Interest (POI) data; Accessibility legend;"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 8.0, 
+      "x": 103.08700000000000, 
+      "strength": 0.59999999999999998, 
+      "z": 12.0, 
+      "range": 2.5, 
+      "id": "pressure_panoramic_guide_map_023e38f6-6928-41aa-95e9-635d7cd3f385", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Central Station location map topology and two-dimensional visual mapping of physical space; Point of Interest (POI) data; Accessibility legend;", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Panoramic guide map", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Panoramic guide map", 
+        "feature": "Central Station location map topology and two-dimensional visual mapping of physical space; Point of Interest (POI) data; Accessibility legend;"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 7.9299999999999997, 
+      "x": 77.905000000000001, 
+      "strength": 0.59999999999999998, 
+      "z": 12.0, 
+      "range": 2.5, 
+      "id": "pressure_panoramic_guide_map_4e26bb4d-5342-4888-8cd7-1840e89b1829", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Central Station location map topology and two-dimensional visual mapping of physical space; Point of Interest (POI) data; Accessibility legend;", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Panoramic guide map", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Panoramic guide map", 
+        "feature": "Central Station location map topology and two-dimensional visual mapping of physical space; Point of Interest (POI) data; Accessibility legend;"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 7.9299999999999997, 
+      "x": 86.587000000000003, 
+      "strength": 0.59999999999999998, 
+      "z": 12.0, 
+      "range": 2.5, 
+      "id": "pressure_panoramic_guide_map_04358732-d35b-4c0b-9df5-cab7ceef7c8b", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Central Station location map topology and two-dimensional visual mapping of physical space; Point of Interest (POI) data; Accessibility legend;", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Panoramic guide map", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Common direction Signs", 
+        "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 11.080000000000000, 
+      "x": 59.142000000000003, 
+      "strength": 0.59999999999999998, 
+      "z": 12.0, 
+      "range": 2.5, 
+      "id": "pressure_common_direction_signs_dd1a95b7-e569-40cf-b60e-347d650d61b7", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Common direction Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Common direction Signs", 
+        "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 22.164000000000001, 
+      "x": 36.899999999999999, 
+      "strength": 0.59999999999999998, 
+      "z": 12.0, 
+      "range": 2.5, 
+      "id": "pressure_common_direction_signs_57b11d56-718f-49ed-bd28-20dbfd6a955d", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Common direction Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Common direction Signs", 
+        "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 22.164000000000001, 
+      "x": 45.399999999999999, 
+      "strength": 0.59999999999999998, 
+      "z": 12.0, 
+      "range": 2.5, 
+      "id": "pressure_common_direction_signs_1058d710-1c3c-44ea-b847-f0a7a4f5625d", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Common direction Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Common direction Signs", 
+        "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 25.164000000000001, 
+      "x": 17.0, 
+      "strength": 0.59999999999999998, 
+      "z": 12.0, 
+      "range": 2.5, 
+      "id": "pressure_common_direction_signs_5571076e-1543-4b9d-aebf-61bfb581fe2d", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Common direction Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Panoramic guide map", 
+        "feature": "Central Station location map topology and two-dimensional visual mapping of physical space; Point of Interest (POI) data; Accessibility legend;"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 32.545999999999999, 
+      "x": 32.899999999999999, 
+      "strength": 0.59999999999999998, 
+      "z": 12.0, 
+      "range": 2.5, 
+      "id": "pressure_panoramic_guide_map_78208d80-1a7e-4d4f-ab67-bde6d9ee2fc1", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Central Station location map topology and two-dimensional visual mapping of physical space; Point of Interest (POI) data; Accessibility legend;", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Panoramic guide map", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Common direction Signs", 
+        "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 29.164000000000001, 
+      "x": 22.0, 
+      "strength": 0.59999999999999998, 
+      "z": 12.0, 
+      "range": 2.5, 
+      "id": "pressure_common_direction_signs_0de294fd-ccf7-4c74-b045-2db6431f82ab", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Common direction Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "AI virtual service ambassador"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 31.045999999999999, 
+      "x": 32.899999999999999, 
+      "strength": 0.57999999999999996, 
+      "z": 12.0, 
+      "range": 3.2000000000000002, 
+      "id": "pressure_ai_virtual_service_ambassador_2258992f-5c93-4692-b7b5-c35667d017dd", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "facility", 
+      "feature": "", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 1.0
+      }, 
+      "name": "AI virtual service ambassador", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Common direction Signs", 
+        "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 36.164000000000001, 
+      "x": 22.0, 
+      "strength": 0.59999999999999998, 
+      "z": 12.0, 
+      "range": 2.5, 
+      "id": "pressure_common_direction_signs_564c6c87-0cb1-4df5-997c-51277c2df64c", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "EXITS & elevator&Transit Mode Direction，Multimodal Cognitive Assistance Features（Bilingual，Photographic Cues）", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Common direction Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Advertisement", 
+        "feature": "Dynamic/flashing ads,80 decibels"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 12.353000000000000, 
+      "x": 68.141999999999996, 
+      "strength": 0.65000000000000002, 
+      "z": 12.5, 
+      "range": 2.5, 
+      "id": "pressure_advertisement_d1d94eeb-baa4-437c-9707-5d581a907460", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "advert", 
+      "feature": "Dynamic/flashing ads,80 decibels", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 1.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Advertisement", 
+      "decibel": 80.0
+    }, 
+    {
+      "attributes": {
+        "name": "Escalator Noise", 
+        "feature": "Noise level 74 decibels"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 13.795999999999999, 
+      "x": 4.4000000000000004, 
+      "strength": 0.59999999999999998, 
+      "z": 10.5, 
+      "range": 6.0, 
+      "id": "pressure_escalator_noise_4b9af927-a80d-4083-be54-16a7ba6fdb64", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "noise", 
+      "feature": "Noise level 74 decibels", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.59999999999999998, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Escalator Noise", 
+      "decibel": 74.0
+    }, 
+    {
+      "attributes": {
+        "name": "Escalator Noise", 
+        "feature": "Noise level 74 decibels"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 10.052000000000000, 
+      "x": 15.5, 
+      "strength": 0.59999999999999998, 
+      "z": 10.5, 
+      "range": 6.0, 
+      "id": "pressure_escalator_noise_43b8142d-c11c-4eb9-9f43-69335695fc0d", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "noise", 
+      "feature": "Noise level 74 decibels", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.59999999999999998, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Escalator Noise", 
+      "decibel": 74.0
+    }, 
+    {
+      "attributes": {
+        "name": "Hanging Signs", 
+        "feature": "Brief information"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 14.914000000000000, 
+      "x": 27.899999999999999, 
+      "strength": 0.59999999999999998, 
+      "z": 13.5, 
+      "range": 2.5, 
+      "id": "pressure_hanging_signs_6df1a6b5-75d4-4237-8a2d-aa35213aafe0", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "signage", 
+      "feature": "Brief information", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 1.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Hanging Signs", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Advertisement", 
+        "feature": "1060 lux"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 31.684999999999999, 
+      "x": 76.829999999999998, 
+      "strength": 0.65000000000000002, 
+      "z": 12.0, 
+      "range": 2.5, 
+      "id": "pressure_advertisement_0c4269f7-83ae-4150-8a16-3bdde289e1b1", 
+      "lux": 1060.0, 
+      "activeForSimulation": true, 
+      "category": "advert", 
+      "feature": "Dynamic/flashing ads, 1060 lux", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 1.0, 
+        "lighting": 1.5, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Advertisement", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Advertisement", 
+        "feature": "Static ads"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 18.5, 
+      "x": 41.149999999999999, 
+      "strength": 0.65000000000000002, 
+      "z": 10.5, 
+      "range": 2.5, 
+      "id": "pressure_advertisement_732c3d3a-043a-4e2f-9f5b-b56c37c916a7", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "advert", 
+      "feature": "Static ads", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 1.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Advertisement", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Advertisement", 
+        "feature": "Static ads"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 22.417000000000002, 
+      "x": 84.837999999999994, 
+      "strength": 0.65000000000000002, 
+      "z": 10.5, 
+      "range": 2.5, 
+      "id": "pressure_advertisement_adc64853-fa63-45c1-b4b4-4d52dac1f605", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "advert", 
+      "feature": "Static ads", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 1.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Advertisement", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Advertisement", 
+        "feature": "Static ads"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 32.966000000000001, 
+      "x": 109.69199999999999, 
+      "strength": 0.65000000000000002, 
+      "z": 10.5, 
+      "range": 2.5, 
+      "id": "pressure_advertisement_b09f6d67-b967-4194-9956-01ca3e1665a6", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "advert", 
+      "feature": "Static ads", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 1.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Advertisement", 
+      "decibel": 0.0
+    }, 
+    {
+      "attributes": {
+        "name": "Escalator Noise", 
+        "feature": "Noise level 74 decibels"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 21.259000000000000, 
+      "x": 72.998999999999995, 
+      "strength": 0.59999999999999998, 
+      "z": 10.5, 
+      "range": 6.0, 
+      "id": "pressure_escalator_noise_7057f284-2d13-4041-9133-b5a12be01d6d", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "noise", 
+      "feature": "Noise level 74 decibels", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.59999999999999998, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Escalator Noise", 
+      "decibel": 74.0
+    }, 
+    {
+      "attributes": {
+        "name": "Escalator Noise", 
+        "feature": "Noise level 74 decibels"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 26.533999999999999, 
+      "x": 85.426000000000002, 
+      "strength": 0.59999999999999998, 
+      "z": 10.5, 
+      "range": 6.0, 
+      "id": "pressure_escalator_noise_3d3c5ed0-539f-49b8-917c-b3c9b7db6c67", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "noise", 
+      "feature": "Noise level 74 decibels", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.59999999999999998, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Escalator Noise", 
+      "decibel": 74.0
+    }, 
+    {
+      "attributes": {
+        "name": "Escalator Noise", 
+        "feature": "Noise level 74 decibels"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 31.809000000000001, 
+      "x": 97.852999999999994, 
+      "strength": 0.59999999999999998, 
+      "z": 10.5, 
+      "range": 6.0, 
+      "id": "pressure_escalator_noise_4555f078-ca20-4f28-8909-8a6fe84ca9e0", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "noise", 
+      "feature": "Noise level 74 decibels", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.59999999999999998, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Escalator Noise", 
+      "decibel": 74.0
+    }, 
+    {
+      "attributes": {
+        "name": "Escalator Noise", 
+        "feature": "Noise level 74 decibels"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 37.084000000000003, 
+      "x": 110.28000000000000, 
+      "strength": 0.59999999999999998, 
+      "z": 10.5, 
+      "range": 6.0, 
+      "id": "pressure_escalator_noise_e860c783-e2c1-43f4-8547-cecf2dd5a52d", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "noise", 
+      "feature": "Noise level 74 decibels", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.59999999999999998, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Escalator Noise", 
+      "decibel": 74.0
+    }, 
+    {
+      "attributes": {
+        "name": "Escalator Noise", 
+        "feature": "Noise level 74 decibels"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 42.357999999999997, 
+      "x": 122.70600000000000, 
+      "strength": 0.59999999999999998, 
+      "z": 10.5, 
+      "range": 6.0, 
+      "id": "pressure_escalator_noise_da9c3e23-152b-4f7a-9c05-10177fd37f35", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "noise", 
+      "feature": "Noise level 74 decibels", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.59999999999999998, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Escalator Noise", 
+      "decibel": 74.0
+    }, 
+    {
+      "attributes": {
+        "name": "Escalator Noise", 
+        "feature": "Noise level 74 decibels"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 47.633000000000003, 
+      "x": 135.13300000000001, 
+      "strength": 0.59999999999999998, 
+      "z": 10.5, 
+      "range": 6.0, 
+      "id": "pressure_escalator_noise_c14c23a4-f770-4abd-b5ef-26a48c0a22cb", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "noise", 
+      "feature": "Noise level 74 decibels", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.59999999999999998, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Escalator Noise", 
+      "decibel": 74.0
+    }, 
+    {
+      "attributes": {
+        "name": "Escalator Noise", 
+        "feature": "Noise level 74 decibels"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 25.564000000000000, 
+      "x": 43.649999999999999, 
+      "strength": 0.59999999999999998, 
+      "z": 10.5, 
+      "range": 6.0, 
+      "id": "pressure_escalator_noise_ecac26b3-a34e-4db9-bb72-29314d0f68dc", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "noise", 
+      "feature": "Noise level 74 decibels", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.59999999999999998, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Escalator Noise", 
+      "decibel": 74.0
+    }, 
+    {
+      "attributes": {
+        "name": "Escalator Noise", 
+        "feature": "Noise level 74 decibels"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 25.564000000000000, 
+      "x": 41.149999999999999, 
+      "strength": 0.59999999999999998, 
+      "z": 10.5, 
+      "range": 6.0, 
+      "id": "pressure_escalator_noise_16c51b09-ceff-4d53-a787-0d0736ab2c38", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "noise", 
+      "feature": "Noise level 74 decibels", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.59999999999999998, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Escalator Noise", 
+      "decibel": 74.0
+    }, 
+    {
+      "attributes": {
+        "name": "Escalator Noise", 
+        "feature": "Noise level 74 decibels"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 25.564000000000000, 
+      "x": 38.649999999999999, 
+      "strength": 0.59999999999999998, 
+      "z": 10.5, 
+      "range": 6.0, 
+      "id": "pressure_escalator_noise_27a29e76-b3c8-43e9-ae5f-76b60beb8f1a", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "noise", 
+      "feature": "Noise level 74 decibels", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.59999999999999998, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Escalator Noise", 
+      "decibel": 74.0
+    }, 
+    {
+      "attributes": {
+        "name": "Escalator Noise", 
+        "feature": "Noise level 74 decibels"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 15.746000000000000, 
+      "x": 15.5, 
+      "strength": 0.59999999999999998, 
+      "z": 10.5, 
+      "range": 6.0, 
+      "id": "pressure_escalator_noise_a203ea70-59be-4fcf-85a1-723625a50b12", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "noise", 
+      "feature": "Noise level 74 decibels", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.59999999999999998, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Escalator Noise", 
+      "decibel": 74.0
+    }, 
+    {
+      "attributes": {
+        "name": "Escalator Noise", 
+        "feature": "Noise level 74 decibels"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 12.393000000000001, 
+      "x": 102.33700000000000, 
+      "strength": 0.59999999999999998, 
+      "z": 10.5, 
+      "range": 6.0, 
+      "id": "pressure_escalator_noise_cf6fd686-39e8-45fa-81e1-32a8993bd0e2", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "noise", 
+      "feature": "Noise level 74 decibels", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.59999999999999998, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Escalator Noise", 
+      "decibel": 74.0
+    }, 
+    {
+      "attributes": {
+        "name": "Escalator Noise", 
+        "feature": "Noise level 74 decibels"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 12.393000000000001, 
+      "x": 99.837000000000003, 
+      "strength": 0.59999999999999998, 
+      "z": 10.5, 
+      "range": 6.0, 
+      "id": "pressure_escalator_noise_de97493e-d03e-4b8f-8364-821c45c150ee", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "noise", 
+      "feature": "Noise level 74 decibels", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.59999999999999998, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Escalator Noise", 
+      "decibel": 74.0
+    }, 
+    {
+      "attributes": {
+        "name": "Escalator Noise", 
+        "feature": "Noise level 74 decibels"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 12.393000000000001, 
+      "x": 97.337000000000003, 
+      "strength": 0.59999999999999998, 
+      "z": 10.5, 
+      "range": 6.0, 
+      "id": "pressure_escalator_noise_54460043-7cd0-4381-b02e-d190a58c9e3b", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "noise", 
+      "feature": "Noise level 74 decibels", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.59999999999999998, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Escalator Noise", 
+      "decibel": 74.0
+    }, 
+    {
+      "attributes": {
+        "name": "Escalator Noise", 
+        "feature": "Noise level 74 decibels"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 12.393000000000001, 
+      "x": 94.837000000000003, 
+      "strength": 0.59999999999999998, 
+      "z": 10.5, 
+      "range": 6.0, 
+      "id": "pressure_escalator_noise_cea1afd6-2562-4e15-aea0-5355c1bd7d0c", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "noise", 
+      "feature": "Noise level 74 decibels", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.59999999999999998, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Escalator Noise", 
+      "decibel": 74.0
+    }, 
+    {
+      "attributes": {
+        "name": "Escalator Noise", 
+        "feature": "Noise level 74 decibels"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 12.393000000000001, 
+      "x": 92.337000000000003, 
+      "strength": 0.59999999999999998, 
+      "z": 10.5, 
+      "range": 6.0, 
+      "id": "pressure_escalator_noise_5d9d520b-5b3c-4e36-92ff-15d4d43944db", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "noise", 
+      "feature": "Noise level 74 decibels", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.59999999999999998, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Escalator Noise", 
+      "decibel": 74.0
+    }, 
+    {
+      "attributes": {
+        "name": "Escalator Noise", 
+        "feature": "Noise level 74 decibels"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 7.5, 
+      "x": 63.542000000000002, 
+      "strength": 0.59999999999999998, 
+      "z": 10.5, 
+      "range": 6.0, 
+      "id": "pressure_escalator_noise_fc52f616-0ea9-4c31-8b81-c2b52c337cc3", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "noise", 
+      "feature": "Noise level 74 decibels", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.59999999999999998, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 0.0
+      }, 
+      "name": "Escalator Noise", 
+      "decibel": 74.0
+    }, 
+    {
+      "attributes": {
+        "name": "Customer Service Centre", 
+        "feature": "Customer Service Centre"
+      }, 
+      "sourceLayer": "PRESSURE", 
+      "y": 9.2029999999999994, 
+      "x": 54.546999999999997, 
+      "strength": 0.57999999999999996, 
+      "z": 10.5, 
+      "range": 3.2000000000000002, 
+      "id": "pressure_customer_service_centre_c91810fa-1dec-4ab4-8d01-837045be0890", 
+      "lux": 0.0, 
+      "activeForSimulation": true, 
+      "category": "facility", 
+      "feature": "Customer Service Centre", 
+      "simRole": "pressure", 
+      "metrics": {
+        "noise": 0.0, 
+        "advert": 0.0, 
+        "lighting": 0.0, 
+        "signage": 0.0, 
+        "amenity": 1.0
+      }, 
+      "name": "Customer Service Centre", 
+      "decibel": 0.0
+    }
+  ], 
+  "warnings": [], 
+  "walkableAreas": [
+    [
+      [
+        17.0, 
+        36.164000000000001
+      ], 
+      [
+        32.899999999999999, 
+        36.164000000000001
+      ], 
+      [
+        32.899999999999999, 
+        22.164000000000001
+      ], 
+      [
+        37.899999999999999, 
+        22.164000000000001
+      ], 
+      [
+        37.899999999999999, 
+        27.164000000000001
+      ], 
+      [
+        44.399999999999999, 
+        27.164000000000001
+      ], 
+      [
+        44.399999999999999, 
+        22.164000000000001
+      ], 
+      [
+        54.399999999999999, 
+        22.164000000000001
+      ], 
+      [
+        136.20300000000000, 
+        56.887000000000000
+      ], 
+      [
+        139.01599999999999, 
+        50.259000000000000
+      ], 
+      [
+        136.25399999999999, 
+        49.087000000000003
+      ], 
+      [
+        138.59899999999999, 
+        43.564000000000000
+      ], 
+      [
+        126.17200000000000, 
+        38.289000000000001
+      ], 
+      [
+        126.64100000000001, 
+        37.183999999999997
+      ], 
+      [
+        79.426000000000002, 
+        17.143000000000001
+      ], 
+      [
+        79.426000000000002, 
+        9.4930000000000003
+      ], 
+      [
+        91.587000000000003, 
+        9.4930000000000003
+      ], 
+      [
+        91.587000000000003, 
+        13.993000000000000
+      ], 
+      [
+        103.08700000000000, 
+        13.993000000000000
+      ], 
+      [
+        103.08700000000000, 
+        6.0
+      ], 
+      [
+        116.0, 
+        6.0
+      ], 
+      [
+        116.0, 
+        3.0
+      ], 
+      [
+        -2.1000000000000001, 
+        3.0
+      ], 
+      [
+        -2.1000000000000001, 
+        25.164000000000001
+      ], 
+      [
+        13.900000000000000, 
+        25.164000000000001
+      ], 
+      [
+        13.900000000000000, 
+        29.164000000000001
+      ], 
+      [
+        12.400000000000000, 
+        29.164000000000001
+      ], 
+      [
+        12.400000000000000, 
+        36.164000000000001
+      ]
+    ]
+  ]
+}

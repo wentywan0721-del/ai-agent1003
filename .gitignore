@@ -1,0 +1,15 @@
+.cache/
+.playwright-cli/
+.tmp/
+logs/
+output/
+test-results/
+tmp/
+
+local-stack.err.log
+local-stack.log
+
+.DS_Store
+Thumbs.db
+
+node_modules/
