@@ -20,6 +20,7 @@ const {
 
 const EXPECTED_BACKGROUND_FIELD_ENGINE_VERSION = 'background-field-v27';
 const EXPECTED_HEATMAP_ENGINE_VERSION = 'node-cache-v47';
+const EXPECTED_LLM_DECISION_PLAN_CACHE_VERSION = 'llm-decision-chain-v2';
 const DEFAULT_BACKGROUND_FIELD_PREWARM_BUCKETS = Object.freeze([500, 1000, 1500, 2000]);
 const BACKGROUND_FIELD_PREWARM_IDLE_POLL_MS = 250;
 const HEATMAP_JOB_STALL_TIMEOUT_MS = Number(process.env.HEATMAP_JOB_STALL_TIMEOUT_MS || 180000);
@@ -275,10 +276,6 @@ function isCompatibleCachedHeatmapResult(result) {
     return false;
   }
   if (result?.meta?.engineVersion !== EXPECTED_HEATMAP_ENGINE_VERSION) {
-    return false;
-  }
-  const llmProvider = getRouteAnalysisProviderConfig();
-  if (llmProvider.enabled && (result?.meta?.llmDecisionPlan?.failed || result?.llmDecisionPlan?.failed)) {
     return false;
   }
   const backgroundField = result?.heat?.backgroundField || null;
@@ -1275,6 +1272,40 @@ function createSimServer(options = {}) {
     );
   }
 
+  function getCachedDecisionPlan(result) {
+    return result?.meta?.llmDecisionPlan
+      || result?.heat?.llmDecisionPlan
+      || result?.llmDecisionPlan
+      || null;
+  }
+
+  function shouldRefreshCachedDecisionPlan(result) {
+    const llmProvider = getRouteAnalysisProviderConfig();
+    if (!llmProvider.enabled || !isCompatibleCachedHeatmapResult(result)) {
+      return false;
+    }
+    const plan = getCachedDecisionPlan(result);
+    if (!plan || plan.pending || plan.failed) {
+      return true;
+    }
+    return result?.meta?.llmDecisionPlanCacheVersion !== EXPECTED_LLM_DECISION_PLAN_CACHE_VERSION;
+  }
+
+  function stampDecisionPlanCacheVersion(result) {
+    if (!result) {
+      return result;
+    }
+    const stamped = JSON.parse(JSON.stringify(result));
+    const plan = getCachedDecisionPlan(stamped);
+    stamped.meta = {
+      ...(stamped.meta || {}),
+      ...(plan && !plan.pending && !plan.failed
+        ? { llmDecisionPlanCacheVersion: EXPECTED_LLM_DECISION_PLAN_CACHE_VERSION }
+        : {}),
+    };
+    return stamped;
+  }
+
   function startHeatmapRefinement(cacheKey, payload) {
     if (!cacheKey || refinementPromisesByCacheKey.has(cacheKey)) {
       return;
@@ -1295,7 +1326,7 @@ function createSimServer(options = {}) {
           mode: 'final',
           workerScheduler,
         });
-        writeHeatmapCache(serverOptions.cacheDir, cacheKey, refinedResult);
+        writeHeatmapCache(serverOptions.cacheDir, cacheKey, stampDecisionPlanCacheVersion(refinedResult));
       } catch (error) {
         // Keep the fast preview cache if refinement fails.
       } finally {
@@ -1314,7 +1345,7 @@ function createSimServer(options = {}) {
     );
   }
 
-  function mergeDecisionPlanIntoCachedPlayback(cacheKey, analysis) {
+  function mergeDecisionPlanIntoCachedPlayback(cacheKey, analysis, options = {}) {
     if (!cacheKey || !analysis) {
       return;
     }
@@ -1322,7 +1353,7 @@ function createSimServer(options = {}) {
     if (!isCompatibleCachedHeatmapResult(currentCached)) {
       return;
     }
-    if (currentCached?.meta?.resultQuality === 'final' && !currentCached?.meta?.refinementPending) {
+    if (!options.force && currentCached?.meta?.resultQuality === 'final' && !currentCached?.meta?.refinementPending) {
       return;
     }
     const merged = JSON.parse(JSON.stringify(currentCached));
@@ -1334,8 +1365,43 @@ function createSimServer(options = {}) {
     merged.meta = {
       ...(merged.meta || {}),
       llmDecisionPlan: JSON.parse(JSON.stringify(analysis)),
+      ...(!analysis.pending && !analysis.failed
+        ? { llmDecisionPlanCacheVersion: EXPECTED_LLM_DECISION_PLAN_CACHE_VERSION }
+        : {}),
     };
     writeHeatmapCache(serverOptions.cacheDir, cacheKey, merged);
+  }
+
+  async function refreshCachedDecisionPlanOnly(cacheKey, payload) {
+    if (!cacheKey) {
+      return null;
+    }
+    const existingPromise = decisionPlanPromisesByCacheKey.get(cacheKey);
+    if (existingPromise) {
+      return existingPromise;
+    }
+    const refreshPromise = (async () => {
+      try {
+        const currentCached = readHeatmapCache(serverOptions.cacheDir, cacheKey);
+        if (!shouldRefreshCachedDecisionPlan(currentCached)) {
+          return currentCached;
+        }
+        const analysis = await runHeatmapDecisionPlanOnly(payload, {
+          rootDir: serverOptions.rootDir,
+          cacheDir: serverOptions.cacheDir,
+          playback: currentCached?.heat || currentCached?.playback || null,
+        });
+        if (analysis && !analysis.pending) {
+          mergeDecisionPlanIntoCachedPlayback(cacheKey, analysis, { force: true });
+          return readHeatmapCache(serverOptions.cacheDir, cacheKey) || currentCached;
+        }
+        return currentCached;
+      } finally {
+        decisionPlanPromisesByCacheKey.delete(cacheKey);
+      }
+    })();
+    decisionPlanPromisesByCacheKey.set(cacheKey, refreshPromise);
+    return refreshPromise;
   }
 
   function startDecisionPlanRefinement(cacheKey, payload) {
@@ -1394,15 +1460,23 @@ function createSimServer(options = {}) {
         startHeatmapRefinement(cacheKey, payload);
         startDecisionPlanRefinement(cacheKey, payload);
       }
+      let resultForResponse = cachedResult;
+      if (shouldRefreshCachedDecisionPlan(cachedResult)) {
+        try {
+          resultForResponse = await refreshCachedDecisionPlanOnly(cacheKey, payload) || cachedResult;
+        } catch (error) {
+          resultForResponse = cachedResult;
+        }
+      }
       sendJson(response, 200, {
         status: 'completed',
         cacheHit: true,
         cacheKey,
         result: {
-          ...cachedResult,
+          ...resultForResponse,
           cacheHit: true,
           meta: {
-            ...(cachedResult.meta || {}),
+            ...(resultForResponse.meta || {}),
             cacheKey,
           },
         },
@@ -1462,12 +1536,13 @@ function createSimServer(options = {}) {
         if (job.status === 'failed') {
           return;
         }
-        writeHeatmapCache(serverOptions.cacheDir, cacheKey, result);
+        const stampedResult = stampDecisionPlanCacheVersion(result);
+        writeHeatmapCache(serverOptions.cacheDir, cacheKey, stampedResult);
         job.status = 'completed';
         job.progress = 1;
         job.updatedAt = Date.now();
         job.lastProgressAt = job.updatedAt;
-        job.result = result;
+        job.result = stampedResult;
       } catch (error) {
         job.status = 'failed';
         job.updatedAt = Date.now();

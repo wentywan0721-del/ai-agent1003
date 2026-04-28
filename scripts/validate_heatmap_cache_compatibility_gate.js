@@ -27,8 +27,9 @@ assert(
 );
 
 assert(
-  /llmProvider\.enabled && \(result\?\.meta\?\.llmDecisionPlan\?\.failed/.test(serverJs),
-  'Expected sim-server cache compatibility check to reject cached failed LLM decision plans only when an LLM provider is configured'
+  !/llmProvider\.enabled && \(result\?\.meta\?\.llmDecisionPlan\?\.failed/.test(serverJs)
+  && /function shouldRefreshCachedDecisionPlan\(result\) \{[\s\S]*plan\.failed/.test(serverJs),
+  'Expected stale or failed LLM decision plans to refresh separately instead of invalidating the whole heatmap cache'
 );
 
 console.log('validate_heatmap_cache_compatibility_gate: ok');
