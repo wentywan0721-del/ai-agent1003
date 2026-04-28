@@ -194,19 +194,19 @@
   const FATIGUE_THRESHOLD_SLOW_WALK_FACTOR = 0.5;
 
   const BASAL_FATIGUE_VELOCITY = Object.freeze({
-    1: 0.135,
-    2: 0.105,
-    3: 0.082,
-    4: 0.066,
-    5: 0.052,
+    1: 0.149,
+    2: 0.116,
+    3: 0.09,
+    4: 0.073,
+    5: 0.057,
   });
 
   const WHEELCHAIR_BASE_FATIGUE_VELOCITY = Object.freeze({
-    1: 0.052,
-    2: 0.046,
-    3: 0.041,
-    4: 0.037,
-    5: 0.032,
+    1: 0.057,
+    2: 0.051,
+    3: 0.045,
+    4: 0.041,
+    5: 0.035,
   });
 
   const WHEELCHAIR_FATIGUE_MULTIPLIER_DAMPING = 0.25;
@@ -264,7 +264,7 @@
     slowWalkSpeedFactor: 0.5,
     sittingRecoveryPercentPerSecond: 0.333,
     standingRecoveryPercentPerSecond: 0.083,
-    resumeFatiguePercent: 80,
+    resumeFatiguePercent: 20,
     seatSearchThresholdPercent: 85,
     seatSearchTimeoutSeconds: 36,
     interruptionDensity: 3,
@@ -317,6 +317,7 @@
   const HEAT_DECAY_SECONDS = 140;
   const CUMULATIVE_HEAT_MODE = 'cumulative-live';
   const MAX_TRACE_POINTS = 3200;
+  const FOCUS_PRESSURE_CONTRIBUTION_THRESHOLD = 1;
   const WALL_CLEARANCE_TARGET = 2.0;
   const ENDPOINT_RELIEF_RADIUS = 2.2;
   const AVOIDANCE_TARGET_DISTANCE = 2.0;
@@ -2025,6 +2026,10 @@
       || null;
     const targetTokens = getDecisionTargetTokens(targetRegionId, selectedTargetNodeLabel);
     const targetKinds = inferDecisionTargetKinds(targetRegionId, selectedTargetNodeLabel, targetTokens);
+    const decisionNode = getDecisionNode(prepared, point);
+    const decisionNodeProximity = decisionNode
+      ? clamp(1 - distance(point, decisionNode) / DECISION_NODE_RADIUS, 0, 1)
+      : 0;
     let flashingAdCount = 0;
     let staticAdCount = 0;
     let irrelevantSignCount = 0;
@@ -2174,8 +2179,9 @@
       relevantGuideCount,
       problemSignCount,
       effectiveGuideDetected,
-      decisionNodeId: getDecisionNode(prepared, point)?.id || null,
-      decisionNodeLabel: getDecisionNode(prepared, point)?.displayLabelEn || getDecisionNode(prepared, point)?.displayLabel || getDecisionNode(prepared, point)?.id || null,
+      decisionNodeId: decisionNode?.id || null,
+      decisionNodeLabel: decisionNode?.displayLabelEn || decisionNode?.displayLabel || decisionNode?.id || null,
+      decisionNodeProximity: Number(decisionNodeProximity.toFixed(3)),
       selectedTargetNodeId,
       selectedTargetNodeLabel,
       targetRegionId,
@@ -2193,6 +2199,7 @@
     const mechanismWeights = decisionModelConfig?.mechanismWeights || {};
     const finalScoreWeights = decisionModelConfig?.finalScore || {};
     const behaviorWeights = decisionModelConfig?.behaviorWeights || {};
+    const decisionNodePeak = decisionModelConfig?.decisionNodePeak || {};
     const memoryBaseMap = getDecisionBaseStateMap('memoryRetentionByScore', { 1: 0.35, 2: 0.50, 3: 0.65, 4: 0.80, 5: 0.92 });
     const attentionBaseMap = getDecisionBaseStateMap('attentionFocusByScore', { 1: 0.40, 2: 0.55, 3: 0.70, 4: 0.84, 5: 0.94 });
     const problemBaseMap = getDecisionBaseStateMap('problemSolvingByScore', { 1: 0.35, 2: 0.50, 3: 0.65, 4: 0.80, 5: 0.92 });
@@ -2236,6 +2243,19 @@
       1
     );
     const guideReviewLoad = clamp(safeNumber(options?.guideReviewLoad, 0), 0, 1);
+    const decisionNodeProximity = clamp(
+      Number.isFinite(Number(options?.decisionNodeProximity))
+        ? safeNumber(options?.decisionNodeProximity, 0)
+        : options?.decisionNodeId ? 1 : 0,
+      0,
+      1
+    );
+    const decisionNodePeakFactor = clamp(
+      safeNumber(decisionNodePeak.floor, 0.35)
+      + (1 - safeNumber(decisionNodePeak.floor, 0.35)) * decisionNodeProximity,
+      0,
+      1
+    );
     const environmentWeightedAverage = clamp(
       (0.20 * noisePenalty) + (0.40 * lightingPenalty) + (0.40 * crowdPenalty),
       0,
@@ -2339,19 +2359,19 @@
       : 0;
     const rawBurden = Math.max(
       0,
-      safeNumber(finalScoreWeights.base, 0.10)
-      + safeNumber(finalScoreWeights.branchComplexity, 0.17) * branchComplexity
-      + safeNumber(finalScoreWeights.signConflict, 0.20) * signConflict
-      + safeNumber(finalScoreWeights.pathComparisonCost, 0.14) * pathComparisonCost
-      + safeNumber(finalScoreWeights.distractorLoad, 0.15) * distractorLoad
-      + safeNumber(finalScoreWeights.noisePenalty, 0.04) * noisePenalty
-      + safeNumber(finalScoreWeights.lightingPenalty, 0.07) * lightingPenalty
-      + safeNumber(finalScoreWeights.crowdPenalty, 0.07) * crowdPenalty
-      + safeNumber(finalScoreWeights.queueUncertainty, 0.06) * queueUncertainty
+      safeNumber(finalScoreWeights.base, 0.05)
+      + safeNumber(finalScoreWeights.branchComplexity, 0.24) * branchComplexity * decisionNodePeakFactor
+      + safeNumber(finalScoreWeights.signConflict, 0.28) * signConflict * decisionNodePeakFactor
+      + safeNumber(finalScoreWeights.pathComparisonCost, 0.22) * pathComparisonCost * decisionNodePeakFactor
+      + safeNumber(finalScoreWeights.distractorLoad, 0.12) * distractorLoad
+      + safeNumber(finalScoreWeights.noisePenalty, 0.05) * noisePenalty
+      + safeNumber(finalScoreWeights.lightingPenalty, 0.04) * lightingPenalty
+      + safeNumber(finalScoreWeights.crowdPenalty, 0.04) * crowdPenalty
+      + safeNumber(finalScoreWeights.queueUncertainty, 0.10) * queueUncertainty * decisionNodePeakFactor
       + safeNumber(finalScoreWeights.memoryDeficit, 0.13) * (1 - memoryRetention)
       + safeNumber(finalScoreWeights.attentionDeficit, 0.13) * (1 - attentionFocus)
       + safeNumber(finalScoreWeights.problemDeficit, 0.16) * (1 - problemSolving)
-      + safeNumber(finalScoreWeights.guidanceSupport, -0.20) * guidanceSupport
+      + safeNumber(finalScoreWeights.guidanceSupport, -0.12) * guidanceSupport
     );
     const score = clamp(100 * vulnerability * rawBurden, 0, 100);
 
@@ -2365,6 +2385,8 @@
       lightingPenalty: Number(lightingPenalty.toFixed(3)),
       crowdPenalty: Number(crowdPenalty.toFixed(3)),
       queueUncertainty: Number(queueUncertainty.toFixed(3)),
+      decisionNodeProximity: Number(decisionNodeProximity.toFixed(3)),
+      decisionNodePeakFactor: Number(decisionNodePeakFactor.toFixed(3)),
       timeDecay: Number(timeDecay.toFixed(3)),
       distanceDecay: Number(distanceDecay.toFixed(3)),
       guidanceSupport: Number(guidanceSupport.toFixed(3)),
@@ -2464,16 +2486,54 @@
     agent.decisionInteractionProgress = 0;
     agent.decisionInteractionPauseRemaining = 0;
     agent.decisionInteractionQueuedOutcome = null;
+    agent.decisionInteractionOrigin = null;
+    agent.decisionInteractionOriginPathProgressDist = 0;
+    agent.decisionInteractionOriginProgressDist = 0;
+    agent.decisionInteractionOriginTargetDistance = Number.POSITIVE_INFINITY;
   }
 
   function shouldSuppressRepeatedDecisionSource(agent, selection) {
+    const recentSources = Array.isArray(agent?.recentDecisionInteractionSources)
+      ? agent.recentDecisionInteractionSources
+      : [];
     if (!selection?.item || !agent?.lastDecisionInteractionSourceId || !agent?.lastDecisionInteractionSourcePoint) {
-      return false;
+      return recentSources.some((source) => (
+        source?.id === selection?.item?.id
+        && distance(agent.position, source) <= VISION_RADIUS * 0.9
+      ));
     }
     if (agent.lastDecisionInteractionSourceId !== selection.item.id) {
-      return false;
+      return recentSources.some((source) => (
+        source?.id === selection.item.id
+        && distance(agent.position, source) <= VISION_RADIUS * 0.9
+      ));
     }
-    return distance(agent.position, agent.lastDecisionInteractionSourcePoint) <= DECISION_NODE_RADIUS * 1.8;
+    return (
+      distance(agent.position, agent.lastDecisionInteractionSourcePoint) <= VISION_RADIUS * 0.9
+      || recentSources.some((source) => (
+        source?.id === selection.item.id
+        && distance(agent.position, source) <= VISION_RADIUS * 0.9
+      ))
+    );
+  }
+
+  function rememberDecisionInteractionSource(agent, sourceId, sourcePoint, scenario) {
+    if (!agent || !sourceId || !sourcePoint) {
+      return;
+    }
+    const nextSource = {
+      id: sourceId,
+      x: safeNumber(sourcePoint.x, 0),
+      y: safeNumber(sourcePoint.y, 0),
+      time: safeNumber(scenario?.time, 0),
+    };
+    const recentSources = Array.isArray(agent.recentDecisionInteractionSources)
+      ? agent.recentDecisionInteractionSources.filter((source) => source?.id !== sourceId)
+      : [];
+    recentSources.push(nextSource);
+    agent.recentDecisionInteractionSources = recentSources.slice(-6);
+    agent.lastDecisionInteractionSourceId = sourceId;
+    agent.lastDecisionInteractionSourcePoint = { x: nextSource.x, y: nextSource.y };
   }
 
   function hasActiveDecisionInteraction(agent) {
@@ -2656,9 +2716,16 @@
       sourceId: sourceItem.id,
       target: bestPlan.targetPoint,
       path: bestPlan.path,
-      returnPath: null,
+      returnPath: reversePolyline(bestPlan.path),
       pauseRemaining: safeNumber(outcome?.nodePauseTime, 0),
       queuedOutcome: { ...outcome },
+      origin: {
+        x: safeNumber(agent.position.x, 0),
+        y: safeNumber(agent.position.y, 0),
+      },
+      originPathProgressDist: safeNumber(agent.pathProgressDist, 0),
+      originProgressDist: safeNumber(agent.progressDist, 0),
+      originTargetDistance: getDistanceToSelectedTarget(prepared, agent, agent.position),
     };
   }
 
@@ -2672,9 +2739,39 @@
     agent.decisionInteractionProgress = 0;
     agent.decisionInteractionPauseRemaining = safeNumber(interactionPlan.pauseRemaining, 0);
     agent.decisionInteractionQueuedOutcome = interactionPlan.queuedOutcome ? { ...interactionPlan.queuedOutcome } : null;
+    agent.decisionInteractionOrigin = interactionPlan.origin ? { ...interactionPlan.origin } : null;
+    agent.decisionInteractionOriginPathProgressDist = safeNumber(interactionPlan.originPathProgressDist, agent.pathProgressDist);
+    agent.decisionInteractionOriginProgressDist = safeNumber(interactionPlan.originProgressDist, agent.progressDist);
+    agent.decisionInteractionOriginTargetDistance = safeNumber(interactionPlan.originTargetDistance, Number.POSITIVE_INFINITY);
   }
 
-  function rerouteFocusAgentFromCurrentPosition(prepared, scenario, agent) {
+  function getDistanceToSelectedTarget(prepared, agent, point) {
+    const targetNode = agent?.selectedTargetNodeId ? prepared?.nodeById?.[agent.selectedTargetNodeId] : null;
+    return targetNode && point ? distance(point, targetNode) : Number.POSITIVE_INFINITY;
+  }
+
+  function isSafeDecisionInteractionReroute(prepared, agent, resolution, options = {}) {
+    if (!resolution?.route || !agent?.isFocusAgent) {
+      return false;
+    }
+    if (agent.selectedTargetNodeId && resolution.targetNode?.id && resolution.targetNode.id !== agent.selectedTargetNodeId) {
+      return false;
+    }
+    const originTargetDistance = safeNumber(options.originTargetDistance, Number.POSITIVE_INFINITY);
+    const currentTargetDistance = getDistanceToSelectedTarget(prepared, agent, agent.position);
+    const newPath = getRoutePath(prepared, resolution.route);
+    const oldRemainingDistance = Math.max(0, safeNumber(agent.pathLength, 0) - safeNumber(options.originPathProgressDist, agent.pathProgressDist));
+    if (
+      newPath
+      && oldRemainingDistance > 0
+      && safeNumber(newPath.length, 0) > oldRemainingDistance + VISION_RADIUS
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  function rerouteFocusAgentFromCurrentPosition(prepared, scenario, agent, options = {}) {
     if (!prepared || !scenario || !agent?.isFocusAgent) {
       return false;
     }
@@ -2697,21 +2794,34 @@
     if (!resolution?.route) {
       return false;
     }
+    if (options.requireSafeDecisionReroute && !isSafeDecisionInteractionReroute(prepared, agent, resolution, options)) {
+      return false;
+    }
     applyFocusRoute(prepared, scenario, agent, resolution, { preservePosition: true });
     return true;
   }
 
-  function finalizeDecisionInteraction(prepared, scenario, agent) {
+  function finalizeDecisionInteraction(prepared, scenario, agent, options = {}) {
     const queuedOutcome = agent?.decisionInteractionQueuedOutcome ? { ...agent.decisionInteractionQueuedOutcome } : null;
-    agent.lastDecisionInteractionSourceId = agent?.decisionInteractionSourceId || null;
-    agent.lastDecisionInteractionSourcePoint = agent?.decisionInteractionTarget
+    const sourceId = agent?.decisionInteractionSourceId || null;
+    const sourcePoint = agent?.decisionInteractionTarget
       ? { ...agent.decisionInteractionTarget }
       : null;
-    rerouteFocusAgentFromCurrentPosition(prepared, scenario, agent);
+    const rerouted = options.skipReroute
+      ? false
+      : rerouteFocusAgentFromCurrentPosition(prepared, scenario, agent, {
+        requireSafeDecisionReroute: Boolean(options.requireSafeDecisionReroute),
+        originTargetDistance: safeNumber(agent?.decisionInteractionOriginTargetDistance, Number.POSITIVE_INFINITY),
+        originPathProgressDist: safeNumber(agent?.decisionInteractionOriginPathProgressDist, agent?.pathProgressDist),
+      });
+    if (sourceId && sourcePoint) {
+      rememberDecisionInteractionSource(agent, sourceId, sourcePoint, scenario);
+    }
     clearDecisionInteraction(agent);
     if (queuedOutcome) {
       applyDecisionMotionOutcome(agent, queuedOutcome, { includePause: false });
     }
+    return rerouted;
   }
 
   function materializeDecisionInteractionPosition(agent) {
@@ -2735,12 +2845,21 @@
     if (agent.decisionInteractionState === 'pause') {
       agent.decisionInteractionPauseRemaining = Math.max(0, safeNumber(agent.decisionInteractionPauseRemaining, 0) - safeNumber(dt, 0));
       if (agent.decisionInteractionPauseRemaining <= 1e-6) {
+        const canContinueFromInteractionPoint = rerouteFocusAgentFromCurrentPosition(prepared, scenario, agent, {
+          requireSafeDecisionReroute: true,
+          originTargetDistance: safeNumber(agent?.decisionInteractionOriginTargetDistance, Number.POSITIVE_INFINITY),
+          originPathProgressDist: safeNumber(agent?.decisionInteractionOriginPathProgressDist, agent?.pathProgressDist),
+        });
+        if (canContinueFromInteractionPoint) {
+          finalizeDecisionInteraction(prepared, scenario, agent, { skipReroute: true });
+          return { handled: true, movedDistance: 0 };
+        }
         if (agent.decisionInteractionReturnPath && safeNumber(agent.decisionInteractionReturnPath.length, 0) > 1e-6) {
           agent.decisionInteractionState = 'return';
           agent.decisionInteractionPath = agent.decisionInteractionReturnPath;
           agent.decisionInteractionProgress = 0;
         } else {
-          finalizeDecisionInteraction(prepared, scenario, agent);
+          finalizeDecisionInteraction(prepared, scenario, agent, { skipReroute: true });
         }
       }
       return { handled: true, movedDistance: 0 };
@@ -2778,7 +2897,7 @@
           finalizeDecisionInteraction(prepared, scenario, agent);
         }
       } else if (agent.decisionInteractionState === 'return') {
-        finalizeDecisionInteraction(prepared, scenario, agent);
+        finalizeDecisionInteraction(prepared, scenario, agent, { requireSafeDecisionReroute: true });
       }
     }
 
@@ -2836,16 +2955,25 @@
           backtrackDistance: 0,
           backtrackPauseTime: 0,
         }
-      : outcome;
-    const interactionPlan = selection
-      ? suppressRepeatedSource
-        ? null
-        : buildDecisionInteractionPlan(prepared, agent, selection.item, selection, effectiveOutcome)
+      : {
+          ...outcome,
+          triggerWrongTurn: false,
+          triggerBacktrack: false,
+          wrongTurnAdvanceDistance: 0,
+          backtrackDistance: 0,
+          backtrackPauseTime: 0,
+        };
+    const interactionPlan = selection && !suppressRepeatedSource
+      ? buildDecisionInteractionPlan(prepared, agent, selection.item, selection, effectiveOutcome)
       : null;
     if (interactionPlan) {
       startDecisionInteraction(agent, interactionPlan);
+      rememberDecisionInteractionSource(agent, interactionPlan.sourceId, interactionPlan.target, scenario);
     } else {
       applyDecisionMotionOutcome(agent, effectiveOutcome);
+      if (!suppressRepeatedSource && selection?.item) {
+        rememberDecisionInteractionSource(agent, selection.item.id, selection.item, scenario);
+      }
     }
     agent.lastDecisionDiagnostics = {
       decisionNodeId: decisionNode?.id || null,
@@ -2854,8 +2982,9 @@
       ...decisionState,
       behavior: {
         ...effectiveOutcome,
-        interactionMode: interactionPlan?.mode || null,
-        interactionSourceId: interactionPlan?.sourceId || null,
+        interactionMode: interactionPlan?.mode || (suppressRepeatedSource ? null : selection?.mode || null),
+        interactionSourceId: interactionPlan?.sourceId || (suppressRepeatedSource ? null : selection?.item?.id || null),
+        physicalInteraction: Boolean(interactionPlan),
       },
     };
     return effectiveOutcome;
@@ -5571,7 +5700,11 @@
       return advanceRestSearchState(prepared, scenario, agent, environment, dt);
     }
 
-    if (getUnifiedCrowdDensity(environment, 0) > REST_RULES.interruptionDensity && agent.restState === 'sitting') {
+    if (
+      getUnifiedCrowdDensity(environment, 0) > REST_RULES.interruptionDensity
+      && agent.restState === 'sitting'
+      && !agent.reservedSeatId
+    ) {
       if (agent.reservedSeatId) {
         releaseSeat(scenario, agent.reservedSeatId);
       }
@@ -5582,7 +5715,14 @@
 
     recoverDuringRest(environment, queueCount, agent, dt);
     if (safeNumber(agent.fatigue, 0) <= safeNumber(agent.restResumeThreshold, 0)) {
+      const completedRestState = agent.restState;
       clearRestState(scenario, agent);
+      if (
+        agent.isFocusAgent
+        && (completedRestState === 'sitting' || completedRestState === 'standing')
+      ) {
+        rerouteFocusAgentFromCurrentPosition(prepared, scenario, agent);
+      }
     }
     return true;
   }
@@ -5699,6 +5839,9 @@
     if (!node || !isExplicitBackgroundQueueNode(node)) {
       return 0;
     }
+    if (scenario?.backgroundFieldSummaryOnlyActive) {
+      return getBackgroundFieldQueueCountAtCursor(scenario, node.id);
+    }
     return scenario.agents.reduce((count, agent) => {
       if (!agent.active || agent.id === excludeAgentId) {
         return count;
@@ -5709,6 +5852,9 @@
 
   function countAgentsWithinNodeRadius(scenario, node, radius, excludeAgentId) {
     if (!node) {
+      return 0;
+    }
+    if (scenario?.backgroundFieldSummaryOnlyActive) {
       return 0;
     }
     const resolvedRadius = Math.max(0, safeNumber(radius, QUEUE_LOCK_RADIUS));
@@ -6136,8 +6282,33 @@
     return getNearestPreparedNode(prepared, sample.point, 6.5);
   }
 
+  function isRestNarrativePlanAnchor(item) {
+    const text = [
+      item?.anchorKind,
+      item?.anchor_kind,
+      item?.labelZh,
+      item?.label_zh,
+      item?.labelEn,
+      item?.label_en,
+      item?.noteZh,
+      item?.note_zh,
+      item?.noteEn,
+      item?.note_en,
+    ].map((value) => String(value || '').toLowerCase()).join(' ');
+    return /(\brest\b|\bseat\b|\bsitting\b|\bsit\b|\bfatigue\b|\brecover\w*\b|休息|座椅|座位|坐下|疲劳|体力恢复|恢复体力)/i.test(text);
+  }
+
   function buildFocusPlanAnchorRuntime(prepared, scenario, targetRegionId) {
     const signature = `${targetRegionId || ''}::${JSON.stringify(Array.isArray(scenario?.llmDecisionPlan?.anchors) ? scenario.llmDecisionPlan.anchors : [])}`;
+    if (!scenario?.llmDecisionPlan?.enablePhysicalAnchors) {
+      return {
+        signature,
+        targetRegionId: targetRegionId || null,
+        anchors: [],
+        activeIndex: 0,
+        completedNodeIds: {},
+      };
+    }
     const focusAgent = scenario?.focusAgent || null;
     const anchors = (Array.isArray(scenario?.llmDecisionPlan?.anchors) ? scenario.llmDecisionPlan.anchors : [])
       .map((item, index) => ({
@@ -6146,6 +6317,7 @@
         anchorKind: String(item?.anchorKind || item?.anchor_kind || '').trim() || 'checkpoint',
         labelZh: String(item?.labelZh || item?.label_zh || '').trim(),
         labelEn: String(item?.labelEn || item?.label_en || '').trim(),
+        isRestNarrativeAnchor: isRestNarrativePlanAnchor(item),
       }))
       .filter((item) => item.nodeId)
       .sort((left, right) => left.order - right.order);
@@ -6156,6 +6328,9 @@
           || resolveVirtualFocusAnchorNode(prepared, scenario, focusAgent, targetRegionId, item.nodeId)
           || null;
         if (!node || seenNodeIds.has(node.id)) {
+          return null;
+        }
+        if (item.isRestNarrativeAnchor) {
           return null;
         }
         seenNodeIds.add(node.id);
@@ -6950,16 +7125,16 @@
 
   function getCrowdingFatigueCoefficient(crowdDensity) {
     if (crowdDensity < 1) return 1;
-    if (crowdDensity < 3) return 1.2;
-    if (crowdDensity <= 5) return 1.4;
-    return 1.6;
+    if (crowdDensity < 3) return 1.1;
+    if (crowdDensity <= 5) return 1.2;
+    return 1.3;
   }
 
   function getNoiseFatigueCoefficient(noiseLevel) {
     if (noiseLevel <= 60) return 1;
     if (noiseLevel <= 70) return 1.1;
-    if (noiseLevel <= 80) return 1.3;
-    return 1.5;
+    if (noiseLevel <= 80) return 1.1;
+    return 1.3;
   }
 
   function getLightingFatigueCoefficient(lightingLevel) {
@@ -7069,7 +7244,7 @@
         if (distance(point, node) > QUEUE_LOCK_RADIUS) {
           return null;
         }
-        const queueCount = countAgentsNearNode(scenario, node, options?.agent?.id);
+        const queueCount = computeQueuePopulation(scenario, node.id);
         const stress = getQueueStressContribution(queueCount);
         if (stress <= 0) {
           return null;
@@ -7284,12 +7459,63 @@
       return 0;
     }
     if (isExplicitBackgroundQueueNode(node)) {
+      if (scenario?.backgroundFieldActive && scenario.backgroundFieldQueueCounts) {
+        return getBackgroundFieldQueueCountAtCursor(scenario, nodeId);
+      }
       return countAgentsNearNode(scenario, node);
     }
     if (!options?.includeOrdinaryTargetNode) {
       return 0;
     }
     return countAgentsWithinNodeRadius(scenario, node, safeNumber(options?.ordinaryRadius, QUEUE_LOCK_RADIUS));
+  }
+
+  function buildScenarioAgentSpatialIndex(scenario, cellSize = AVOIDANCE_TARGET_DISTANCE * 1.35) {
+    const resolvedCellSize = Math.max(0.5, safeNumber(cellSize, AVOIDANCE_TARGET_DISTANCE));
+    const buckets = new Map();
+    const keyForPoint = (point) => {
+      const x = Math.floor(safeNumber(point?.x, 0) / resolvedCellSize);
+      const y = Math.floor(safeNumber(point?.y, 0) / resolvedCellSize);
+      return `${x}:${y}`;
+    };
+    (scenario?.agents || []).forEach((agent) => {
+      if (!agent?.active || !agent.position) {
+        return;
+      }
+      const key = keyForPoint(agent.position);
+      const bucket = buckets.get(key);
+      if (bucket) {
+        bucket.push(agent);
+      } else {
+        buckets.set(key, [agent]);
+      }
+    });
+    return {
+      cellSize: resolvedCellSize,
+      buckets,
+    };
+  }
+
+  function getNearbyAgentsFromSpatialIndex(scenario, point, radius) {
+    const spatialIndex = scenario?._agentSpatialIndex;
+    if (!spatialIndex?.buckets || !point) {
+      return scenario?.agents || [];
+    }
+    const cellSize = Math.max(0.5, safeNumber(spatialIndex.cellSize, AVOIDANCE_TARGET_DISTANCE));
+    const minX = Math.floor((safeNumber(point.x, 0) - radius) / cellSize);
+    const maxX = Math.floor((safeNumber(point.x, 0) + radius) / cellSize);
+    const minY = Math.floor((safeNumber(point.y, 0) - radius) / cellSize);
+    const maxY = Math.floor((safeNumber(point.y, 0) + radius) / cellSize);
+    const candidates = [];
+    for (let bucketX = minX; bucketX <= maxX; bucketX += 1) {
+      for (let bucketY = minY; bucketY <= maxY; bucketY += 1) {
+        const bucket = spatialIndex.buckets.get(`${bucketX}:${bucketY}`);
+        if (bucket?.length) {
+          candidates.push(...bucket);
+        }
+      }
+    }
+    return candidates;
   }
 
   function computeAvoidanceVector(scenario, selfAgent) {
@@ -7301,7 +7527,10 @@
     const influenceRadius = AVOIDANCE_TARGET_DISTANCE * (selfAgent?.isFocusAgent ? 1.25 : 1);
     const accumulated = { x: 0, y: 0 };
     let nearestDistance = Number.POSITIVE_INFINITY;
-    scenario.agents.forEach((agent) => {
+    getNearbyAgentsFromSpatialIndex(scenario, selfPosition, influenceRadius).forEach((agent) => {
+      if (scenario?.backgroundFieldSummaryOnlyActive && selfAgent?.isFocusAgent && !agent.isFocusAgent) {
+        return;
+      }
       if (!agent?.active || agent.id === selfAgent.id || !agent.position) {
         return;
       }
@@ -7482,6 +7711,9 @@
           influence: stressContribution,
           score: stressContribution,
           sourceKind: 'embedded-noise',
+          distance: currentDistance,
+          visible: currentDistance <= VISION_RADIUS,
+          inVisionRange: currentDistance <= VISION_RADIUS,
         });
       }
       if (ruleDescriptor.ambientOnly) {
@@ -7495,6 +7727,9 @@
           influence: stressContribution,
           score: stressContribution,
           sourceKind: 'ambient-noise',
+          distance: currentDistance,
+          visible: currentDistance <= safeNumber(ruleDescriptor.triggerRadius, VISION_RADIUS),
+          inVisionRange: currentDistance <= VISION_RADIUS,
         });
         return;
       }
@@ -7538,6 +7773,9 @@
               pressureDelta: expectedNetStress,
               score: expectedPositiveStress,
               sourceKind: 'vision-expected',
+              distance: currentDistance,
+              visible: isVisible,
+              inVisionRange: currentDistance <= VISION_RADIUS,
             });
           }
           return;
@@ -7550,6 +7788,9 @@
             score: eventState.lastAdjustedDelta,
             sourceKind: 'persistent-event',
             state: eventState.lastState,
+            distance: currentDistance,
+            visible: isVisible,
+            inVisionRange: currentDistance <= VISION_RADIUS,
           });
         }
         return;
@@ -7568,6 +7809,9 @@
           pressureDelta: isVisibleExpected ? expectedNetStress : expectedPositiveStress,
           score: expectedPositiveStress,
           sourceKind: isVisibleExpected ? 'vision-expected' : 'persistent-risk',
+          distance: currentDistance,
+          visible: currentDistance <= safeNumber(ruleDescriptor.triggerRadius, VISION_RADIUS),
+          inVisionRange: currentDistance <= VISION_RADIUS,
         });
       }
     });
@@ -7803,24 +8047,243 @@
     });
   }
 
+  function inferPressureContributionBurdenType(contribution = {}) {
+    const sourceKind = String(contribution.sourceKind || '').toLowerCase();
+    const pressurePoint = contribution.pressurePoint || {};
+    const category = String(pressurePoint.category || '').toLowerCase();
+    const name = `${pressurePoint.name || ''} ${pressurePoint.feature || ''}`.toLowerCase();
+    if (sourceKind.includes('queue')) return 'locomotor';
+    if (sourceKind.includes('noise') || category.includes('noise') || name.includes('noise')) return 'sensory';
+    if (sourceKind.includes('lighting') || category.includes('light') || name.includes('light')) return 'sensory';
+    if (category.includes('sign') || name.includes('sign') || name.includes('guide') || name.includes('map')) return 'cognitive';
+    if (category.includes('advert') || name.includes('advert') || name.includes('ad')) return 'sensory';
+    return 'psychological';
+  }
+
+  function serializePressureContributionSource(contribution, options = {}) {
+    const pressurePoint = contribution?.pressurePoint || {};
+    const contributionValue = safeNumber(
+      contribution?.score,
+      Math.abs(safeNumber(contribution?.pressureDelta, safeNumber(contribution?.influence, 0)))
+    );
+    return {
+      pressurePointId: pressurePoint.id,
+      id: pressurePoint.id,
+      name: pressurePoint.name || pressurePoint.id,
+      category: pressurePoint.category,
+      feature: pressurePoint.feature,
+      x: safeNumber(pressurePoint.x, safeNumber(options.x, 0)),
+      y: safeNumber(pressurePoint.y, safeNumber(options.y, 0)),
+      burdenType: options.burdenType || inferPressureContributionBurdenType(contribution),
+      contribution: Number(contributionValue.toFixed(3)),
+      influence: Number(safeNumber(contribution?.influence, contributionValue).toFixed(3)),
+      pressureDelta: Number(safeNumber(contribution?.pressureDelta, contribution?.influence).toFixed(3)),
+      state: contribution?.state || null,
+      sourceKind: contribution?.sourceKind || null,
+      distance: Number(safeNumber(contribution?.distance, Number.NaN).toFixed(3)),
+      visible: Boolean(contribution?.visible),
+      inVisionRange: Boolean(contribution?.inVisionRange),
+      missedSignage: Boolean(options.missedSignage),
+    };
+  }
+
   function serializeTopPressureSources(contributions, limit = 3) {
     return (contributions || [])
       .slice()
       .sort((left, right) => safeNumber(right.score, 0) - safeNumber(left.score, 0))
       .slice(0, Math.max(1, Math.round(safeNumber(limit, 3))))
-      .map(({ pressurePoint, influence, score, state, sourceKind }) => ({
-        id: pressurePoint.id,
-        name: pressurePoint.name || pressurePoint.id,
-        category: pressurePoint.category,
-        feature: pressurePoint.feature,
-        x: pressurePoint.x,
-        y: pressurePoint.y,
-        influence,
-        score,
-        pressure: score,
-        state: state || null,
-        sourceKind: sourceKind || null,
+      .map((contribution) => {
+        const source = serializePressureContributionSource(contribution);
+        return {
+          id: source.id,
+          name: source.name,
+          category: source.category,
+          feature: source.feature,
+          x: source.x,
+          y: source.y,
+          influence: source.influence,
+          score: source.contribution,
+          pressure: source.contribution,
+          pressureDelta: source.pressureDelta,
+          state: source.state,
+          sourceKind: source.sourceKind,
+          burdenType: source.burdenType,
+          visible: source.visible,
+          inVisionRange: source.inVisionRange,
+        };
+      });
+  }
+
+  function isMissedVisibleSignageObject(item = {}) {
+    const raw = `${item.name || ''} ${item.semanticId || ''}`.toLowerCase();
+    const isSignage = /sign|guide|map|direction|标识|指示/.test(raw);
+    if (!isSignage) {
+      return false;
+    }
+    const direction = String(item.direction || '').toLowerCase();
+    const supportValue = safeNumber(item.supportValue, 0);
+    const reviewValue = safeNumber(item.reviewValue, 0);
+    return direction === 'load' || supportValue <= 0.04 || reviewValue > supportValue;
+  }
+
+  function isPreparedPressurePoint(prepared, pressurePoint) {
+    const id = pressurePoint?.id;
+    return Boolean(id && prepared?.pressureById?.[id]);
+  }
+
+  function buildContributionVisibility(agent, pressurePoint, fallbackDistance = Number.NaN) {
+    const currentDistance = Number.isFinite(Number(fallbackDistance))
+      ? Number(fallbackDistance)
+      : distance(agent?.position || { x: 0, y: 0 }, pressurePoint || { x: 0, y: 0 });
+    return {
+      distance: currentDistance,
+      visible: currentDistance <= VISION_RADIUS,
+      inVisionRange: currentDistance <= VISION_RADIUS,
+    };
+  }
+
+  function recordPsychologicalPressureContributionLogs(prepared, scenario, agent, pressureState, dimensionState, pushEntry) {
+    const psychological = dimensionState?.burdens?.psychological || {};
+    const psychologicalScore = safeNumber(psychological.score, 0);
+    if (psychologicalScore <= 1) {
+      return;
+    }
+    const psychologicalScale = clamp(psychologicalScore / 100, 0.08, 1);
+    (pressureState?.contributions || []).forEach((contribution) => {
+      const pressurePoint = contribution?.pressurePoint;
+      if (!isPreparedPressurePoint(prepared, pressurePoint)) {
+        return;
+      }
+      const sourceKind = String(contribution?.sourceKind || '').toLowerCase();
+      const participatesInPsychology = /noise|lighting|queue|persistent|vision|embedded/.test(sourceKind);
+      if (!participatesInPsychology) {
+        return;
+      }
+      const sourceWeight = /persistent|vision/.test(sourceKind) ? 0.9 : 0.55;
+      const rawContribution = Math.max(0, safeNumber(contribution?.score, contribution?.influence)) * psychologicalScale * sourceWeight;
+      pushEntry(serializePressureContributionSource({
+        ...contribution,
+        score: rawContribution,
+        influence: rawContribution,
+        pressureDelta: rawContribution,
+        sourceKind: `psychological-${sourceKind || 'pressure'}`,
+        ...buildContributionVisibility(agent, pressurePoint, contribution?.distance),
+      }, {
+        burdenType: 'psychological',
       }));
+    });
+    const consideredObjects = dimensionState?.context?.decisionInputs?.consideredObjects || [];
+    consideredObjects.forEach((item) => {
+      const pressurePoint = prepared?.pressureById?.[item.id];
+      if (!pressurePoint) {
+        return;
+      }
+      const direction = String(item.direction || '').toLowerCase();
+      const reviewValue = Math.abs(safeNumber(item.reviewValue, 0));
+      const supportValue = Math.abs(safeNumber(item.supportValue, 0));
+      const loadValue = Math.abs(safeNumber(item.value, 0));
+      const isPsychologicalTrigger = direction === 'load'
+        || String(item.relevance || '').toLowerCase() === 'irrelevant'
+        || isMissedVisibleSignageObject(item)
+        || reviewValue > supportValue;
+      if (!isPsychologicalTrigger) {
+        return;
+      }
+      const rawContribution = Math.max(loadValue, reviewValue - supportValue, reviewValue * 0.7) * 80 * psychologicalScale;
+      pushEntry(serializePressureContributionSource({
+        pressurePoint,
+        score: rawContribution,
+        influence: rawContribution,
+        pressureDelta: rawContribution,
+        sourceKind: 'psychological-decision-object',
+        ...buildContributionVisibility(agent, pressurePoint),
+      }, {
+        burdenType: 'psychological',
+        missedSignage: isMissedVisibleSignageObject(item),
+      }));
+    });
+  }
+
+  function recordVitalityPressureContributionLogs(prepared, scenario, agent, pressureState, dimensionState, pushEntry) {
+    const vitality = dimensionState?.burdens?.vitality || {};
+    const fatigueRatio = clamp(safeNumber(vitality.fatigueRatioPercent, 0) / 100, 0, 1);
+    const vitalityScore = clamp(safeNumber(vitality.score, 0) / 100, 0, 1);
+    const vitalityScale = clamp(Math.max(fatigueRatio, vitalityScore), 0.08, 1);
+    (pressureState?.contributions || []).forEach((contribution) => {
+      const pressurePoint = contribution?.pressurePoint;
+      if (!isPreparedPressurePoint(prepared, pressurePoint)) {
+        return;
+      }
+      const sourceKind = String(contribution?.sourceKind || '').toLowerCase();
+      const participatesInFatigue = /noise|lighting|queue/.test(sourceKind);
+      if (!participatesInFatigue) {
+        return;
+      }
+      const sourceWeight = sourceKind.includes('queue') ? 0.72 : 0.42;
+      const rawContribution = Math.max(0, safeNumber(contribution?.score, contribution?.influence)) * vitalityScale * sourceWeight;
+      pushEntry(serializePressureContributionSource({
+        ...contribution,
+        score: rawContribution,
+        influence: rawContribution,
+        pressureDelta: rawContribution,
+        sourceKind: `vitality-${sourceKind || 'pressure'}`,
+        ...buildContributionVisibility(agent, pressurePoint, contribution?.distance),
+      }, {
+        burdenType: 'vitality',
+      }));
+    });
+  }
+
+  function recordFocusPressureContributionLog(prepared, scenario, agent, pressureState, dimensionState) {
+    if (!agent?.isFocusAgent || !scenario?.heatActive || !pressureState) {
+      return;
+    }
+    if (!Array.isArray(scenario.focusPressureContributionLog)) {
+      scenario.focusPressureContributionLog = [];
+    }
+    const pushEntry = (entry) => {
+      if (!entry?.pressurePointId || safeNumber(entry.contribution, 0) < FOCUS_PRESSURE_CONTRIBUTION_THRESHOLD) {
+        return;
+      }
+      scenario.focusPressureContributionLog.push({
+        ...entry,
+        time: Number(safeNumber(scenario.time, 0).toFixed(3)),
+        x: Number(safeNumber(agent.position?.x, 0).toFixed(3)),
+        y: Number(safeNumber(agent.position?.y, 0).toFixed(3)),
+        progress: Number(getDisplayedAgentProgress(scenario, agent).toFixed(4)),
+      });
+    };
+    (pressureState.contributions || []).forEach((contribution) => {
+      pushEntry(serializePressureContributionSource(contribution));
+    });
+    const consideredObjects = dimensionState?.context?.decisionInputs?.consideredObjects || [];
+    consideredObjects.forEach((item) => {
+      const pressurePoint = prepared?.pressureById?.[item.id];
+      if (!pressurePoint) {
+        return;
+      }
+      const rawContribution = Math.max(
+        Math.abs(safeNumber(item.value, 0)),
+        Math.abs(safeNumber(item.supportValue, 0)),
+        Math.abs(safeNumber(item.reviewValue, 0))
+      ) * 100;
+      pushEntry(serializePressureContributionSource({
+        pressurePoint,
+        score: rawContribution,
+        influence: rawContribution,
+        pressureDelta: rawContribution,
+        sourceKind: 'decision-visible-object',
+        distance: distance(agent.position, pressurePoint),
+        visible: distance(agent.position, pressurePoint) <= VISION_RADIUS,
+        inVisionRange: true,
+      }, {
+        burdenType: 'cognitive',
+        missedSignage: isMissedVisibleSignageObject(item),
+      }));
+    });
+    recordPsychologicalPressureContributionLogs(prepared, scenario, agent, pressureState, dimensionState, pushEntry);
+    recordVitalityPressureContributionLogs(prepared, scenario, agent, pressureState, dimensionState, pushEntry);
+    trimTraceSeriesPreservingStart(scenario.focusPressureContributionLog, MAX_TRACE_POINTS * 6);
   }
 
   function decayHeat(prepared, scenario, dt) {
@@ -7881,6 +8344,7 @@
       fatigueThreshold,
       pressureState: localPressure,
     });
+    recordFocusPressureContributionLog(prepared, scenario, agent, localPressure, dimensionState);
     scenario.focusTrace.push({ x: agent.position.x, y: agent.position.y });
     trimTraceSeriesPreservingStart(scenario.focusTrace, MAX_TRACE_POINTS);
     const shortRestMarker = agent.pendingShortRestMarker ? { ...agent.pendingShortRestMarker } : null;
@@ -7931,6 +8395,9 @@
       topBurdenId: dimensionState.summary.topBurdenId,
       selectedTargetNodeId: agent.selectedTargetNodeId || null,
       selectedTargetNodeLabel: agent.selectedTargetNodeLabel || null,
+      decisionInteractionState: agent.decisionInteractionState || null,
+      decisionInteractionMode: agent.decisionInteractionMode || null,
+      decisionInteractionSourceId: agent.decisionInteractionSourceId || null,
       shortRestMarker,
     });
     trimTraceSeriesPreservingStart(scenario.focusTraceSnapshots, MAX_TRACE_POINTS);
@@ -7948,7 +8415,68 @@
     if (series.length <= limit) {
       return;
     }
-    series.splice(1, series.length - limit);
+    const lastIndex = series.length - 1;
+    const requiredIndices = new Set([0, lastIndex]);
+    for (let index = 0; index < series.length; index += 1) {
+      const item = series[index] || {};
+      const previous = index > 0 ? series[index - 1] || {} : {};
+      const next = index < lastIndex ? series[index + 1] || {} : {};
+      if (
+        item.shortRestMarker
+        || item.playbackComplete
+        || String(item.restState || 'none') !== String(previous.restState || 'none')
+        || String(item.restState || 'none') !== String(next.restState || 'none')
+      ) {
+        requiredIndices.add(index);
+        if (index > 0) {
+          requiredIndices.add(index - 1);
+        }
+        if (index < lastIndex) {
+          requiredIndices.add(index + 1);
+        }
+      }
+    }
+    if (requiredIndices.size >= limit) {
+      const required = Array.from(requiredIndices).sort((left, right) => left - right);
+      const reducedRequired = [];
+      for (let slot = 0; slot < limit; slot += 1) {
+        const sourceIndex = Math.round((slot * (required.length - 1)) / Math.max(1, limit - 1));
+        reducedRequired.push(series[required[sourceIndex]]);
+      }
+      series.splice(0, series.length, ...reducedRequired);
+      return;
+    }
+
+    const reducedEntries = series.map((item, index) => ({
+      item,
+      required: requiredIndices.has(index),
+    }));
+    while (reducedEntries.length > limit) {
+      let removalIndex = -1;
+      let bestCost = Number.POSITIVE_INFINITY;
+      for (let index = 1; index < reducedEntries.length - 1; index += 1) {
+        if (reducedEntries[index].required) {
+          continue;
+        }
+        const previousTime = safeNumber(reducedEntries[index - 1]?.item?.time, index - 1);
+        const nextTime = safeNumber(reducedEntries[index + 1]?.item?.time, index + 1);
+        const timeCost = Math.max(0, nextTime - previousTime);
+        const previousPoint = reducedEntries[index - 1]?.item || reducedEntries[index]?.item;
+        const nextPoint = reducedEntries[index + 1]?.item || reducedEntries[index]?.item;
+        const distanceCost = distance(previousPoint, nextPoint);
+        const cost = timeCost * 1000 + distanceCost;
+        if (cost < bestCost) {
+          bestCost = cost;
+          removalIndex = index;
+        }
+      }
+      if (removalIndex < 0) {
+        break;
+      }
+      reducedEntries.splice(removalIndex, 1);
+    }
+    const reduced = reducedEntries.map((entry) => entry.item);
+    series.splice(0, series.length, ...reduced);
   }
 
   function snapshotScenarioForReplay(scenario) {
@@ -8976,13 +9504,47 @@
       }
     }
 
+    const selectedTargetNodeForFinish = agent.isFocusAgent && agent.selectedTargetNodeId
+      ? prepared.nodeById?.[agent.selectedTargetNodeId] || null
+      : null;
+    const routeSampleForFinish = agent.isFocusAgent && agent.path
+      ? samplePolyline(agent.path, safeNumber(agent.pathProgressDist, agent.progressDist))
+      : agent.position;
+    const focusIsAtSelectedTarget = Boolean(
+      !agent.isFocusAgent
+      || !selectedTargetNodeForFinish
+      || distance(routeSampleForFinish, selectedTargetNodeForFinish) <= Math.max(0.75, QUEUE_LOCK_RADIUS)
+    );
     const shouldDeferTraversalFinishForRest = Boolean(
       agent.isFocusAgent
       && agent.restState
       && agent.restState !== 'none'
     );
-    if (!shouldDeferTraversalFinishForRest && agent.pathProgressDist >= agent.path.length - 1e-6) {
+    const shouldDeferTraversalFinishForDecisionInteraction = Boolean(
+      agent.isFocusAgent
+      && (
+        hasActiveDecisionInteraction(agent)
+        || safeNumber(agent.decisionPauseRemaining, 0) > 1e-6
+      )
+    );
+    if (
+      agent.isFocusAgent
+      && !shouldDeferTraversalFinishForRest
+      && !shouldDeferTraversalFinishForDecisionInteraction
+      && agent.pathProgressDist >= agent.path.length - 1e-6
+      && !focusIsAtSelectedTarget
+    ) {
+      rerouteFocusAgentFromCurrentPosition(prepared, scenario, agent);
+      return;
+    }
+    if (
+      !shouldDeferTraversalFinishForRest
+      && !shouldDeferTraversalFinishForDecisionInteraction
+      && focusIsAtSelectedTarget
+      && agent.pathProgressDist >= agent.path.length - 1e-6
+    ) {
       if (agent.isFocusAgent) {
+        materializeAgentPosition(prepared, scenario, agent, { smoothOffset: false });
         if (scenario.heatActive && !scenario.firstPassComplete) {
           scenario.focusMetrics.lapTimes.push(agent.currentLapTime);
           scenario.focusMetrics.lapFatigues.push(agent.lapFatiguePeak);
@@ -9013,12 +9575,13 @@
       scenario.backgroundQueueProcessedNodes = {};
       decayHeat(prepared, scenario, stepDt);
       if (skipBackgroundPlaybackAgents) {
-        syncScenarioBackgroundField(prepared, scenario, scenario.time);
+        syncScenarioBackgroundField(prepared, scenario, scenario.time, { summaryOnly: deferPostProcess });
       }
       if (!skipBackgroundPlaybackAgents) {
         advanceElevatorDepartureCycle(scenario);
         releaseElevatorArrivalBatch(prepared, scenario);
       }
+      scenario._agentSpatialIndex = buildScenarioAgentSpatialIndex(scenario);
       scenario.agents.forEach((agent) => {
         if (skipFocusAgent && agent.isFocusAgent) {
           return;
@@ -9028,6 +9591,7 @@
         }
         stepAgent(prepared, scenario, agent, stepDt);
       });
+      scenario._agentSpatialIndex = null;
       if (scenario.pendingReplayReset) {
         restoreScenarioReplayState(prepared, scenario);
         remaining = 0;
@@ -9065,6 +9629,8 @@
     clone.agents = scenario.agents.map((agent) => ({ ...agent, position: { ...agent.position }, center: { ...agent.center }, tangent: { ...agent.tangent }, normal: { ...agent.normal }, route: agent.route, path: agent.path }));
     clone.focusAgentId = scenario.focusAgentId;
     clone.backgroundFieldCursor = safeNumber(scenario.backgroundFieldCursor, 0);
+    clone.backgroundFieldQueueCursor = safeNumber(scenario.backgroundFieldQueueCursor, 0);
+    clone.backgroundFieldQueueCounts = { ...(scenario.backgroundFieldQueueCounts || {}) };
     clone.backgroundQueueProcessedNodes = {};
     refreshScenarioAgentCollections(clone);
     return clone;
@@ -9078,6 +9644,7 @@
     scenario.pendingReplayReset = false;
     scenario.focusTrace = [];
     scenario.focusTraceSnapshots = [];
+    scenario.focusPressureContributionLog = [];
     scenario.hotspots = [];
     scenario.suggestions = [];
     scenario.pressureImpactMap = {};
@@ -9172,6 +9739,7 @@
     const traceSnapshots = Array.isArray(workingScenario.focusTraceSnapshots)
       ? workingScenario.focusTraceSnapshots.map((snapshot) => ({ ...snapshot }))
       : [];
+    appendCompletedFocusTraceSnapshot(prepared, workingScenario, traceSnapshots);
     const pressureValues = traceSnapshots
       .map((snapshot) => safeNumber(snapshot.cognitiveLoad, snapshot.pressure))
       .filter((value) => Number.isFinite(value));
@@ -9179,6 +9747,9 @@
     const endTime = traceSnapshots.length ? safeNumber(traceSnapshots[traceSnapshots.length - 1].time, 0) : 0;
     return {
       traceSnapshots,
+      pressureContributionLog: Array.isArray(workingScenario.focusPressureContributionLog)
+        ? workingScenario.focusPressureContributionLog.map((item) => ({ ...item }))
+        : [],
       pressureRange: {
         min: pressureValues.length ? Math.min(...pressureValues) : 0,
         max: pressureValues.length ? Math.max(...pressureValues) : 0,
@@ -9192,6 +9763,49 @@
       summary: workingScenario.summary ? { ...workingScenario.summary } : null,
       llmDecisionPlan: workingScenario.llmDecisionPlan ? JSON.parse(JSON.stringify(workingScenario.llmDecisionPlan)) : null,
     };
+  }
+
+  function appendCompletedFocusTraceSnapshot(prepared, workingScenario, traceSnapshots) {
+    if (!Array.isArray(traceSnapshots) || !traceSnapshots.length) {
+      return;
+    }
+    const last = traceSnapshots[traceSnapshots.length - 1];
+    if (safeNumber(last?.progress, 0) >= 0.999 && last?.playbackComplete) {
+      return;
+    }
+    const targetNode = last?.selectedTargetNodeId
+      ? prepared?.nodeById?.[last.selectedTargetNodeId] || null
+      : null;
+    const targetSnapDistance = targetNode
+      ? distance(last, targetNode)
+      : Number.POSITIVE_INFINITY;
+    const hasCompletionEvidence = Boolean(
+      workingScenario?.firstPassComplete
+      || (targetNode && safeNumber(last?.progress, 0) >= 0.98 && targetSnapDistance <= Math.max(0.75, QUEUE_LOCK_RADIUS))
+    );
+    if (!hasCompletionEvidence) {
+      return;
+    }
+    const referenceDistance = Math.max(
+      1,
+      safeNumber(last?.progressReferenceDistance, 0),
+      safeNumber(last?.progressDist, 0),
+      safeNumber(last?.pathProgressDist, 0)
+    );
+    traceSnapshots.push({
+      ...last,
+      x: targetNode ? safeNumber(targetNode.x, last.x) : safeNumber(last.x, 0),
+      y: targetNode ? safeNumber(targetNode.y, last.y) : safeNumber(last.y, 0),
+      time: safeNumber(last?.time, 0) + 0.001,
+      progress: 1,
+      progressDist: referenceDistance,
+      pathProgressDist: referenceDistance,
+      progressReferenceDistance: referenceDistance,
+      currentWalkingSpeed: 0,
+      restState: 'none',
+      restMode: null,
+      playbackComplete: true,
+    });
   }
 
   function cloneAgentPoint(point, fallback = { x: 0, y: 0 }) {
@@ -9353,10 +9967,51 @@
     };
   }
 
+  function buildBackgroundDensityFrameFromScenario(prepared, scenario) {
+    const occupancy = new Map();
+    (scenario?.backgroundAgents || []).forEach((agent) => {
+      if (!agent?.active) {
+        return;
+      }
+      const nearestCell = findNearestWalkableCell(prepared.grid, agent.position || agent.center);
+      if (!nearestCell) {
+        return;
+      }
+      occupancy.set(nearestCell.index, safeNumber(occupancy.get(nearestCell.index), 0) + 1);
+    });
+    const entries = Array.from(occupancy.entries()).sort((left, right) => left[0] - right[0]);
+    return {
+      time: safeNumber(scenario?.time, 0),
+      occupiedCellIndices: entries.map(([index]) => index),
+      occupiedCellCounts: entries.map(([, count]) => safeNumber(count, 0)),
+    };
+  }
+
   function buildBackgroundQueueFrame(frame) {
     return {
       time: safeNumber(frame?.time, 0),
       nodes: Object.entries(buildBackgroundQueueCounts(frame))
+        .sort((left, right) => String(left[0]).localeCompare(String(right[0])))
+        .map(([nodeId, count]) => ({
+          nodeId,
+          count: Math.max(0, Math.round(safeNumber(count, 0))),
+      })),
+    };
+  }
+
+  function buildBackgroundQueueFrameFromScenario(scenario) {
+    const counts = {};
+    (scenario?.backgroundAgents || []).forEach((agent) => {
+      if (!agent?.active) {
+        return;
+      }
+      if ((agent.backgroundState === 'queueing' || agent.backgroundState === 'riding') && agent.queueTargetNodeId) {
+        counts[agent.queueTargetNodeId] = Math.max(0, safeNumber(counts[agent.queueTargetNodeId], 0)) + 1;
+      }
+    });
+    return {
+      time: safeNumber(scenario?.time, 0),
+      nodes: Object.entries(counts)
         .sort((left, right) => String(left[0]).localeCompare(String(right[0])))
         .map(([nodeId, count]) => ({
           nodeId,
@@ -9487,6 +10142,17 @@
     return index;
   }
 
+  function normalizeBackgroundFieldLoopTime(backgroundField, targetTime) {
+    const frames = Array.isArray(backgroundField?.frames) ? backgroundField.frames : [];
+    const duration = Math.max(0, safeNumber(backgroundField?.duration, 0));
+    if (!frames.length || duration <= 1e-6) {
+      return safeNumber(targetTime, 0);
+    }
+    const initialTime = safeNumber(backgroundField?.initialTime, safeNumber(frames[0]?.time, 0));
+    const elapsed = Math.max(0, safeNumber(targetTime, initialTime) - initialTime);
+    return initialTime + (elapsed % duration);
+  }
+
   function ensureBackgroundDensityRuntimeFrame(backgroundField, frameIndex) {
     if (!backgroundField || !Array.isArray(backgroundField.densityFrames) || frameIndex < 0) {
       return null;
@@ -9514,7 +10180,8 @@
     if (!prepared?.grid || !backgroundField || !Array.isArray(backgroundField.densityFrames) || !backgroundField.densityFrames.length) {
       return 0;
     }
-    const frameIndex = getTimedFrameIndex(backgroundField.densityFrames, safeNumber(targetTime, 0), previousIndex);
+    const loopedTargetTime = normalizeBackgroundFieldLoopTime(backgroundField, safeNumber(targetTime, 0));
+    const frameIndex = getTimedFrameIndex(backgroundField.densityFrames, loopedTargetTime, previousIndex);
     if (frameIndex < 0) {
       return 0;
     }
@@ -9549,7 +10216,7 @@
       );
     }
     let density = 0;
-    (scenario?.agents || []).forEach((agent) => {
+    getNearbyAgentsFromSpatialIndex(scenario, point, BACKGROUND_LOCAL_DENSITY_RADIUS).forEach((agent) => {
       if (!agent.active || agent.id === selfAgent?.id) {
         return;
       }
@@ -9567,17 +10234,51 @@
     return getTimedFrameIndex(frames, targetTime, previousIndex);
   }
 
-  function syncScenarioBackgroundField(prepared, scenario, targetTime) {
+  function getBackgroundFieldQueueCountAtCursor(scenario, nodeId) {
+    const counts = scenario?.backgroundFieldQueueCounts || {};
+    return Math.max(0, safeNumber(counts[nodeId], 0));
+  }
+
+  function buildBackgroundFieldQueueCountMap(backgroundField, targetTime, previousIndex) {
+    const queueFrames = Array.isArray(backgroundField?.queueFrames) ? backgroundField.queueFrames : [];
+    const loopedTargetTime = normalizeBackgroundFieldLoopTime(backgroundField, targetTime);
+    const frameIndex = getTimedFrameIndex(queueFrames, loopedTargetTime, previousIndex);
+    if (frameIndex < 0) {
+      return {};
+    }
+    const frame = queueFrames[frameIndex] || {};
+    const counts = {};
+    (Array.isArray(frame.nodes) ? frame.nodes : []).forEach((item) => {
+      if (item?.nodeId) {
+        counts[item.nodeId] = Math.max(0, safeNumber(item.count, 0));
+      }
+    });
+    return counts;
+  }
+
+  function syncScenarioBackgroundField(prepared, scenario, targetTime, options = {}) {
     if (!scenario?.backgroundFieldActive || !Array.isArray(scenario?.backgroundField?.frames) || !scenario.backgroundField.frames.length) {
       return;
     }
-    const frameIndex = getBackgroundFieldFrameIndex(scenario.backgroundField, safeNumber(targetTime, scenario.time), scenario.backgroundFieldCursor);
+    const summaryOnly = Boolean(options?.summaryOnly);
+    const frameIndex = getBackgroundFieldFrameIndex(scenario.backgroundField, normalizeBackgroundFieldLoopTime(scenario.backgroundField, safeNumber(targetTime, scenario.time)), scenario.backgroundFieldCursor);
     if (frameIndex < 0) {
       return;
     }
     const frame = scenario.backgroundField.frames[frameIndex];
     scenario.backgroundFieldCursor = frameIndex;
     scenario.seatOccupancy = { ...(frame.seatOccupancy || {}) };
+    scenario.backgroundFieldSummaryOnlyActive = summaryOnly;
+    scenario.backgroundFieldQueueCounts = buildBackgroundFieldQueueCountMap(
+      scenario.backgroundField,
+      safeNumber(targetTime, scenario.time),
+      safeNumber(scenario.backgroundFieldQueueCursor, frameIndex)
+    );
+    scenario.backgroundFieldQueueCursor = frameIndex;
+    if (summaryOnly) {
+      return;
+    }
+    scenario.backgroundFieldSummaryOnlyActive = false;
     const seenIds = {};
     (frame.agents || []).forEach((snapshot, index) => {
       const existingAgent = scenario.backgroundAgentById?.[snapshot.id];
@@ -9618,13 +10319,32 @@
     const initialFrame = frames[0] || { time: 0, seatOccupancy: {}, agents: [] };
     const finalFrame = frames[frames.length - 1] || initialFrame;
     const prepared = workingScenario?.prepared || options?.prepared || null;
-    const densityFrames = prepared?.grid ? frames.map((frame) => buildBackgroundDensityFrame(prepared, frame)) : [];
-    const queueFrames = frames.map((frame) => buildBackgroundQueueFrame(frame));
+    const summaryFrames = Array.isArray(options?.summaryFrames) ? options.summaryFrames : null;
+    const providedDensityFrames = Array.isArray(options?.densityFrames)
+      ? options.densityFrames
+      : (summaryFrames ? summaryFrames.map((frame) => frame?.densityFrame).filter(Boolean) : null);
+    const providedQueueFrames = Array.isArray(options?.queueFrames)
+      ? options.queueFrames
+      : (summaryFrames ? summaryFrames.map((frame) => frame?.queueFrame).filter(Boolean) : null);
+    const densityFrames = providedDensityFrames
+      ? providedDensityFrames.map((frame) => ({
+          time: safeNumber(frame?.time, 0),
+          occupiedCellIndices: Array.isArray(frame?.occupiedCellIndices) ? frame.occupiedCellIndices.slice() : [],
+          occupiedCellCounts: Array.isArray(frame?.occupiedCellCounts) ? frame.occupiedCellCounts.slice() : [],
+        }))
+      : (prepared?.grid ? frames.map((frame) => buildBackgroundDensityFrame(prepared, frame)) : []);
+    const queueFrames = providedQueueFrames
+      ? providedQueueFrames.map((frame) => ({
+          time: safeNumber(frame?.time, 0),
+          nodes: Array.isArray(frame?.nodes) ? frame.nodes.map((node) => ({ ...node })) : [],
+        }))
+      : frames.map((frame) => buildBackgroundQueueFrame(frame));
     return {
       version: 'background-field-v4',
       duration: Math.max(0, safeNumber(finalFrame.time, 0) - safeNumber(initialFrame.time, 0)),
       maxSimulationSeconds: Math.max(0, safeNumber(options?.maxSimulationSeconds, 0)),
       frameStepSeconds: Math.max(0.08, safeNumber(options?.frameStepSeconds, 0.08)),
+      visualFrameStepSeconds: Math.max(0.08, safeNumber(options?.visualFrameStepSeconds, options?.frameStepSeconds || 0.08)),
       initialTime: safeNumber(initialFrame.time, 0),
       initialSeatOccupancy: { ...(initialFrame.seatOccupancy || {}) },
       initialAgents: (initialFrame.agents || []).map((agent) => ({
@@ -9662,20 +10382,37 @@
     stripFocusAgentForBackgroundField(workingScenario);
     const maxSimulationSeconds = Math.max(30, safeNumber(options?.maxSimulationSeconds, 480));
     const frameStepSeconds = Math.max(0.08, safeNumber(options?.frameStepSeconds, 0.08));
+    const visualFrameStepSeconds = Math.max(frameStepSeconds, safeNumber(options?.visualFrameStepSeconds, frameStepSeconds * 3));
     const frames = [captureBackgroundFieldFrame(workingScenario, { includeProfile: true })];
+    const summaryFrames = [{
+      densityFrame: buildBackgroundDensityFrameFromScenario(prepared, workingScenario),
+      queueFrame: buildBackgroundQueueFrameFromScenario(workingScenario),
+    }];
     let simulatedSeconds = 0;
+    let nextVisualFrameTime = safeNumber(workingScenario.time, 0) + visualFrameStepSeconds;
     let guard = 0;
     while (simulatedSeconds < maxSimulationSeconds && guard < 40000) {
       const stepSeconds = Math.min(frameStepSeconds, maxSimulationSeconds - simulatedSeconds);
       stepScenario(prepared, workingScenario, stepSeconds, { deferPostProcess: true, maxSubstepSeconds: frameStepSeconds });
       simulatedSeconds += stepSeconds;
       guard += 1;
-      frames.push(captureBackgroundFieldFrame(workingScenario));
+      summaryFrames.push({
+        densityFrame: buildBackgroundDensityFrameFromScenario(prepared, workingScenario),
+        queueFrame: buildBackgroundQueueFrameFromScenario(workingScenario),
+      });
+      if (safeNumber(workingScenario.time, 0) + 1e-6 >= nextVisualFrameTime || simulatedSeconds >= maxSimulationSeconds - 1e-6) {
+        frames.push(captureBackgroundFieldFrame(workingScenario));
+        while (nextVisualFrameTime <= safeNumber(workingScenario.time, 0) + 1e-6) {
+          nextVisualFrameTime += visualFrameStepSeconds;
+        }
+      }
     }
     return buildBackgroundFieldResult(workingScenario, frames, {
       ...options,
       maxSimulationSeconds,
       frameStepSeconds,
+      visualFrameStepSeconds,
+      summaryFrames,
     });
   }
 
@@ -9704,6 +10441,9 @@
     const focusAgent = scenario?.focusAgent || null;
     if (!focusAgent?.active) {
       return false;
+    }
+    if (safeNumber(focusAgent.progress, 0) < 0.995) {
+      return true;
     }
     if (focusAgent.restInterruptionOccurred && safeNumber(focusAgent.progress, 0) < 0.995) {
       return true;
@@ -9852,8 +10592,14 @@
     const maxSimulationSeconds = Math.max(30, safeNumber(options?.maxSimulationSeconds, 480));
     const frameBudgetMs = Math.max(4, safeNumber(options?.frameBudgetMs, 12));
     const frameStepSeconds = Math.max(0.08, safeNumber(options?.frameStepSeconds, 0.08));
+    const visualFrameStepSeconds = Math.max(frameStepSeconds, safeNumber(options?.visualFrameStepSeconds, frameStepSeconds * 3));
     const frames = [captureBackgroundFieldFrame(workingScenario, { includeProfile: true })];
+    const summaryFrames = [{
+      densityFrame: buildBackgroundDensityFrameFromScenario(prepared, workingScenario),
+      queueFrame: buildBackgroundQueueFrameFromScenario(workingScenario),
+    }];
     let simulatedSeconds = 0;
+    let nextVisualFrameTime = safeNumber(workingScenario.time, 0) + visualFrameStepSeconds;
     let guard = 0;
     while (simulatedSeconds < maxSimulationSeconds && guard < 40000) {
       const frameStart = getCurrentTimestamp();
@@ -9866,7 +10612,16 @@
         stepScenario(prepared, workingScenario, stepSeconds, { deferPostProcess: true, maxSubstepSeconds: frameStepSeconds });
         simulatedSeconds += stepSeconds;
         guard += 1;
-        frames.push(captureBackgroundFieldFrame(workingScenario));
+        summaryFrames.push({
+          densityFrame: buildBackgroundDensityFrameFromScenario(prepared, workingScenario),
+          queueFrame: buildBackgroundQueueFrameFromScenario(workingScenario),
+        });
+        if (safeNumber(workingScenario.time, 0) + 1e-6 >= nextVisualFrameTime || simulatedSeconds >= maxSimulationSeconds - 1e-6) {
+          frames.push(captureBackgroundFieldFrame(workingScenario));
+          while (nextVisualFrameTime <= safeNumber(workingScenario.time, 0) + 1e-6) {
+            nextVisualFrameTime += visualFrameStepSeconds;
+          }
+        }
       }
       if (typeof options?.onProgress === 'function') {
         options.onProgress({
@@ -9885,6 +10640,8 @@
       ...options,
       maxSimulationSeconds,
       frameStepSeconds,
+      visualFrameStepSeconds,
+      summaryFrames,
     });
   }
 
@@ -9895,8 +10652,14 @@
     const maxSimulationSeconds = Math.max(30, safeNumber(options?.maxSimulationSeconds, 480));
     const frameBudgetMs = Math.max(4, safeNumber(options?.frameBudgetMs, 12));
     const frameStepSeconds = Math.max(0.08, safeNumber(options?.frameStepSeconds, 0.08));
+    const visualFrameStepSeconds = Math.max(frameStepSeconds, safeNumber(options?.visualFrameStepSeconds, frameStepSeconds * 3));
     const frames = [captureBackgroundFieldFrame(workingScenario, { includeProfile: true })];
+    const summaryFrames = [{
+      densityFrame: buildBackgroundDensityFrameFromScenario(prepared, workingScenario),
+      queueFrame: buildBackgroundQueueFrameFromScenario(workingScenario),
+    }];
     let simulatedSeconds = 0;
+    let nextVisualFrameTime = safeNumber(workingScenario.time, 0) + visualFrameStepSeconds;
     let guard = 0;
     while (simulatedSeconds < maxSimulationSeconds && guard < 40000) {
       const frameStart = getCurrentTimestamp();
@@ -9909,7 +10672,16 @@
         stepScenario(prepared, workingScenario, stepSeconds, { deferPostProcess: true });
         simulatedSeconds += stepSeconds;
         guard += 1;
-        frames.push(captureBackgroundFieldFrame(workingScenario));
+        summaryFrames.push({
+          densityFrame: buildBackgroundDensityFrameFromScenario(prepared, workingScenario),
+          queueFrame: buildBackgroundQueueFrameFromScenario(workingScenario),
+        });
+        if (safeNumber(workingScenario.time, 0) + 1e-6 >= nextVisualFrameTime || simulatedSeconds >= maxSimulationSeconds - 1e-6) {
+          frames.push(captureBackgroundFieldFrame(workingScenario));
+          while (nextVisualFrameTime <= safeNumber(workingScenario.time, 0) + 1e-6) {
+            nextVisualFrameTime += visualFrameStepSeconds;
+          }
+        }
       }
       if (typeof options?.onProgress === 'function') {
         options.onProgress({
@@ -9928,6 +10700,8 @@
       ...options,
       maxSimulationSeconds,
       frameStepSeconds,
+      visualFrameStepSeconds,
+      summaryFrames,
     });
   }
 
@@ -10201,6 +10975,8 @@
       backgroundField,
       backgroundFieldActive: Boolean(backgroundField),
       backgroundFieldCursor: 0,
+      backgroundFieldQueueCursor: 0,
+      backgroundFieldQueueCounts: {},
       backgroundFacilityQueues: {},
       backgroundQueueProcessedNodes: {},
       backgroundMovingTargetCount: backgroundField

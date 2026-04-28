@@ -1,4 +1,5 @@
 const http = require('http');
+const os = require('os');
 const path = require('path');
 const { randomUUID } = require('crypto');
 const { Worker } = require('worker_threads');
@@ -10,15 +11,264 @@ const {
   writeHeatmapCache,
 } = require('./heatmap-cache.js');
 const {
+  buildBackgroundFieldFingerprint,
   buildHeatmapRequestFingerprint,
+  resolveBackgroundFieldBucketCrowdCount,
   runHeatmapDecisionPlanOnly,
   runHeatmapSimulation,
 } = require('./heatmap-runner.js');
 
-const EXPECTED_BACKGROUND_FIELD_ENGINE_VERSION = 'background-field-v25';
-const EXPECTED_HEATMAP_ENGINE_VERSION = 'node-cache-v33';
+const EXPECTED_BACKGROUND_FIELD_ENGINE_VERSION = 'background-field-v27';
+const EXPECTED_HEATMAP_ENGINE_VERSION = 'node-cache-v47';
+const DEFAULT_BACKGROUND_FIELD_PREWARM_BUCKETS = Object.freeze([500, 1000, 1500, 2000]);
+const BACKGROUND_FIELD_PREWARM_IDLE_POLL_MS = 250;
+const HEATMAP_JOB_STALL_TIMEOUT_MS = Number(process.env.HEATMAP_JOB_STALL_TIMEOUT_MS || 180000);
+const HEATMAP_JOB_STALL_CHECK_INTERVAL_MS = 5000;
 const HEATMAP_SIM_WORKER_PATH = path.join(__dirname, 'heatmap-sim-worker.js');
 const HEATMAP_USE_WORKER_THREADS = String(process.env.HEATMAP_USE_WORKER_THREADS || '1') !== '0';
+
+function parsePositiveInteger(value, fallback) {
+  const parsed = Math.round(Number(value));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function resolveHeatmapWorkerPoolOptions(options = {}, env = process.env) {
+  const cpuCount = parsePositiveInteger(
+    options.cpuCount ?? (typeof os.availableParallelism === 'function' ? os.availableParallelism() : os.cpus().length),
+    2
+  );
+  const defaultForegroundConcurrency = Math.max(1, Math.min(2, cpuCount - 1 || 1));
+  const foregroundConcurrency = parsePositiveInteger(
+    options.heatmapForegroundWorkers ?? env.HEATMAP_FOREGROUND_WORKERS,
+    defaultForegroundConcurrency
+  );
+  const backgroundConcurrency = parsePositiveInteger(
+    options.heatmapBackgroundWorkers ?? env.HEATMAP_BACKGROUND_WORKERS,
+    1
+  );
+  return {
+    foregroundConcurrency,
+    backgroundConcurrency,
+  };
+}
+
+function parseBackgroundFieldPrewarmBuckets(value) {
+  if (Array.isArray(value)) {
+    return Array.from(new Set(
+      value
+        .map((item) => Math.round(Number(item || 0)))
+        .filter((item) => Number.isFinite(item) && item > 0)
+    )).sort((a, b) => a - b);
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return parseBackgroundFieldPrewarmBuckets(value.split(','));
+  }
+  return [];
+}
+
+function resolveBackgroundFieldPrewarmOptions(options = {}) {
+  const configuredBuckets = parseBackgroundFieldPrewarmBuckets(
+    options.backgroundFieldPrewarmBuckets ?? process.env.BACKGROUND_FIELD_PREWARM_BUCKETS
+  );
+  return {
+    enabled: options.backgroundFieldPrewarm === true || String(process.env.BACKGROUND_FIELD_PREWARM || '0') === '1',
+    buckets: configuredBuckets.length ? configuredBuckets : DEFAULT_BACKGROUND_FIELD_PREWARM_BUCKETS.slice(),
+  };
+}
+
+function resolveMonotonicJobProgress(previousProgress, nextProgress) {
+  const previous = Math.max(0, Math.min(0.99, Number(previousProgress || 0)));
+  const next = Math.max(0, Math.min(0.99, Number(nextProgress || 0)));
+  return Math.max(previous, next);
+}
+
+function shouldRunBackgroundFieldPrewarm(activeJobCount) {
+  return Number(activeJobCount || 0) <= 0;
+}
+
+function createHeatmapForegroundSchedulerState() {
+  let activeForegroundHeatmapJobCount = 0;
+  let backgroundFieldPrewarmGeneration = 0;
+  const activeForegroundJobIds = new Set();
+
+  return {
+    beginForegroundHeatmapJob() {
+      const id = randomUUID();
+      activeForegroundJobIds.add(id);
+      activeForegroundHeatmapJobCount = activeForegroundJobIds.size;
+      backgroundFieldPrewarmGeneration += 1;
+      return { id, generation: backgroundFieldPrewarmGeneration };
+    },
+    endForegroundHeatmapJob(id) {
+      if (id && activeForegroundJobIds.delete(id)) {
+        activeForegroundHeatmapJobCount = activeForegroundJobIds.size;
+      }
+      return activeForegroundHeatmapJobCount;
+    },
+    getActiveForegroundHeatmapJobCount() {
+      return activeForegroundHeatmapJobCount;
+    },
+    getBackgroundFieldPrewarmGeneration() {
+      return backgroundFieldPrewarmGeneration;
+    },
+    canRunBackgroundFieldPrewarm(generation = backgroundFieldPrewarmGeneration) {
+      return shouldRunBackgroundFieldPrewarm(activeForegroundHeatmapJobCount)
+        && Number(generation) === backgroundFieldPrewarmGeneration;
+    },
+  };
+}
+
+function createBackgroundPrewarmDeferredError() {
+  const error = new Error('Background field prewarm deferred while a foreground heatmap job is active.');
+  error.code = 'BACKGROUND_PREWARM_DEFERRED';
+  return error;
+}
+
+function isBackgroundPrewarmDeferredError(error) {
+  return error?.code === 'BACKGROUND_PREWARM_DEFERRED';
+}
+
+function createHeatmapWorkerScheduler(options = {}) {
+  const foregroundConcurrency = parsePositiveInteger(options.foregroundConcurrency, 1);
+  const backgroundConcurrency = parsePositiveInteger(options.backgroundConcurrency, 1);
+  const foregroundQueue = [];
+  const backgroundQueue = [];
+  const idleResolvers = [];
+  let activeForegroundCount = 0;
+  let activeBackgroundCount = 0;
+
+  function getQueuedCount() {
+    return foregroundQueue.length + backgroundQueue.length;
+  }
+
+  function notifyIdleIfNeeded() {
+    if (activeForegroundCount > 0 || activeBackgroundCount > 0 || getQueuedCount() > 0) {
+      return;
+    }
+    while (idleResolvers.length) {
+      const resolve = idleResolvers.shift();
+      resolve();
+    }
+  }
+
+  function removeQueuedEntry(entry) {
+    const queue = entry.priority === 'background' ? backgroundQueue : foregroundQueue;
+    const index = queue.indexOf(entry);
+    if (index >= 0) {
+      queue.splice(index, 1);
+      return true;
+    }
+    return false;
+  }
+
+  function finishEntry(entry) {
+    if (entry.priority === 'background') {
+      activeBackgroundCount = Math.max(0, activeBackgroundCount - 1);
+    } else {
+      activeForegroundCount = Math.max(0, activeForegroundCount - 1);
+    }
+    drain();
+    notifyIdleIfNeeded();
+  }
+
+  function startEntry(entry) {
+    if (entry.cancelled) {
+      return;
+    }
+    entry.started = true;
+    if (entry.priority === 'background') {
+      activeBackgroundCount += 1;
+    } else {
+      activeForegroundCount += 1;
+    }
+    let task;
+    try {
+      task = entry.taskFactory();
+      entry.activeTask = task;
+    } catch (error) {
+      entry.reject(error);
+      finishEntry(entry);
+      return;
+    }
+    Promise.resolve(task?.promise || task)
+      .then(entry.resolve, entry.reject)
+      .finally(() => finishEntry(entry));
+  }
+
+  function drain() {
+    while (activeForegroundCount < foregroundConcurrency && foregroundQueue.length) {
+      startEntry(foregroundQueue.shift());
+    }
+    if (activeForegroundCount > 0 || foregroundQueue.length > 0) {
+      return;
+    }
+    while (activeBackgroundCount < backgroundConcurrency && backgroundQueue.length) {
+      startEntry(backgroundQueue.shift());
+    }
+  }
+
+  function schedule(taskFactory, taskOptions = {}) {
+    const priority = taskOptions.priority === 'background' ? 'background' : 'foreground';
+    let entry;
+    const promise = new Promise((resolve, reject) => {
+      entry = {
+        activeTask: null,
+        cancelled: false,
+        priority,
+        reject,
+        resolve,
+        started: false,
+        taskFactory,
+      };
+    });
+    entry.promise = promise;
+    entry.cancel = (reason = createBackgroundPrewarmDeferredError()) => {
+      if (entry.cancelled) {
+        return Promise.resolve();
+      }
+      entry.cancelled = true;
+      if (!entry.started && removeQueuedEntry(entry)) {
+        entry.reject(reason);
+        notifyIdleIfNeeded();
+        return Promise.resolve();
+      }
+      if (entry.activeTask && typeof entry.activeTask.cancel === 'function') {
+        return entry.activeTask.cancel(reason);
+      }
+      return Promise.resolve();
+    };
+
+    if (priority === 'background') {
+      backgroundQueue.push(entry);
+    } else {
+      foregroundQueue.push(entry);
+    }
+    drain();
+    return entry;
+  }
+
+  return {
+    schedule,
+    idle() {
+      if (activeForegroundCount <= 0 && activeBackgroundCount <= 0 && getQueuedCount() <= 0) {
+        return Promise.resolve();
+      }
+      return new Promise((resolve) => {
+        idleResolvers.push(resolve);
+      });
+    },
+    getSnapshot() {
+      return {
+        activeBackgroundCount,
+        activeForegroundCount,
+        backgroundConcurrency,
+        backgroundQueueLength: backgroundQueue.length,
+        foregroundConcurrency,
+        foregroundQueueLength: foregroundQueue.length,
+      };
+    },
+  };
+}
 
 function isCompatibleCachedHeatmapResult(result) {
   if (!result) {
@@ -292,6 +542,18 @@ function buildRouteAnalysisSystemPrompt(locale = 'zh-CN') {
       ? 'Focus on risk judgement, likely causes, and spatial recommendations.'
       : '重点概括路线风险、主要成因和空间优化建议。',
   ];
+  prompt.push(
+    'For the front summary page after the cover, write one executive route diagnosis that combines route judgement, core problems, and model adjustment recommendations.',
+    'Avoid vague advice; name the route segment, hot zone, spatial element, facility, or numbered pressure point whenever the input provides it.',
+    'Only refer to stressors by the supplied global pressure-point numbers.',
+    'Do not use ambiguous Zone labels; use the supplied hot-zone labels such as Composite hot zone 1 or Decision hot zone 2.',
+    'Every recommendation must be traceable to the supplied route, hot zones, burden scores, or numbered pressure points.',
+    'For exported reports, prefer these section meanings: route score interpretation, spatial model changes, priority modification areas, and priority facilities.',
+    'Use route score, five burden scores, high-heat zones, ranked stressors, and pressure-point numbers as evidence.',
+    'Facility recommendations must mention numbered pressure points when available and must not repeat one generic sentence for every facility.',
+    'Write evidence-dense professional diagnosis with concrete modification intent; avoid filler, slogans, or generic score restatement.',
+    'Do not invent new geometry, formulas, heatmap values, or pressure points.'
+  );
   return prompt.join(' ');
 }
 
@@ -326,11 +588,19 @@ function normalizeRouteAnalysisContent(parsed, locale = 'zh-CN') {
         .filter(Boolean)
         .slice(0, 4),
     }))
+    .map((section) => ({
+      ...section,
+      title: locale === 'en' ? (section.titleEn || section.titleZh) : (section.titleZh || section.titleEn),
+      bullets: locale === 'en'
+        ? (section.bulletsEn.length ? section.bulletsEn : section.bulletsZh)
+        : (section.bulletsZh.length ? section.bulletsZh : section.bulletsEn),
+    }))
     .filter((section) => (section.titleZh || section.titleEn) && (section.bulletsZh.length || section.bulletsEn.length))
     .slice(0, 4);
   const fallbackSummaryZh = summaryZh || '结构化路线分析已生成。';
   const fallbackSummaryEn = summaryEn || 'Structured route analysis is ready.';
   return {
+    summary: locale === 'en' ? fallbackSummaryEn : fallbackSummaryZh,
     summaryZh: fallbackSummaryZh,
     summaryEn: fallbackSummaryEn,
     sections: sections.length ? sections : [{
@@ -613,6 +883,8 @@ function resolveServerOptions(options = {}) {
   return {
     rootDir,
     cacheDir,
+    backgroundFieldPrewarm: resolveBackgroundFieldPrewarmOptions(options),
+    heatmapWorkerPool: resolveHeatmapWorkerPoolOptions(options),
   };
 }
 
@@ -621,18 +893,24 @@ function buildSerializableHeatmapRunOptions(options = {}) {
     rootDir: options.rootDir,
     cacheDir: options.cacheDir,
     mode: options.mode,
+    ...(Array.isArray(options.backgroundCrowdBuckets)
+      ? { backgroundCrowdBuckets: options.backgroundCrowdBuckets.slice() }
+      : {}),
   };
 }
 
-function runHeatmapSimulationInWorker(payload, options = {}) {
-  return new Promise((resolve, reject) => {
-    const worker = new Worker(HEATMAP_SIM_WORKER_PATH, {
-      workerData: {
-        payload,
-        options: buildSerializableHeatmapRunOptions(options),
-      },
-    });
-    let settled = false;
+function createHeatmapWorkerTask(taskType, payload, options = {}) {
+  let rejectPromise = null;
+  const worker = new Worker(HEATMAP_SIM_WORKER_PATH, {
+    workerData: {
+      taskType,
+      payload,
+      options: buildSerializableHeatmapRunOptions(options),
+    },
+  });
+  let settled = false;
+  const promise = new Promise((resolve, reject) => {
+    rejectPromise = reject;
     const finalize = (fn, value) => {
       if (settled) {
         return;
@@ -643,7 +921,12 @@ function runHeatmapSimulationInWorker(payload, options = {}) {
     worker.on('message', (message) => {
       if (message?.type === 'progress') {
         if (typeof options.onProgress === 'function') {
-          options.onProgress(message.progress || {});
+          try {
+            options.onProgress(message.progress || {});
+          } catch (error) {
+            finalize(reject, error);
+            worker.terminate().catch(() => {});
+          }
         }
         return;
       }
@@ -662,6 +945,33 @@ function runHeatmapSimulationInWorker(payload, options = {}) {
       }
     });
   });
+
+  return {
+    worker,
+    promise,
+    cancel() {
+      if (settled) {
+        return Promise.resolve();
+      }
+      settled = true;
+      if (typeof rejectPromise === 'function') {
+        rejectPromise(createBackgroundPrewarmDeferredError());
+      }
+      return worker.terminate().catch(() => {});
+    },
+  };
+}
+
+function runHeatmapSimulationInWorker(payload, options = {}) {
+  const task = createHeatmapWorkerTask('simulation', payload, options);
+  if (typeof options.onScheduledTask === 'function') {
+    options.onScheduledTask(task);
+  }
+  return task.promise;
+}
+
+function runBackgroundFieldPrewarmInWorker(payload, options = {}) {
+  return createHeatmapWorkerTask('background-prewarm', payload, options);
 }
 
 async function runHeatmapSimulationWithFallback(payload, options = {}) {
@@ -670,6 +980,16 @@ async function runHeatmapSimulationWithFallback(payload, options = {}) {
     return runHeatmapSimulation(payload, options);
   }
   try {
+    if (options.workerScheduler) {
+      const scheduledTask = options.workerScheduler.schedule(
+        () => createHeatmapWorkerTask('simulation', payload, options),
+        { priority: 'foreground' }
+      );
+      if (typeof options.onScheduledTask === 'function') {
+        options.onScheduledTask(scheduledTask);
+      }
+      return await scheduledTask.promise;
+    }
     return await runHeatmapSimulationInWorker(payload, options);
   } catch (error) {
     return runHeatmapSimulation(payload, options);
@@ -721,10 +1041,12 @@ function createJobSnapshot(job) {
     jobId: job.jobId,
     status: job.status,
     progress: Number(job.progress || 0),
+    stage: job.stage || null,
     cacheHit: Boolean(job.cacheHit),
     cacheKey: job.cacheKey || null,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
+    lastProgressAt: job.lastProgressAt || job.updatedAt,
     error: job.error || null,
     result: job.status === 'completed' ? job.result : null,
   };
@@ -736,6 +1058,214 @@ function createSimServer(options = {}) {
   const activeJobByCacheKey = new Map();
   const refinementPromisesByCacheKey = new Map();
   const decisionPlanPromisesByCacheKey = new Map();
+  const backgroundFieldPrewarmPromisesByCacheKey = new Map();
+  const foregroundScheduler = createHeatmapForegroundSchedulerState();
+  const workerScheduler = createHeatmapWorkerScheduler(serverOptions.heatmapWorkerPool);
+  let backgroundFieldPrewarmQueue = Promise.resolve();
+  let backgroundFieldPrewarmPollTimer = null;
+  let activeBackgroundFieldPrewarmTask = null;
+
+  function clearBackgroundFieldPrewarmPollTimer() {
+    if (backgroundFieldPrewarmPollTimer) {
+      clearTimeout(backgroundFieldPrewarmPollTimer);
+      backgroundFieldPrewarmPollTimer = null;
+    }
+  }
+
+  function terminateActiveBackgroundFieldPrewarmWorker() {
+    const task = activeBackgroundFieldPrewarmTask;
+    activeBackgroundFieldPrewarmTask = null;
+    if (task && typeof task.cancel === 'function') {
+      task.cancel();
+    }
+  }
+
+  function beginForegroundHeatmapJob() {
+    const marker = foregroundScheduler.beginForegroundHeatmapJob();
+    clearBackgroundFieldPrewarmPollTimer();
+    terminateActiveBackgroundFieldPrewarmWorker();
+    return marker;
+  }
+
+  function endForegroundHeatmapJob(marker) {
+    return foregroundScheduler.endForegroundHeatmapJob(marker?.id);
+  }
+
+  function cancelHeatmapJobTask(job, reason) {
+    if (!job || !job.activeTask || typeof job.activeTask.cancel !== 'function') {
+      return;
+    }
+    try {
+      job.activeTask.cancel(reason);
+    } catch (error) {
+      // The job is already being failed; cancellation errors should not mask the stall diagnostic.
+    }
+  }
+
+  function hasHeatmapJobProgressHeartbeat(progress) {
+    return Boolean(
+      progress
+      && (
+        progress.stage
+        || Number.isFinite(Number(progress.percent))
+        || Number.isFinite(Number(progress.simulatedSeconds))
+        || Number.isFinite(Number(progress.guard))
+        || progress.completed
+        || progress.cacheHit
+      )
+    );
+  }
+
+  function markHeatmapJobProgress(job, progress) {
+    const previousProgress = Number(job.progress || 0);
+    const nextProgress = resolveMonotonicJobProgress(previousProgress, mapJobProgress(progress));
+    job.stage = progress?.stage || job.stage || null;
+    job.progress = nextProgress;
+    job.updatedAt = Date.now();
+    if (hasHeatmapJobProgressHeartbeat(progress)) {
+      job.lastProgressAt = job.updatedAt;
+    } else if (nextProgress > previousProgress + 1e-6) {
+      job.lastProgressAt = job.updatedAt;
+    }
+  }
+
+  function failStalledHeatmapJob(job) {
+    if (!job || job.status !== 'running') {
+      return false;
+    }
+    const stalledForMs = Date.now() - Number(job.lastProgressAt || job.updatedAt || job.createdAt || Date.now());
+    if (stalledForMs < HEATMAP_JOB_STALL_TIMEOUT_MS) {
+      return false;
+    }
+    job.status = 'failed';
+    job.updatedAt = Date.now();
+    job.error = `Heatmap job stalled after ${Math.round(stalledForMs / 1000)}s without progress.`;
+    cancelHeatmapJobTask(job, new Error(job.error));
+    return true;
+  }
+
+  function waitForBackgroundFieldPrewarmWindow() {
+    return new Promise((resolve) => {
+      const check = () => {
+        if (shouldRunBackgroundFieldPrewarm(foregroundScheduler.getActiveForegroundHeatmapJobCount())) {
+          clearBackgroundFieldPrewarmPollTimer();
+          resolve();
+          return;
+        }
+        backgroundFieldPrewarmPollTimer = setTimeout(check, BACKGROUND_FIELD_PREWARM_IDLE_POLL_MS);
+      };
+      check();
+    });
+  }
+
+  function buildBackgroundFieldPrewarmPayload(payload = {}, backgroundCrowdCount) {
+    const scenarioOptions = payload?.scenarioOptions || {};
+    return {
+      ...(payload?.simData ? { simData: payload.simData } : {}),
+      ...(payload?.healthyAgents ? { healthyAgents: payload.healthyAgents } : {}),
+      scenarioOptions: {
+        crowdPresetId: scenarioOptions.crowdPresetId || 'normal',
+        backgroundCrowdCount,
+        ...(scenarioOptions.focusRouteId ? { focusRouteId: scenarioOptions.focusRouteId } : {}),
+        ...(scenarioOptions.startPoint ? { startPoint: scenarioOptions.startPoint } : {}),
+        ...(scenarioOptions.startNodeId ? { startNodeId: scenarioOptions.startNodeId } : {}),
+        ...(scenarioOptions.targetRegionId ? { targetRegionId: scenarioOptions.targetRegionId } : {}),
+        focusProfile: {},
+      },
+      heatOptions: {
+        maxSimulationSeconds: 480,
+      },
+    };
+  }
+
+  function enqueueBackgroundFieldPrewarm(payload = {}, backgroundCrowdCount) {
+    if (!serverOptions.backgroundFieldPrewarm.enabled) {
+      return;
+    }
+    const prewarmPayload = buildBackgroundFieldPrewarmPayload(payload, backgroundCrowdCount);
+    const backgroundFingerprint = buildBackgroundFieldFingerprint(prewarmPayload, {
+      rootDir: serverOptions.rootDir,
+      backgroundCrowdBuckets: serverOptions.backgroundFieldPrewarm.buckets,
+      maxSimulationSecondsOverride: 480,
+    });
+    const backgroundCacheKey = buildHeatmapCacheKey(backgroundFingerprint);
+    if (readHeatmapCache(serverOptions.cacheDir, backgroundCacheKey)) {
+      return;
+    }
+    if (backgroundFieldPrewarmPromisesByCacheKey.has(backgroundCacheKey)) {
+      return;
+    }
+    const prewarmGeneration = foregroundScheduler.getBackgroundFieldPrewarmGeneration();
+    const prewarmPromise = backgroundFieldPrewarmQueue
+      .catch(() => {})
+      .then(async () => {
+        let deferred = false;
+        let prewarmTask = null;
+        try {
+          await waitForBackgroundFieldPrewarmWindow();
+          if (!foregroundScheduler.canRunBackgroundFieldPrewarm(prewarmGeneration)) {
+            throw createBackgroundPrewarmDeferredError();
+          }
+          if (readHeatmapCache(serverOptions.cacheDir, backgroundCacheKey)) {
+            return;
+          }
+          prewarmTask = workerScheduler.schedule(
+            () => runBackgroundFieldPrewarmInWorker(prewarmPayload, {
+              rootDir: serverOptions.rootDir,
+              cacheDir: serverOptions.cacheDir,
+              backgroundCrowdBuckets: serverOptions.backgroundFieldPrewarm.buckets,
+              onProgress: (progress) => {
+                if (!foregroundScheduler.canRunBackgroundFieldPrewarm(prewarmGeneration)) {
+                  throw createBackgroundPrewarmDeferredError();
+                }
+                return progress;
+              },
+            }),
+            { priority: 'background' }
+          );
+          activeBackgroundFieldPrewarmTask = prewarmTask;
+          await prewarmTask.promise;
+        } catch (error) {
+          if (isBackgroundPrewarmDeferredError(error)) {
+            deferred = true;
+            return;
+          }
+          // Keep startup/request handling independent from background prewarm failures.
+        } finally {
+          if (activeBackgroundFieldPrewarmTask === prewarmTask) {
+            activeBackgroundFieldPrewarmTask = null;
+          }
+          backgroundFieldPrewarmPromisesByCacheKey.delete(backgroundCacheKey);
+          if (deferred) {
+            setTimeout(() => {
+              enqueueBackgroundFieldPrewarm(payload, backgroundCrowdCount);
+            }, BACKGROUND_FIELD_PREWARM_IDLE_POLL_MS);
+          }
+        }
+      });
+    backgroundFieldPrewarmPromisesByCacheKey.set(backgroundCacheKey, prewarmPromise);
+    backgroundFieldPrewarmQueue = prewarmPromise;
+  }
+
+  function scheduleBackgroundFieldPrewarm(payload = {}, options = {}) {
+    if (!serverOptions.backgroundFieldPrewarm.enabled) {
+      return [];
+    }
+    const requestedBackgroundCrowdCount = Number(payload?.scenarioOptions?.backgroundCrowdCount || 0);
+    const skipBucket = resolveBackgroundFieldBucketCrowdCount(
+      requestedBackgroundCrowdCount,
+      { backgroundCrowdBuckets: serverOptions.backgroundFieldPrewarm.buckets }
+    );
+    const scheduled = [];
+    serverOptions.backgroundFieldPrewarm.buckets.forEach((backgroundCrowdCount) => {
+      if (!options.includeRequested && backgroundCrowdCount === skipBucket) {
+        return;
+      }
+      enqueueBackgroundFieldPrewarm(payload, backgroundCrowdCount);
+      scheduled.push(backgroundCrowdCount);
+    });
+    return scheduled;
+  }
 
   function shouldRefineCachedHeatmapResult(result) {
     return Boolean(
@@ -763,6 +1293,7 @@ function createSimServer(options = {}) {
           rootDir: serverOptions.rootDir,
           cacheDir: serverOptions.cacheDir,
           mode: 'final',
+          workerScheduler,
         });
         writeHeatmapCache(serverOptions.cacheDir, cacheKey, refinedResult);
       } catch (error) {
@@ -823,6 +1354,7 @@ function createSimServer(options = {}) {
         const analysis = await runHeatmapDecisionPlanOnly(payload, {
           rootDir: serverOptions.rootDir,
           cacheDir: serverOptions.cacheDir,
+          playback: currentCached?.heat || currentCached?.playback || null,
         });
         if (analysis && !analysis.pending && !analysis.failed) {
           mergeDecisionPlanIntoCachedPlayback(cacheKey, analysis);
@@ -875,18 +1407,15 @@ function createSimServer(options = {}) {
           },
         },
       });
+      setImmediate(() => {
+        scheduleBackgroundFieldPrewarm(payload);
+      });
       return;
     }
     const existingJobId = activeJobByCacheKey.get(cacheKey);
     if (existingJobId && jobs.has(existingJobId)) {
       const existingJob = jobs.get(existingJobId);
-      sendJson(response, 202, {
-        jobId: existingJob.jobId,
-        status: existingJob.status,
-        progress: existingJob.progress,
-        cacheHit: false,
-        cacheKey,
-      });
+      sendJson(response, 202, createJobSnapshot(existingJob));
       return;
     }
 
@@ -895,52 +1424,64 @@ function createSimServer(options = {}) {
       jobId,
       status: 'queued',
       progress: 0,
+      stage: null,
       cacheHit: false,
       cacheKey,
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      lastProgressAt: Date.now(),
       error: null,
       result: null,
+      activeTask: null,
     };
+    const foregroundMarker = beginForegroundHeatmapJob();
     jobs.set(jobId, job);
     activeJobByCacheKey.set(cacheKey, jobId);
-    sendJson(response, 202, {
-      jobId,
-      status: job.status,
-      progress: job.progress,
-      cacheHit: false,
-      cacheKey,
-    });
+    sendJson(response, 202, createJobSnapshot(job));
 
     setImmediate(async () => {
       job.status = 'running';
       job.updatedAt = Date.now();
+      job.lastProgressAt = job.updatedAt;
+      const stallTimer = setInterval(() => {
+        failStalledHeatmapJob(job);
+      }, HEATMAP_JOB_STALL_CHECK_INTERVAL_MS);
       try {
         const result = await runHeatmapSimulationWithFallback(payload, {
           rootDir: serverOptions.rootDir,
           cacheDir: serverOptions.cacheDir,
-          mode: 'preview',
+          mode: 'final',
+          workerScheduler,
+          onScheduledTask: (task) => {
+            job.activeTask = task;
+          },
           onProgress: (progress) => {
-            job.progress = Math.max(0, Math.min(0.99, mapJobProgress(progress)));
-            job.updatedAt = Date.now();
+            markHeatmapJobProgress(job, progress);
           },
         });
+        if (job.status === 'failed') {
+          return;
+        }
         writeHeatmapCache(serverOptions.cacheDir, cacheKey, result);
         job.status = 'completed';
         job.progress = 1;
         job.updatedAt = Date.now();
+        job.lastProgressAt = job.updatedAt;
         job.result = result;
-        if (shouldRefineCachedHeatmapResult(result)) {
-          startHeatmapRefinement(cacheKey, payload);
-          startDecisionPlanRefinement(cacheKey, payload);
-        }
       } catch (error) {
         job.status = 'failed';
         job.updatedAt = Date.now();
         job.error = error?.stack || error?.message || String(error);
       } finally {
+        clearInterval(stallTimer);
+        job.activeTask = null;
         if (activeJobByCacheKey.get(cacheKey) === jobId) {
           activeJobByCacheKey.delete(cacheKey);
+        }
+        if (endForegroundHeatmapJob(foregroundMarker) <= 0) {
+          setImmediate(() => {
+            scheduleBackgroundFieldPrewarm(payload);
+          });
         }
       }
     });
@@ -957,7 +1498,17 @@ function createSimServer(options = {}) {
     }
   }
 
-  return http.createServer(async (request, response) => {
+  async function handleBackgroundFieldPrewarm(request, response) {
+    const payload = await parseRequestBody(request);
+    const scheduledBuckets = scheduleBackgroundFieldPrewarm(payload, { includeRequested: true });
+    sendJson(response, 202, {
+      status: 'scheduled',
+      buckets: scheduledBuckets,
+      enabled: Boolean(serverOptions.backgroundFieldPrewarm.enabled),
+    });
+  }
+
+  const server = http.createServer(async (request, response) => {
     try {
       if (request.method === 'OPTIONS') {
         sendJson(response, 200, { ok: true });
@@ -980,6 +1531,11 @@ function createSimServer(options = {}) {
         return;
       }
 
+      if (request.method === 'POST' && url.pathname === '/api/background-field/prewarm') {
+        await handleBackgroundFieldPrewarm(request, response);
+        return;
+      }
+
       if (request.method === 'GET' && url.pathname.startsWith('/api/heatmap/jobs/')) {
         const jobId = decodeURIComponent(url.pathname.slice('/api/heatmap/jobs/'.length));
         const job = jobs.get(jobId);
@@ -996,10 +1552,20 @@ function createSimServer(options = {}) {
       sendJson(response, 500, { error: error?.stack || error?.message || String(error) });
     }
   });
+
+  if (serverOptions.backgroundFieldPrewarm.enabled) {
+    setImmediate(() => {
+      scheduleBackgroundFieldPrewarm();
+    });
+  }
+
+  return server;
 }
 
 if (require.main === module) {
-  const server = createSimServer();
+  const server = createSimServer({
+    backgroundFieldPrewarm: true,
+  });
   const port = Number(process.env.SIM_SERVER_PORT || 8891);
   server.listen(port, '127.0.0.1', () => {
     console.log(`sim-server listening on http://127.0.0.1:${port}`);
@@ -1008,4 +1574,13 @@ if (require.main === module) {
 
 module.exports = {
   createSimServer,
+  createBackgroundPrewarmDeferredError,
+  createHeatmapForegroundSchedulerState,
+  createHeatmapWorkerScheduler,
+  DEFAULT_BACKGROUND_FIELD_PREWARM_BUCKETS,
+  isBackgroundPrewarmDeferredError,
+  resolveHeatmapWorkerPoolOptions,
+  resolveMonotonicJobProgress,
+  resolveBackgroundFieldPrewarmOptions,
+  shouldRunBackgroundFieldPrewarm,
 };

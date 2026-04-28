@@ -95,7 +95,7 @@ function main() {
 
   assert(Array.isArray(input.runtimeEvents), 'LLM input should include runtimeEvents extracted from playback trace');
   assert(input.runtimeEvents.some((event) => event.type === 'seat_search_started'), 'runtimeEvents should include seat-search start at 85% fatigue');
-  assert(input.runtimeEvents.some((event) => event.type === 'rest_state_changed' && event.restState === 'sitting'), 'runtimeEvents should include sitting/rest state');
+  assert(input.runtimeEvents.some((event) => event.type === 'seat_rest_started' && event.restState === 'sitting'), 'runtimeEvents should include sitting/rest state');
   assert(input.runtimeEvents.some((event) => event.type === 'burden_spike' && event.dimension === 'cognitive'), 'runtimeEvents should include high cognitive burden with top cause');
   const seatSearchEvent = input.runtimeEvents.find((event) => event.type === 'seat_search_started');
   assert(

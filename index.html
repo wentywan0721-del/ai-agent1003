@@ -62,6 +62,24 @@
             <span class="settings-upload-card__note" data-i18n="settings.uploadFormats">Supports .json / .sim.json</span>
           </button>
 
+          <button id="settings-spatial-editor-btn" class="settings-spatial-editor-entry" type="button">
+            <span class="settings-spatial-editor-entry__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M4 4h16v16H4z"></path>
+                <path d="M4 10h16"></path>
+                <path d="M10 4v16"></path>
+                <path d="M14.5 14.5l3.5-3.5 2 2-3.5 3.5-2.8.8.8-2.8z"></path>
+                <circle cx="7" cy="7" r="1.2"></circle>
+                <circle cx="17" cy="7" r="1.2"></circle>
+              </svg>
+            </span>
+            <span class="settings-spatial-editor-entry__copy">
+              <strong data-i18n="spatialEditor.entryTitle">Edit Spatial Model</strong>
+              <small data-i18n="spatialEditor.entryHint">Adjust boundaries, nodes, and pressure point parameters</small>
+            </span>
+            <span class="settings-spatial-editor-entry__arrow" aria-hidden="true">→</span>
+          </button>
+
           <div class="settings-card__divider" aria-hidden="true"></div>
 
           <section class="settings-card__section">
@@ -133,6 +151,123 @@
         <section class="settings-card settings-card--route-stage">
           <div id="settings-route-map-stage" class="settings-route-map-stage">
             <svg id="settings-route-map" class="settings-route-map" preserveAspectRatio="xMidYMid meet"></svg>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section id="spatial-editor-screen" class="settings-screen spatial-editor-screen hidden" aria-labelledby="spatial-editor-title">
+      <div class="settings-screen__header">
+        <button id="spatial-editor-back-btn" class="settings-back-btn" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M15 18l-6-6 6-6"></path>
+            <path d="M9 12h12"></path>
+          </svg>
+          <span data-i18n="spatialEditor.back">Back to Route Settings</span>
+        </button>
+        <div class="settings-screen__title-group">
+          <span class="settings-screen__eyebrow" data-i18n="spatialEditor.eyebrow">Spatial Model</span>
+          <h2 id="spatial-editor-title" class="settings-screen__title" data-i18n="spatialEditor.title">Edit Spatial Model</h2>
+        </div>
+      </div>
+
+      <div class="settings-screen__grid spatial-editor-layout">
+        <aside class="settings-card settings-card--form spatial-editor-panel">
+          <section class="spatial-editor-panel__block">
+            <h3 data-i18n="spatialEditor.modeTitle">Edit Mode</h3>
+            <div class="spatial-editor-mode-grid">
+              <button class="spatial-editor-mode active" type="button" data-spatial-editor-tool="select" data-i18n="spatialEditor.toolSelect">Select</button>
+              <button class="spatial-editor-mode" type="button" data-spatial-editor-tool="boundary" data-i18n="spatialEditor.toolBoundary">Boundary</button>
+              <button class="spatial-editor-mode" type="button" data-spatial-editor-tool="node" data-i18n="spatialEditor.toolNode">Node</button>
+              <button class="spatial-editor-mode" type="button" data-spatial-editor-tool="pressure" data-i18n="spatialEditor.toolPressure">Pressure Point</button>
+            </div>
+          </section>
+
+          <section class="spatial-editor-panel__block">
+            <h3 data-i18n="spatialEditor.objectTitle">Object Properties</h3>
+            <dl class="spatial-editor-property-list">
+              <div>
+                <dt data-i18n="spatialEditor.objectName">Selected Object</dt>
+                <dd id="spatial-editor-object-name">Gate Node A</dd>
+              </div>
+              <div>
+                <dt data-i18n="spatialEditor.objectCoord">Coordinates</dt>
+                <dd id="spatial-editor-object-coord">x 214 · y 278</dd>
+              </div>
+              <div>
+                <dt data-i18n="spatialEditor.objectType">Type</dt>
+                <dd id="spatial-editor-object-type">Node</dd>
+              </div>
+            </dl>
+            <div class="spatial-editor-parameter-list">
+              <label>
+                <span data-i18n="spatialEditor.paramNoise">Noise</span>
+                <input id="spatial-editor-noise" type="range" min="0" max="100" value="48" />
+              </label>
+              <label>
+                <span data-i18n="spatialEditor.paramLight">Lighting</span>
+                <input id="spatial-editor-light" type="range" min="0" max="100" value="62" />
+              </label>
+              <label>
+                <span data-i18n="spatialEditor.paramAds">Ad Interference</span>
+                <input id="spatial-editor-ads" type="range" min="0" max="100" value="36" />
+              </label>
+              <label>
+                <span data-i18n="spatialEditor.paramSignage">Signage Impact</span>
+                <input id="spatial-editor-signage" type="range" min="0" max="100" value="74" />
+              </label>
+            </div>
+          </section>
+
+          <section class="spatial-editor-panel__block">
+            <h3 data-i18n="spatialEditor.versionTitle">Version & Results</h3>
+            <div class="spatial-editor-action-stack">
+              <button type="button" data-spatial-editor-action="save" data-i18n="spatialEditor.saveCurrent">Save Current Scheme</button>
+              <button type="button" data-spatial-editor-action="saveAs" data-i18n="spatialEditor.saveAs">Save as New Scheme</button>
+              <button type="button" data-spatial-editor-action="history" data-i18n="spatialEditor.viewHistory">View Simulation History</button>
+            </div>
+            <div id="spatial-editor-status" class="spatial-editor-status" data-i18n="spatialEditor.statusIdle">Prototype mode: changes are local preview only.</div>
+          </section>
+
+          <section class="spatial-editor-panel__block spatial-editor-result-library">
+            <h3 data-i18n="spatialEditor.libraryTitle">Scheme Result Library</h3>
+            <button class="spatial-editor-result active" type="button">
+              <strong data-i18n="spatialEditor.libraryItemA">Scheme A · Gate to Platform</strong>
+              <span data-i18n="spatialEditor.libraryMetaA">500 ppl · balanced profile · 02:18</span>
+            </button>
+            <button class="spatial-editor-result" type="button">
+              <strong data-i18n="spatialEditor.libraryItemB">Scheme B · Exit C Transfer</strong>
+              <span data-i18n="spatialEditor.libraryMetaB">1000 ppl · low mobility · 06:42</span>
+            </button>
+            <button class="spatial-editor-result" type="button">
+              <strong data-i18n="spatialEditor.libraryItemC">Scheme C · Signage Revision</strong>
+              <span data-i18n="spatialEditor.libraryMetaC">1500 ppl · sensory focus · 04:10</span>
+            </button>
+            <div class="spatial-editor-result-actions">
+              <button type="button" data-spatial-editor-action="openHeatmap" data-i18n="spatialEditor.openHeatmap">Open Historical Heatmap</button>
+              <button type="button" data-spatial-editor-action="copyScheme" data-i18n="spatialEditor.copyScheme">Copy as New Scheme</button>
+            </div>
+          </section>
+        </aside>
+
+        <section class="settings-card settings-card--route-stage spatial-editor-stage">
+          <div class="spatial-editor-toolbar" aria-label="Spatial editor toolbar">
+            <button class="active" type="button" data-spatial-editor-tool="select" data-i18n="spatialEditor.toolbarSelect">Select</button>
+            <button type="button" data-spatial-editor-tool="move" data-i18n="spatialEditor.toolbarMove">Move</button>
+            <button type="button" data-spatial-editor-tool="addPressure" data-i18n="spatialEditor.toolbarAddPressure">Add Pressure Point</button>
+            <button type="button" data-spatial-editor-tool="delete" data-i18n="spatialEditor.toolbarDelete">Delete</button>
+            <button type="button" data-spatial-editor-action="undo" data-i18n="spatialEditor.toolbarUndo">Undo</button>
+            <button type="button" data-spatial-editor-action="reset" data-i18n="spatialEditor.toolbarReset">Reset</button>
+          </div>
+
+          <div id="spatial-editor-route-map-stage" class="settings-route-map-stage spatial-editor-map-shell">
+            <svg id="spatial-editor-route-map" class="settings-route-map spatial-editor-map" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Spatial model editor preview"></svg>
+          </div>
+
+          <div class="spatial-editor-bottom-bar">
+            <button id="spatial-editor-return-settings-btn" type="button" data-i18n="spatialEditor.returnSettings">Return to Route Settings</button>
+            <button type="button" data-spatial-editor-action="save" data-i18n="spatialEditor.saveChanges">Save Changes</button>
+            <button type="button" data-spatial-editor-action="simulate" data-i18n="spatialEditor.simulateCurrent">Start Simulation from Current Scheme</button>
           </div>
         </section>
       </div>
@@ -635,16 +770,36 @@
     <div id="report-modal" class="modal-shell report-modal hidden">
       <div class="modal-backdrop" data-modal-close="report"></div>
       <div class="modal-panel report-modal-panel">
-        <div class="section-head compact report-modal-head">
-          <h2 id="report-modal-title">预览报告</h2>
-        </div>
+        <aside class="report-modal-controls">
+          <div class="section-head compact report-modal-head">
+            <h2 id="report-modal-title">预览报告</h2>
+          </div>
+          <div class="report-control-stack">
+            <div class="report-control-field">
+              <label id="report-language-label" class="report-control-label" for="report-language-trigger">导出语言</label>
+              <button id="report-language-trigger" class="report-dropdown-trigger visualization-detail__layer-select visualization-detail__layer-select-btn" type="button" aria-haspopup="listbox" aria-expanded="false">中文</button>
+              <div id="report-language-menu" class="report-dropdown-menu visualization-detail__layer-menu hidden" role="listbox">
+                <button class="report-dropdown-option visualization-detail__layer-option" type="button" data-report-locale="zh-CN">中文</button>
+                <button class="report-dropdown-option visualization-detail__layer-option" type="button" data-report-locale="en">English</button>
+              </div>
+            </div>
+            <div class="report-control-field">
+              <label id="report-format-label" class="report-control-label" for="report-format-trigger">导出格式</label>
+              <button id="report-format-trigger" class="report-dropdown-trigger visualization-detail__layer-select visualization-detail__layer-select-btn" type="button" aria-haspopup="listbox" aria-expanded="false">网页 HTML</button>
+              <div id="report-format-menu" class="report-dropdown-menu visualization-detail__layer-menu hidden" role="listbox">
+                <button class="report-dropdown-option visualization-detail__layer-option" type="button" data-report-format="html">网页 HTML</button>
+                <button class="report-dropdown-option visualization-detail__layer-option" type="button" data-report-format="pdf">PDF</button>
+              </div>
+            </div>
+          </div>
+          <div id="report-modal-status" class="support-text report-modal-status">运行热力图后可导出当前路线报告。</div>
+          <div class="modal-actions report-modal-actions">
+            <button id="report-modal-cancel-btn" class="ghost-btn edge-btn" type="button">取消</button>
+            <button id="report-modal-export-btn" class="visualization-export-btn" type="button">确认</button>
+          </div>
+        </aside>
         <div class="report-preview-stage">
           <iframe id="report-preview-frame" class="report-preview-frame" title="Route diagnostic report preview"></iframe>
-        </div>
-        <div id="report-modal-status" class="support-text report-modal-status">运行热力图后可导出当前路线报告。</div>
-        <div class="modal-actions report-modal-actions">
-          <button id="report-modal-cancel-btn" class="ghost-btn edge-btn" type="button">取消</button>
-          <button id="report-modal-export-btn" class="run-btn" type="button">确认导出</button>
         </div>
       </div>
     </div>

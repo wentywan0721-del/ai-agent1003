@@ -51,6 +51,7 @@ function createDecisionOptions(overrides = {}) {
     mapSupport: 0.2,
     serviceSupport: 0.1,
     guideReviewLoad: 0,
+    decisionNodeProximity: 1,
     ...overrides,
   };
 }
@@ -109,6 +110,17 @@ function manualDecisionExpectation(options) {
     1
   );
   const guideReviewLoad = clamp(options.guideReviewLoad, 0, 1);
+  const decisionNodePeak = decisionModel.decisionNodePeak || {};
+  const decisionNodeProximity = clamp(
+    Number.isFinite(Number(options.decisionNodeProximity)) ? options.decisionNodeProximity : 0,
+    0,
+    1
+  );
+  const decisionNodePeakFactor = clamp(
+    (decisionNodePeak.floor ?? 0.35) + (1 - (decisionNodePeak.floor ?? 0.35)) * decisionNodeProximity,
+    0,
+    1
+  );
   const environmentWeightedAverage = clamp(
     (0.20 * noisePenalty) + (0.40 * lightingPenalty) + (0.40 * crowdPenalty),
     0,
@@ -201,19 +213,19 @@ function manualDecisionExpectation(options) {
   const burden = clamp(
     100 * vc * Math.max(
       0,
-      (finalScoreWeights.base ?? 0.10)
-        + (finalScoreWeights.branchComplexity ?? 0.17) * branchComplexity
-        + (finalScoreWeights.signConflict ?? 0.20) * signConflict
-        + (finalScoreWeights.pathComparisonCost ?? 0.14) * pathComparisonCost
-        + (finalScoreWeights.distractorLoad ?? 0.15) * distractorLoad
-        + (finalScoreWeights.noisePenalty ?? 0.04) * noisePenalty
-        + (finalScoreWeights.lightingPenalty ?? 0.07) * lightingPenalty
-        + (finalScoreWeights.crowdPenalty ?? 0.07) * crowdPenalty
-        + (finalScoreWeights.queueUncertainty ?? 0.06) * queueUncertainty
+      (finalScoreWeights.base ?? 0.05)
+        + (finalScoreWeights.branchComplexity ?? 0.24) * branchComplexity * decisionNodePeakFactor
+        + (finalScoreWeights.signConflict ?? 0.28) * signConflict * decisionNodePeakFactor
+        + (finalScoreWeights.pathComparisonCost ?? 0.22) * pathComparisonCost * decisionNodePeakFactor
+        + (finalScoreWeights.distractorLoad ?? 0.12) * distractorLoad
+        + (finalScoreWeights.noisePenalty ?? 0.05) * noisePenalty
+        + (finalScoreWeights.lightingPenalty ?? 0.04) * lightingPenalty
+        + (finalScoreWeights.crowdPenalty ?? 0.04) * crowdPenalty
+        + (finalScoreWeights.queueUncertainty ?? 0.10) * queueUncertainty * decisionNodePeakFactor
         + (finalScoreWeights.memoryDeficit ?? 0.13) * (1 - m)
         + (finalScoreWeights.attentionDeficit ?? 0.13) * (1 - a)
         + (finalScoreWeights.problemDeficit ?? 0.16) * (1 - p)
-        + (finalScoreWeights.guidanceSupport ?? -0.20) * guidanceSupport
+        + (finalScoreWeights.guidanceSupport ?? -0.12) * guidanceSupport
     ),
     0,
     100
@@ -229,6 +241,8 @@ function manualDecisionExpectation(options) {
     lightingPenalty,
     crowdPenalty,
     queueUncertainty,
+    decisionNodeProximity,
+    decisionNodePeakFactor,
     timeDecay,
     distanceDecay,
     guidanceSupport,
@@ -307,6 +321,8 @@ function main() {
 
   assertClose(actual.vulnerability, expected.vulnerability, 0.001, 'decision vulnerability');
   assertClose(actual.branchComplexity, expected.branchComplexity, 0.001, 'branch complexity');
+  assertClose(actual.decisionNodeProximity, expected.decisionNodeProximity, 0.001, 'decision node proximity');
+  assertClose(actual.decisionNodePeakFactor, expected.decisionNodePeakFactor, 0.001, 'decision node peak factor');
   assertClose(actual.guidanceSupport, expected.guidanceSupport, 0.001, 'guidance support');
   assertClose(actual.memoryRetention, expected.memoryRetention, 0.001, 'memory retention');
   assertClose(actual.attentionFocus, expected.attentionFocus, 0.001, 'attention focus');
@@ -382,6 +398,23 @@ function main() {
   assert(severe.decisionReactionTime > mild.decisionReactionTime, 'worse conditions should increase reaction time');
   assert(severe.score > mild.score, 'worse conditions should increase burden');
 
+  const nearDecisionNode = Sim.computeDecisionBurdenState(createDecisionOptions({
+    branchCount: 5,
+    conflictingSignCount: 2,
+    candidatePathCount: 4,
+    queueCount: 10,
+    decisionNodeProximity: 1,
+  }));
+  const farDecisionNode = Sim.computeDecisionBurdenState(createDecisionOptions({
+    branchCount: 5,
+    conflictingSignCount: 2,
+    candidatePathCount: 4,
+    queueCount: 10,
+    decisionNodeProximity: 0,
+  }));
+  assert(nearDecisionNode.score > farDecisionNode.score, 'decision node proximity should raise local burden peaks');
+  assert(nearDecisionNode.decisionNodePeakFactor > farDecisionNode.decisionNodePeakFactor, 'decision node peak factor should increase near decision nodes');
+
   const noiseHeavy = Sim.computeDecisionBurdenState(createDecisionOptions({
     branchCount: 1,
     conflictingSignCount: 0,
@@ -432,7 +465,7 @@ function main() {
   }));
   assert(signHeavy.score > distractorHeavy.score, 'problem signage should weigh more than pure noise-free distractors');
   assert(distractorHeavy.score > noiseHeavy.score, 'visual distractors should weigh more than noise in decision burden');
-  assert(crowdHeavy.score > noiseHeavy.score, 'crowding should weigh more than noise in decision burden');
+  assert(Math.abs(crowdHeavy.score - noiseHeavy.score) < 2, 'crowding and noise should stay secondary and close in weight');
 
   const lowReview = Sim.computeDecisionBurdenState(createDecisionOptions({
     continuousGuideCoverage: 0.8,

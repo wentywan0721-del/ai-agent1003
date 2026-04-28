@@ -25,8 +25,9 @@ const prompt = buildDecisionPlanUserPrompt({
   },
 });
 
+const denseTimelineMatch = prompt.match(/at least (\d+) timeline items/i);
 assert(
-  /at least 8 timeline items/i.test(prompt),
+  denseTimelineMatch && Number(denseTimelineMatch[1]) >= 8,
   'Expected long-route prompt guidance to require denser timeline output'
 );
 

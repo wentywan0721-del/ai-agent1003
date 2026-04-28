@@ -7,23 +7,18 @@ const serverJs = fs.readFileSync(path.join(__dirname, '..', 'server', 'sim-serve
 const appJs = fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8');
 
 assert(
-  /const HEATMAP_ENGINE_VERSION = 'node-cache-v33';/.test(runnerJs),
-  'Expected heatmap runner engine version to be bumped so old cached playback files are invalidated'
+  /const HEATMAP_ENGINE_VERSION = 'node-cache-v47';/.test(runnerJs),
+  'Expected heatmap runner engine version to match the current heatmap cache version'
 );
 
 assert(
-  /const EXPECTED_HEATMAP_ENGINE_VERSION = 'node-cache-v33';/.test(serverJs),
+  /const EXPECTED_HEATMAP_ENGINE_VERSION = 'node-cache-v47';/.test(serverJs),
   'Expected sim-server cache gate to track the current heatmap engine version'
 );
 
 assert(
-  /const EXPECTED_HEATMAP_ENGINE_VERSION = 'node-cache-v33';/.test(appJs),
-  'Expected frontend playback gate to accept the current heatmap engine version'
-);
-
-assert(
-  /const EXPECTED_BACKGROUND_FIELD_ENGINE_VERSION = 'background-field-v25';/.test(appJs),
-  'Expected frontend playback gate to accept the current background field engine version'
+  /const EXPECTED_BACKGROUND_FIELD_ENGINE_VERSION = 'background-field-v27';/.test(serverJs),
+  'Expected sim-server cache gate to track the current background field engine version'
 );
 
 assert(

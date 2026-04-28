@@ -131,12 +131,16 @@ function main() {
 
   Sim.stepScenario(prepared, scenario, 0.18, { deferPostProcess: true });
 
-  assert.strictEqual(focusAgent.decisionInteractionState, 'approach', 'expected a guide-review interaction to begin');
+  assert.strictEqual(focusAgent.decisionInteractionState, 'approach', 'expected guide review to physically approach the visible map');
   assert.strictEqual(focusAgent.decisionInteractionSourceId, 'map-1', 'expected the panoramic guide map to become the interaction source');
+  assert(
+    focusAgent.decisionInteractionPath && focusAgent.decisionInteractionPath.length > 0,
+    'expected guide review to have a walkable physical interaction path'
+  );
   assert.strictEqual(
     focusAgent.selectedTargetNodeId,
     originalTargetNodeId,
-    'expected focus route switching to wait until the guide interaction is finished'
+    'expected guide review to preserve the selected target while approaching the map'
   );
 }
 

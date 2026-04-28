@@ -7,32 +7,57 @@
   const DEFAULT_HEAT_OPTIONS = { warmupSeconds: 48, warmupDt: 0.25 };
   const LOCAL_SIM_SERVER_ORIGIN = 'http://127.0.0.1:8891';
   const LOCAL_SIM_SERVER_REQUEST_TIMEOUT_MS = 15000;
+  const LOCAL_SIM_SERVER_HEATMAP_REQUEST_TIMEOUT_MS = 120000;
   const LOCAL_SIM_SERVER_JOB_POLL_INTERVAL_MS = 180;
   const LOCAL_SIM_SERVER_JOB_RETRY_LIMIT = 8;
   const LOCAL_SIM_SERVER_HEALTHCHECK_TIMEOUT_MS = 2500;
   const LOCAL_SIM_SERVER_HEALTHCHECK_INTERVAL_MS = 4000;
+  const LOCAL_HEATMAP_PLAYBACK_SESSION_CACHE_LIMIT = 4;
   const PLAYBACK_FOCUS_SNAPSHOT_BUCKETS_PER_SECOND = 30;
   const HEAT_RASTER_SUPERSAMPLE = 4;
   const BACKGROUND_AGENT_INTERPOLATION_MAX_JUMP_METERS = 4.5;
   const DEFAULT_FILE_NAME = 'untitled';
   const DEFAULT_BACKGROUND_CROWD = 1595;
-  const DEFAULT_BACKGROUND_RENDERER_MODE = 'canvas';
+  const DEFAULT_BACKGROUND_RENDERER_MODE = 'webgl';
+  const BACKGROUND_WEBGL_TRAJECTORY_CACHE_VERSION = 'packed-v1';
   const HEAT_TRACE_RADIUS_METERS = 3;
+  const HEAT_NON_VITALITY_CORRIDOR_RADIUS_METERS = 3;
+  const HEAT_SINGLE_BURDEN_SOFT_PEAK_POWER = 4;
+  const HEAT_SINGLE_BURDEN_SOFT_PEAK_BLEND = 0.82;
+  const HEAT_SINGLE_BURDEN_RELATIVE_LOW_QUANTILE = 0.08;
+  const HEAT_SINGLE_BURDEN_RELATIVE_HIGH_QUANTILE = 0.92;
+  const HEAT_SINGLE_BURDEN_ROUTE_BIN_METERS = 2.5;
+  const HEAT_SINGLE_BURDEN_ROUTE_SMOOTH_BINS = 2;
+  const HEAT_SINGLE_BURDEN_ROUTE_BLEND = 0.78;
+  const HEAT_SINGLE_BURDEN_LOCAL_BASELINE_BINS = 8;
+  const HEAT_SINGLE_BURDEN_LOCAL_BASELINE_RADIUS_METERS = 7.5;
+  const HEAT_SINGLE_BURDEN_PROMINENCE_ALPHA_FLOOR = 0.38;
+  const HEAT_COMPOSITE_RELATIVE_LOW_QUANTILE = 0.06;
+  const HEAT_COMPOSITE_RELATIVE_HIGH_QUANTILE = 0.94;
   const HEAT_TRACE_MIN_SEGMENT_DISTANCE = 0.08;
   const HEAT_VALUE_STOPS = [0, 10, 20, 35, 55, 80, 130];
+  const REPORT_HIGH_HEAT_TOP_PERCENT = 0.2;
+  const REPORT_DETAIL_HIGH_REGION_LIMIT = 3;
+  const REPORT_BURDEN_LEVEL_STOPS = Object.freeze([
+    { max: 20, color: '#264f87', zh: '低负担', en: 'Low burden' },
+    { max: 40, color: '#4f9bb8', zh: '中低负担', en: 'Medium-low burden' },
+    { max: 60, color: '#d8b74a', zh: '中等负担', en: 'Medium burden' },
+    { max: 80, color: '#d76a52', zh: '中高负担', en: 'Medium-high burden' },
+    { max: Number.POSITIVE_INFINITY, color: '#c84949', zh: '高负担', en: 'High burden' },
+  ]);
   const VITALITY_RIBBON_MIN_WIDTH_METERS = 2;
   const VITALITY_RIBBON_MAX_WIDTH_METERS = 6;
   const LAYER_CATEGORY_DEFINITIONS = [
-    { id: 'flashing-ads', label: 'flashing ads', color: '#1faea5', editable: true },
-    { id: 'static-ads', label: 'Static ads', color: '#2f92d6', editable: true },
-    { id: 'ai-virtual-service-ambassador', label: 'AI virtual service ambassador', color: '#cf775d', editable: false },
+    { id: 'flashing-ads', label: 'flashing ads', color: '#256fbe', editable: true },
+    { id: 'static-ads', label: 'Static ads', color: '#1faea5', editable: true },
+    { id: 'ai-virtual-service-ambassador', label: 'AI virtual service ambassador', color: '#e6d87b', editable: false },
     { id: 'common-direction-signs', label: 'Common direction Signs', color: '#6f9f4c', editable: false },
     { id: 'customer-service-centre', label: 'Customer Service Centre', color: '#d1a14a', editable: false },
     { id: 'noise', label: 'Noise', color: '#d35367', editable: true },
     { id: 'hanging-signs', label: 'Hanging Signs', color: '#836cd4', editable: false },
     { id: 'lcd', label: 'LCD', color: '#5ea2cd', editable: false },
     { id: 'panoramic-guide-map', label: 'Panoramic guide map', color: '#6fb96b', editable: false },
-    { id: 'seat', label: 'Seat', color: '#c5af59', editable: false },
+    { id: 'seat', label: 'Seat', color: '#f39a27', editable: false },
   ];
   const DEFAULT_HEAT_COLOR_STOPS = [
     { stop: 0, rgb: [128, 0, 255] },
@@ -716,6 +741,18 @@
       data: null,
       documentHtml: '',
       fileName: 'route-report.html',
+      exportFormat: 'html',
+      languageMenuOpen: false,
+      formatMenuOpen: false,
+      llmAnalysis: null,
+      llmAnalysisPending: false,
+      llmAnalysisPromise: null,
+      llmAnalysisKey: '',
+      llmAnalysisRequestKey: '',
+      suppressNextReportLanguageTriggerClick: false,
+      suppressNextReportLanguageMenuClick: false,
+      suppressNextReportFormatTriggerClick: false,
+      suppressNextReportFormatMenuClick: false,
     };
   }
 
@@ -729,6 +766,207 @@
     }
     const amount = clamp((value - minimum) / (maximum - minimum), 0, 1);
     return amount * amount * (3 - 2 * amount);
+  }
+
+  function applySingleBurdenRelativeDisplayCurve(normalized) {
+    const amount = clamp(Number(normalized) || 0, 0, 1);
+    const steepness = 7.2;
+    const logistic = 1 / (1 + Math.exp(-steepness * (amount - 0.5)));
+    const low = 1 / (1 + Math.exp(steepness * 0.5));
+    const high = 1 / (1 + Math.exp(-steepness * 0.5));
+    return clamp((logistic - low) / Math.max(1e-6, high - low), 0, 1);
+  }
+
+  function applyCompositeRelativeDisplayCurve(normalized) {
+    const amount = clamp(Number(normalized) || 0, 0, 1);
+    return amount;
+  }
+
+  function buildSingleBurdenRouteSequenceProfile(cells) {
+    const routeCells = Array.isArray(cells)
+      ? cells.filter((cell) => Number.isFinite(Number(cell?.traceProgressMeters)) && Number.isFinite(Number(cell?.metric)))
+      : [];
+    if (routeCells.length < 4) {
+      return null;
+    }
+    const binSize = HEAT_SINGLE_BURDEN_ROUTE_BIN_METERS;
+    const maxProgress = routeCells.reduce((maximum, cell) => Math.max(maximum, Number(cell.traceProgressMeters || 0)), 0);
+    const binCount = Math.max(1, Math.ceil(maxProgress / binSize) + 1);
+    const sums = new Float64Array(binCount);
+    const weights = new Float64Array(binCount);
+    routeCells.forEach((cell) => {
+      const binIndex = clamp(Math.round(Number(cell.traceProgressMeters || 0) / binSize), 0, binCount - 1);
+      const weight = Math.max(0.001, Number(cell.revealWeight || 1));
+      sums[binIndex] += Number(cell.metric || 0) * weight;
+      weights[binIndex] += weight;
+    });
+    const rawBins = Array.from({ length: binCount }, (_, index) => (
+      weights[index] > 1e-6 ? sums[index] / weights[index] : Number.NaN
+    ));
+    let lastKnown = Number.NaN;
+    for (let index = 0; index < rawBins.length; index += 1) {
+      if (Number.isFinite(rawBins[index])) {
+        lastKnown = rawBins[index];
+      } else if (Number.isFinite(lastKnown)) {
+        rawBins[index] = lastKnown;
+      }
+    }
+    let nextKnown = Number.NaN;
+    for (let index = rawBins.length - 1; index >= 0; index -= 1) {
+      if (Number.isFinite(rawBins[index])) {
+        nextKnown = rawBins[index];
+      } else if (Number.isFinite(nextKnown)) {
+        rawBins[index] = nextKnown;
+      }
+    }
+    const smoothedBins = rawBins.map((value, index) => {
+      let weightedSum = 0;
+      let weightSum = 0;
+      for (
+        let neighbor = Math.max(0, index - HEAT_SINGLE_BURDEN_ROUTE_SMOOTH_BINS);
+        neighbor <= Math.min(rawBins.length - 1, index + HEAT_SINGLE_BURDEN_ROUTE_SMOOTH_BINS);
+        neighbor += 1
+      ) {
+        const neighborValue = rawBins[neighbor];
+        if (!Number.isFinite(neighborValue)) {
+          continue;
+        }
+        const distance = Math.abs(neighbor - index);
+        const weight = 1 / (1 + distance);
+        weightedSum += neighborValue * weight;
+        weightSum += weight;
+      }
+      return weightSum > 1e-6 ? weightedSum / weightSum : value;
+    });
+    const baselineBins = smoothedBins.map((value, index) => {
+      let weightedSum = 0;
+      let weightSum = 0;
+      for (
+        let neighbor = Math.max(0, index - HEAT_SINGLE_BURDEN_LOCAL_BASELINE_BINS);
+        neighbor <= Math.min(smoothedBins.length - 1, index + HEAT_SINGLE_BURDEN_LOCAL_BASELINE_BINS);
+        neighbor += 1
+      ) {
+        const neighborValue = smoothedBins[neighbor];
+        if (!Number.isFinite(neighborValue)) {
+          continue;
+        }
+        const distance = Math.abs(neighbor - index);
+        const weight = 1 / (1 + distance * 0.45);
+        weightedSum += neighborValue * weight;
+        weightSum += weight;
+      }
+      return weightSum > 1e-6 ? weightedSum / weightSum : value;
+    });
+    const localDeltas = smoothedBins.map((value, index) => Math.max(0, value - baselineBins[index]));
+    const sortedDeltas = getSortedNumericValues(localDeltas);
+    const deltaHigh = sortedDeltas.length ? sampleQuantile(sortedDeltas, 0.9) : 0;
+    const prominenceBins = localDeltas.map((delta) => {
+      if (deltaHigh <= 1e-6) {
+        return 0;
+      }
+      return smoothstep(0, deltaHigh, delta);
+    });
+    const sortedValues = getSortedNumericValues(smoothedBins);
+    if (sortedValues.length < 2) {
+      return null;
+    }
+    const minimum = sampleQuantile(sortedValues, HEAT_SINGLE_BURDEN_RELATIVE_LOW_QUANTILE);
+    const maximum = sampleQuantile(sortedValues, HEAT_SINGLE_BURDEN_RELATIVE_HIGH_QUANTILE);
+    if (!Number.isFinite(minimum) || !Number.isFinite(maximum) || maximum <= minimum + 1e-6) {
+      return null;
+    }
+    return {
+      binSize,
+      smoothedBins,
+      baselineBins,
+      prominenceBins,
+      minimum,
+      maximum,
+    };
+  }
+
+  function getSingleBurdenRouteDisplayNormalized(metric, routeSequenceProfile, fallbackNormalized, traceProgressMeters) {
+    const fallback = clamp(Number(fallbackNormalized) || 0, 0, 1);
+    if (!routeSequenceProfile || !Number.isFinite(Number(traceProgressMeters))) {
+      return applySingleBurdenRelativeDisplayCurve(fallback);
+    }
+    const bins = routeSequenceProfile.smoothedBins || [];
+    if (!bins.length) {
+      return applySingleBurdenRelativeDisplayCurve(fallback);
+    }
+    const position = clamp(Number(traceProgressMeters || 0) / Math.max(1e-6, routeSequenceProfile.binSize), 0, bins.length - 1);
+    const leftIndex = Math.floor(position);
+    const rightIndex = Math.min(bins.length - 1, leftIndex + 1);
+    const ratio = position - leftIndex;
+    const leftValue = Number.isFinite(Number(bins[leftIndex])) ? Number(bins[leftIndex]) : Number(metric || 0);
+    const rightValue = Number.isFinite(Number(bins[rightIndex])) ? Number(bins[rightIndex]) : leftValue;
+    const routeValue = leftValue + (rightValue - leftValue) * ratio;
+    const routeNormalized = clamp(
+      (routeValue - routeSequenceProfile.minimum) / Math.max(1e-6, routeSequenceProfile.maximum - routeSequenceProfile.minimum),
+      0,
+      1
+    );
+    const blended = fallback * (1 - HEAT_SINGLE_BURDEN_ROUTE_BLEND) + routeNormalized * HEAT_SINGLE_BURDEN_ROUTE_BLEND;
+    return applySingleBurdenRelativeDisplayCurve(blended);
+  }
+
+  function getSingleBurdenLocalProminence(routeSequenceProfile, traceProgressMeters) {
+    if (!routeSequenceProfile || !Number.isFinite(Number(traceProgressMeters))) {
+      return 1;
+    }
+    const bins = routeSequenceProfile.prominenceBins || [];
+    if (!bins.length) {
+      return 1;
+    }
+    const position = clamp(Number(traceProgressMeters || 0) / Math.max(1e-6, routeSequenceProfile.binSize), 0, bins.length - 1);
+    const leftIndex = Math.floor(position);
+    const rightIndex = Math.min(bins.length - 1, leftIndex + 1);
+    const ratio = position - leftIndex;
+    const leftValue = Number.isFinite(Number(bins[leftIndex])) ? Number(bins[leftIndex]) : 0;
+    const rightValue = Number.isFinite(Number(bins[rightIndex])) ? Number(bins[rightIndex]) : leftValue;
+    return clamp(leftValue + (rightValue - leftValue) * ratio, 0, 1);
+  }
+
+  function annotateSingleBurdenCellProminence(cells) {
+    const sourceCells = Array.isArray(cells) ? cells : [];
+    if (sourceCells.length < 4) {
+      return sourceCells.map((cell) => ({ ...cell, localProminence: 1 }));
+    }
+    const radius = HEAT_SINGLE_BURDEN_LOCAL_BASELINE_RADIUS_METERS;
+    const radiusSquared = radius * radius;
+    const sigma = Math.max(1, radius * 0.52);
+    const annotated = sourceCells.map((cell, cellIndex) => {
+      const metric = Number(cell.metric ?? cell.pressure ?? 0) || 0;
+      let weightedSum = 0;
+      let weightSum = 0;
+      sourceCells.forEach((neighbor, neighborIndex) => {
+        if (neighborIndex === cellIndex) {
+          return;
+        }
+        const dx = Number(neighbor.x || 0) - Number(cell.x || 0);
+        const dy = Number(neighbor.y || 0) - Number(cell.y || 0);
+        const distanceSquared = dx * dx + dy * dy;
+        if (distanceSquared > radiusSquared) {
+          return;
+        }
+        const weight = Math.exp(-distanceSquared / Math.max(1e-6, 2 * sigma * sigma));
+        weightedSum += (Number(neighbor.metric ?? neighbor.pressure ?? 0) || 0) * weight;
+        weightSum += weight;
+      });
+      const localBaseline = weightSum > 1e-6 ? weightedSum / weightSum : metric;
+      return {
+        ...cell,
+        localDelta: Math.max(0, metric - localBaseline),
+      };
+    });
+    const sortedDeltas = getSortedNumericValues(annotated.map((cell) => Number(cell.localDelta || 0)));
+    const highDelta = sortedDeltas.length ? sampleQuantile(sortedDeltas, 0.88) : 0;
+    return annotated.map((cell) => ({
+      ...cell,
+      localProminence: highDelta > 1e-6
+        ? smoothstep(0, highDelta, Number(cell.localDelta || 0))
+        : 0,
+    }));
   }
 
   const TEXT = {
@@ -757,6 +995,57 @@
         radarTitle: '五维雷达图',
         radarHint: '拖动顶点即可调整五维分值',
       },
+      spatialEditor: {
+        entryTitle: '编辑空间模型',
+        entryHint: '调整边界、节点与压力点参数',
+        eyebrow: '空间模型',
+        title: '空间模型编辑',
+        back: '返回路线设置',
+        modeTitle: '编辑模式',
+        toolSelect: '选择',
+        toolBoundary: '边界编辑',
+        toolNode: 'Node 编辑',
+        toolPressure: '压力点编辑',
+        objectTitle: '对象属性',
+        objectName: '选中对象名称',
+        objectCoord: '坐标',
+        objectType: '类型',
+        paramNoise: '噪音',
+        paramLight: '光照',
+        paramAds: '广告干扰',
+        paramSignage: '标识影响',
+        versionTitle: '版本与结果',
+        saveCurrent: '保存当前方案',
+        saveAs: '另存为新方案',
+        viewHistory: '查看历史模拟结果',
+        libraryTitle: '方案结果库',
+        libraryItemA: '方案 A · 闸机至乘车点',
+        libraryMetaA: '500 人流 · 均衡画像 · 02:18',
+        libraryItemB: '方案 B · 出口 C 换乘',
+        libraryMetaB: '1000 人流 · 低行动能力 · 06:42',
+        libraryItemC: '方案 C · 标识优化',
+        libraryMetaC: '1500 人流 · 感知敏感 · 04:10',
+        openHeatmap: '直接打开历史热力图',
+        copyScheme: '复制为新方案',
+        toolbarSelect: '选择',
+        toolbarMove: '移动',
+        toolbarAddPressure: '新增压力点',
+        toolbarDelete: '删除',
+        toolbarUndo: '撤销',
+        toolbarReset: '重置',
+        returnSettings: '返回路线设置',
+        saveChanges: '保存修改',
+        simulateCurrent: '基于当前方案开始模拟',
+        statusIdle: '概念展示模式：修改仅在当前页面预览，不写入后台模型。',
+        statusSave: '当前方案已在前端预览中标记为已保存。',
+        statusSaveAs: '已创建一个新的前端方案副本。',
+        statusHistory: '已切换到方案结果库，可打开或复制历史热力图方案。',
+        statusOpenHeatmap: '已选择历史热力图预览入口，后台接入后可直接打开。',
+        statusCopyScheme: '已复制历史方案为新的编辑草案。',
+        statusSimulate: '已选择基于当前方案开始模拟，当前阶段不提交后台计算。',
+        statusUndo: '已撤销最近一次前端演示操作。',
+        statusReset: '地图对象已重置为演示初始状态。',
+      },
       loading: {
         section: 'Section 02',
         title: '正在准备可视化分析',
@@ -765,6 +1054,15 @@
         statusReady: '背景人流已生成，正在请求热力图计算。',
         statusComputing: '正在计算热力图，请稍候。',
         statusDone: '热力图计算完成，正在进入可视化页面。',
+        stage: {
+          bootstrap: '正在初始化本地仿真任务。',
+          backgroundPrepare: '正在准备可复用背景人流场。',
+          background: '正在生成或读取背景人流场。',
+          focusPrepare: '正在准备重点代理人路线。',
+          focusReady: '背景场已就绪，正在计算重点代理人。',
+          focus: '正在计算重点代理人路径与热力图。',
+          llmDecision: '正在生成代理人决策链。',
+        },
       },
       agentSettings: {
         section: 'Section 02',
@@ -773,7 +1071,7 @@
       },
       visualization: {
         section: 'Section 03',
-        title: '可视化分析',
+        title: '可视化总览',
         detailSection: 'Section 04',
         detailTitle: '路径详细诊断',
         back: '返回上一级',
@@ -783,18 +1081,18 @@
         compositeCopy: '综合展示五维负担在整条路线上的空间叠加结果，用于快速总览主要压力带。',
         locomotorTag: '行动',
         locomotorTitle: '行动负担热力图',
-        locomotorCopy: '展示步行距离、竖向转换与排队干扰造成的行动阻力分布。',
+        locomotorCopy: '展示步行距离、竖向转换与排队造成的行动阻力分布。',
         sensoryTag: '感知',
         sensoryTitle: '感知负担热力图',
         sensoryCopy: '展示光照、噪音、可见距离与标识辨识条件带来的感知压力分布。',
         cognitiveTag: '认知',
-        cognitiveTitle: '认知负担热力图',
+        cognitiveTitle: '决策负担热力图',
         cognitiveCopy: '展示寻路、标识连续性与换乘决策造成的认知压力分布。',
         psychologicalTag: '心理',
         psychologicalTitle: '心理负担热力图',
         psychologicalCopy: '展示不确定性、拥挤压力与安全感下降导致的心理负担热点。',
         vitalityTag: '活力',
-        vitalityTitle: '活力负担热力图',
+        vitalityTitle: '疲劳负担热力图',
         vitalityCopy: '展示沿路径累积疲劳增长最快的区段，以及恢复需求升高的位置。',
         environmentEyebrow: '环境参数',
         environmentTitle: '实时环境参数',
@@ -819,7 +1117,7 @@
         speedFactor: '速度倍率',
         detailLayerFilter: '压力点图层',
         detailLayerAll: '全部压力点图层',
-        detailCotTitle: '老年代理人出行链式分析',
+        detailCotTitle: '代理人决策链',
         detailIssuesTitle: '关键问题与优化建议',
         detailHotspotsTitle: '关键问题点',
         detailRecommendationsTitle: '优化建议',
@@ -857,6 +1155,7 @@
         routeSelected: '当前目标',
         modelSource: '文件来源',
         simultaneousCount: '同时在场人数',
+        crowdDensity: '拥挤密度',
         travelTime: '通行时间',
         minimumHeat: '最低热度',
         maximumHeat: '最高热度',
@@ -884,12 +1183,15 @@
         queueCount: '排队人数',
         environmentNoise: '环境噪音',
         environmentLighting: '环境照度',
-        progress: '路径进度',
-        walkingSpeed: '步行速度',
-        decisionDelay: '决策迟滞',
-        movementBehavior: '行动状态',
-        movementMainCause: '主要阻力',
-        movementSpeedFactor: '行动速度倍率',
+          progress: '路径进度',
+          walkingSpeed: '步行速度',
+          decisionDelay: '决策迟滞',
+          restMargin: '休息余量',
+          currentState: '当前状态',
+          decisionFocus: '决策焦点',
+          movementBehavior: '行动状态',
+          movementMainCause: '主要阻力',
+          movementSpeedFactor: '行动速度倍率',
         advice: '建议',
         nearbySeats: '可见座位',
         visionRadius: '视野范围',
@@ -964,7 +1266,7 @@
         routePickTarget: '请选择终点区域。',
         routePickReady: '路线已设定，可生成人流并开始模拟。',
       },
-      marker: { start: '起点', end: '终点', startShort: '起点', endShort: '终点' },
+      marker: { start: '起点', end: '终点', startShort: 'S', endShort: 'E' },
       routeNames: {
         route1: '路线 1 · gate_in_2 → train_door4',
         route2: '路线 2 · es_up_1_top → gate_out_1',
@@ -1030,6 +1332,57 @@
         radarTitle: 'Five-Dimension Radar Chart',
         radarHint: 'Drag points to adjust dimension scores',
       },
+      spatialEditor: {
+        entryTitle: 'Edit Spatial Model',
+        entryHint: 'Adjust boundaries, nodes, and pressure point parameters',
+        eyebrow: 'Spatial Model',
+        title: 'Edit Spatial Model',
+        back: 'Back to Route Settings',
+        modeTitle: 'Edit Mode',
+        toolSelect: 'Select',
+        toolBoundary: 'Boundary',
+        toolNode: 'Node',
+        toolPressure: 'Pressure Point',
+        objectTitle: 'Object Properties',
+        objectName: 'Selected Object',
+        objectCoord: 'Coordinates',
+        objectType: 'Type',
+        paramNoise: 'Noise',
+        paramLight: 'Lighting',
+        paramAds: 'Ad Interference',
+        paramSignage: 'Signage Impact',
+        versionTitle: 'Version & Results',
+        saveCurrent: 'Save Current Scheme',
+        saveAs: 'Save as New Scheme',
+        viewHistory: 'View Simulation History',
+        libraryTitle: 'Scheme Result Library',
+        libraryItemA: 'Scheme A · Gate to Platform',
+        libraryMetaA: '500 ppl · balanced profile · 02:18',
+        libraryItemB: 'Scheme B · Exit C Transfer',
+        libraryMetaB: '1000 ppl · low mobility · 06:42',
+        libraryItemC: 'Scheme C · Signage Revision',
+        libraryMetaC: '1500 ppl · sensory focus · 04:10',
+        openHeatmap: 'Open Historical Heatmap',
+        copyScheme: 'Copy as New Scheme',
+        toolbarSelect: 'Select',
+        toolbarMove: 'Move',
+        toolbarAddPressure: 'Add Pressure Point',
+        toolbarDelete: 'Delete',
+        toolbarUndo: 'Undo',
+        toolbarReset: 'Reset',
+        returnSettings: 'Return to Route Settings',
+        saveChanges: 'Save Changes',
+        simulateCurrent: 'Start Simulation from Current Scheme',
+        statusIdle: 'Prototype mode: changes are local preview only and are not written to the backend model.',
+        statusSave: 'Current scheme is marked as saved in the frontend preview.',
+        statusSaveAs: 'A new frontend scheme copy has been created.',
+        statusHistory: 'Scheme result library is active; historical heatmap entries can be opened or copied later.',
+        statusOpenHeatmap: 'Historical heatmap preview entry selected. Backend opening can be connected later.',
+        statusCopyScheme: 'Historical scheme copied as a new editing draft.',
+        statusSimulate: 'Simulation from the current scheme selected. This prototype does not submit backend computation.',
+        statusUndo: 'Latest frontend demo operation has been undone.',
+        statusReset: 'Map objects have been reset to the demo layout.',
+      },
       loading: {
         section: 'Section 02',
         title: 'Preparing Visualization Analysis',
@@ -1038,6 +1391,15 @@
         statusReady: 'Crowd field is ready and heatmap computation is starting.',
         statusComputing: 'Computing heatmaps for the selected route.',
         statusDone: 'Heatmap computation finished. Opening the visualization workspace.',
+        stage: {
+          bootstrap: 'Initializing the local simulation job.',
+          backgroundPrepare: 'Preparing the reusable background crowd field.',
+          background: 'Generating or loading the background crowd field.',
+          focusPrepare: 'Preparing the focus agent route.',
+          focusReady: 'Background field is ready. Computing the focus agent.',
+          focus: 'Computing the focus agent path and heatmaps.',
+          llmDecision: 'Generating the agent decision chain.',
+        },
       },
       agentSettings: {
         section: 'Section 02',
@@ -1046,7 +1408,7 @@
       },
       visualization: {
         section: 'Section 03',
-        title: 'Visualization Analysis',
+        title: 'Visualization Overview',
         detailSection: 'Section 04',
         detailTitle: 'Detailed Route Diagnosis',
         back: 'Back',
@@ -1054,20 +1416,20 @@
         compositeTag: 'Composite',
         compositeTitle: 'Composite Burden Heatmap',
         compositeCopy: 'Integrated spatial burden field combining all five dimensions for route-level overview.',
-        locomotorTag: 'Mobility',
-        locomotorTitle: 'Mobility Burden Heatmap',
-        locomotorCopy: 'Physical movement resistance caused by walking distance, vertical transfer, and queue interference.',
+        locomotorTag: 'Locomotor',
+        locomotorTitle: 'Locomotor Burden Heatmap',
+        locomotorCopy: 'Physical movement resistance caused by walking distance, vertical transfer, and queue.',
         sensoryTag: 'Sensory',
         sensoryTitle: 'Sensory Burden Heatmap',
         sensoryCopy: 'Perception burden from lighting, noise, visibility range, and sign recognition conditions.',
         cognitiveTag: 'Cognitive',
-        cognitiveTitle: 'Cognitive Burden Heatmap',
+        cognitiveTitle: 'Decision Burden Heatmap',
         cognitiveCopy: 'Decision pressure from route choice, signage continuity, and hesitation at transfer nodes.',
         psychologicalTag: 'Psychological',
         psychologicalTitle: 'Psychological Burden Heatmap',
         psychologicalCopy: 'Stress hotspots caused by uncertainty, crowd pressure, and reduced comfort or safety.',
         vitalityTag: 'Vitality',
-        vitalityTitle: 'Vitality Burden Heatmap',
+        vitalityTitle: 'Fatigue Burden Heatmap',
         vitalityCopy: 'Accumulated fatigue growth along the route, showing where recovery demand rises fastest.',
         environmentEyebrow: 'Environment Parameters',
         environmentTitle: 'Live Environment Metrics',
@@ -1092,7 +1454,7 @@
         speedFactor: 'Speed Multiplier',
         detailLayerFilter: 'Pressure Layer',
         detailLayerAll: 'All Stress Layers',
-        detailCotTitle: 'Elderly Travel Chain-of-Thought Analysis',
+        detailCotTitle: 'Agent Decision Chain',
         detailIssuesTitle: 'Key Issues & Improvement Suggestions',
         detailHotspotsTitle: 'Key Stress Points',
         detailRecommendationsTitle: 'Recommendations',
@@ -1157,12 +1519,15 @@
         queueCount: 'Queue Count',
         environmentNoise: 'Ambient Noise',
         environmentLighting: 'Ambient Lighting',
-        progress: 'Route Progress',
-        walkingSpeed: 'Walking Speed',
-        decisionDelay: 'Decision Delay',
-        movementBehavior: 'Movement State',
-        movementMainCause: 'Main Resistance',
-        movementSpeedFactor: 'Speed Factor',
+          progress: 'Route Progress',
+          walkingSpeed: 'Walking Speed',
+          decisionDelay: 'Decision Delay',
+          restMargin: 'Rest Margin',
+          currentState: 'Current State',
+          decisionFocus: 'Decision Focus',
+          movementBehavior: 'Movement State',
+          movementMainCause: 'Main Resistance',
+          movementSpeedFactor: 'Speed Factor',
         advice: 'Advice',
         nearbySeats: 'Visible Seats',
         visionRadius: 'Vision Radius',
@@ -1237,7 +1602,7 @@
         routePickTarget: 'Choose the target region.',
         routePickReady: 'Route selection is ready. Generate the crowd to simulate it.',
       },
-      marker: { start: 'START', end: 'END', startShort: 'START', endShort: 'END' },
+      marker: { start: 'START', end: 'END', startShort: 'S', endShort: 'E' },
       routeNames: {
         route1: 'Route 1 · gate_in_2 → train_door4',
         route2: 'Route 2 · es_up_1_top → gate_out_1',
@@ -1283,18 +1648,28 @@
   const REPORT_TEXT = {
     'zh-CN': {
       title: '单路线诊断报告',
+      previewTitle: '预览报告',
       close: '关闭',
+      cancelExport: '取消',
+      confirmExport: '确认',
+      reportLanguage: '导出语言',
+      reportFormat: '导出格式',
+      reportLanguageZh: '中文',
+      reportLanguageEn: '英文',
+      reportFormatHtml: '网页 HTML',
+      reportFormatPdf: 'PDF',
       exportHtml: '导出 HTML',
       emptyPreview: '请先运行热力图，再生成当前路线的报告预览。',
-      readyPreview: '已生成当前路线的报告预览，可直接导出 HTML。',
-      readyPreviewPicker: '已生成当前路线报告预览，可选择保存位置并导出 HTML。',
-      readyPreviewDownload: '已生成当前路线报告预览；当前环境将使用浏览器下载 HTML。',
+      readyPreview: '已生成当前路线的报告预览，可选择格式并导出。',
+      readyPreviewPicker: '已生成当前路线报告预览，可选择格式并导出。',
+      readyPreviewDownload: '已生成当前路线报告预览，可选择格式并导出。',
       errorPreview: '报告生成失败，请检查当前模拟状态。',
       exporting: '导出中...',
       exported: '已导出 HTML：{fileName}',
       downloaded: '当前环境不支持直接选择保存路径，已使用浏览器下载 HTML。',
       cancelled: '已取消导出。',
       exportFailed: '报告导出失败。',
+      pdfPrintReady: '已打开 PDF 打印窗口，可在系统打印面板中保存为 PDF。',
       localModel: '本地模型',
       conclusion: '诊断结论',
       snapshot: '运行快照',
@@ -1336,23 +1711,36 @@
       recommendationWayfinding: '建议复核该路线关键转折点前的连续导向信息，并减少交汇口的犹豫与停滞。',
       recommendationRecovery: '建议在路线中后段补充可短暂停留或恢复的设施，降低持续疲劳累积。',
       recommendationBaseline: '建议保持当前空间组织方案，并继续观察不同人流强度下的热点变化。',
+      llmAnalysisTitle: '报告分析摘要',
+      llmAnalysisPlaceholder: '当前报告基于本地模拟结果生成，后续可接入 LLM 输出更完整的路线诊断文本。',
+      llmAnalysisPlaceholderSub: '占位分析不改变模拟结果，仅用于报告结构预留。',
       secondsUnit: '秒',
       peopleUnit: '人',
     },
     en: {
       title: 'Single Route Diagnostic Report',
+      previewTitle: 'Report Preview',
       close: 'Close',
+      cancelExport: 'Cancel',
+      confirmExport: 'Confirm',
+      reportLanguage: 'Export Language',
+      reportFormat: 'Export Format',
+      reportLanguageZh: 'Chinese',
+      reportLanguageEn: 'English',
+      reportFormatHtml: 'HTML Page',
+      reportFormatPdf: 'PDF',
       exportHtml: 'Export HTML',
       emptyPreview: 'Run the heatmap first to generate the current route report preview.',
-      readyPreview: 'The current route report preview is ready and can be exported as HTML.',
-      readyPreviewPicker: 'The current route report preview is ready. Choose a save location to export the HTML file.',
-      readyPreviewDownload: 'The current route report preview is ready. This environment will use a browser download for the HTML file.',
+      readyPreview: 'The current route report preview is ready. Choose a format to export.',
+      readyPreviewPicker: 'The current route report preview is ready. Choose a format to export.',
+      readyPreviewDownload: 'The current route report preview is ready. Choose a format to export.',
       errorPreview: 'Report generation failed. Check the current simulation state.',
       exporting: 'Exporting...',
       exported: 'HTML exported: {fileName}',
       downloaded: 'This environment cannot choose a save location directly, so the HTML file was downloaded through the browser.',
       cancelled: 'Export cancelled.',
       exportFailed: 'Report export failed.',
+      pdfPrintReady: 'The PDF print window is open. Save it as PDF from the system print dialog.',
       localModel: 'Local model',
       conclusion: 'Diagnosis',
       snapshot: 'Run Snapshot',
@@ -1394,6 +1782,9 @@
       recommendationWayfinding: 'Review continuous wayfinding before key turning points and reduce hesitation at merging or crossing areas.',
       recommendationRecovery: 'Add short-stay or recovery opportunities in the later route stages to reduce cumulative fatigue.',
       recommendationBaseline: 'Keep the current spatial organization as a baseline and continue comparing hotspot changes under different crowd levels.',
+      llmAnalysisTitle: 'Report Analysis Summary',
+      llmAnalysisPlaceholder: 'This report is generated from local simulation results. A fuller route diagnosis can be connected to LLM output later.',
+      llmAnalysisPlaceholderSub: 'The placeholder analysis only reserves report structure and does not change simulation results.',
       secondsUnit: 's',
       peopleUnit: 'people',
     },
@@ -1413,6 +1804,7 @@
     crowdGenerated: false,
     heatmapComputing: false,
     heatmapComputeProgress: 0,
+    heatmapComputeStage: '',
     heatmapComputeToken: 0,
     heatmapRunError: '',
     heatmapSourceInfo: createHeatmapSourceInfo(),
@@ -1429,11 +1821,27 @@
     selectedDynamic: null,
     selectedTracePoint: null,
     selectedHotspotId: null,
+    selectedHotspotOverlaySnapshot: null,
     routePickMode: 'idle',
     viewMode: getSafeViewMode('cognitive'),
     routeSelection: { startPoint: null, startNodeId: null, targetRegionId: null },
     routeModal: { open: false, startNodeId: null, targetRegionId: null },
     settingsDestinationMenuOpen: false,
+    visualizationDetailLayerMenuOpen: false,
+    visualizationDetailActiveLayerCategories: [],
+    visualizationDetailLayerHoveredValue: null,
+    visualizationDetailHoverTarget: null,
+    visualizationDetailHoverPointer: null,
+    visualizationDetailSelectedIssue: null,
+    visualizationDetailCotMarkupCache: '',
+    visualizationDetailIssuesMarkupCache: '',
+    visualizationDetailCotRenderedAt: 0,
+    visualizationDetailIssuesRenderedAt: 0,
+    visualizationDetailStageDeferredView: null,
+    visualizationDetailStageRenderScheduled: false,
+    suppressNextDetailIssueClick: false,
+    suppressNextDetailLayerTriggerClick: false,
+    suppressNextDetailLayerMenuClick: false,
     agentModal: {
       open: false,
       draft: createAgentDraft(),
@@ -1453,7 +1861,7 @@
     activeLayerCategory: null,
     vitalitySeatLayerRestoreCategory: null,
     vitalitySeatLayerForced: false,
-    pointPopover: { visible: false, type: null, id: null, draft: null, anchor: null, readOnly: true },
+    pointPopover: { visible: false, type: null, id: null, draft: null, anchor: null, overlayTarget: null, readOnly: true },
     editedPressureOverrides: {},
     firstPassComplete: false,
     loopPlaybackActive: false,
@@ -1467,15 +1875,32 @@
     lastFrameTime: 0,
     transform: null,
     heatCellMetricCache: new Map(),
+    viewMetricRangeCache: new Map(),
     revealedHeatCellsCache: new Map(),
     heatRasterCache: new Map(),
     visibleTraceSnapshotCache: null,
     playbackSnapshotCache: null,
     playbackFocusInspectionCache: null,
+    backgroundPlaybackRenderState: null,
+    dynamicCrowdWebglRuntime: null,
     heatmapRenderCache: null,
     heatRevealMaskCache: new Map(),
+    lastPlaybackOverlayRenderAt: 0,
+    lastPlaybackUiPanelRenderAt: 0,
+    localHeatmapPlaybackCache: new Map(),
     visualizationDetailView: null,
+    spatialEditor: {
+      activeTool: 'select',
+      selectedObjectName: 'Boundary Control P1',
+      selectedObjectType: 'Boundary',
+      selectedX: 126,
+      selectedY: 154,
+      statusKey: 'spatialEditor.statusIdle',
+      drag: null,
+    },
   };
+
+  const backgroundPlaybackTrajectoryCache = new WeakMap();
 
   const elements = {
     screenLocaleToggle: document.getElementById('screen-locale-toggle'),
@@ -1493,6 +1918,7 @@
     settingsBackBtn: document.getElementById('settings-back-btn'),
     settingsUploadTrigger: document.getElementById('settings-upload-trigger'),
     settingsUploadFile: document.getElementById('settings-upload-file'),
+    settingsSpatialEditorBtn: document.getElementById('settings-spatial-editor-btn'),
     settingsModelStatus: document.getElementById('settings-model-status'),
     settingsRoutePickBtn: document.getElementById('settings-route-pick-btn'),
     settingsRoutePickHint: document.getElementById('settings-route-pick-hint'),
@@ -1506,6 +1932,18 @@
     settingsBackgroundCrowdValue: document.getElementById('settings-background-crowd-value'),
     settingsBackgroundCrowdInput: document.getElementById('settings-background-crowd-input'),
     settingsNextBtn: document.getElementById('settings-next-btn'),
+    spatialEditorScreen: document.getElementById('spatial-editor-screen'),
+    spatialEditorBackBtn: document.getElementById('spatial-editor-back-btn'),
+    spatialEditorReturnSettingsBtn: document.getElementById('spatial-editor-return-settings-btn'),
+    spatialEditorRouteMapStage: document.getElementById('spatial-editor-route-map-stage'),
+    spatialEditorMap: document.getElementById('spatial-editor-route-map'),
+    spatialEditorStatus: document.getElementById('spatial-editor-status'),
+    spatialEditorObjectName: document.getElementById('spatial-editor-object-name'),
+    spatialEditorObjectCoord: document.getElementById('spatial-editor-object-coord'),
+    spatialEditorObjectType: document.getElementById('spatial-editor-object-type'),
+    spatialEditorToolButtons: Array.from(document.querySelectorAll('[data-spatial-editor-tool]')),
+    spatialEditorActionButtons: Array.from(document.querySelectorAll('[data-spatial-editor-action]')),
+    spatialEditorResultButtons: Array.from(document.querySelectorAll('.spatial-editor-result')),
     agentSettingsScreen: document.getElementById('agent-settings-screen'),
     agentSettingsBackBtn: document.getElementById('agent-settings-back-btn'),
     settingsStartAnalysisBtn: document.getElementById('settings-start-analysis-btn'),
@@ -1560,6 +1998,7 @@
     mapWrapper: document.getElementById('map-wrapper'),
     baseLayer: document.getElementById('base-layer'),
     backgroundCrowdCanvas: document.getElementById('background-crowd-canvas'),
+    dynamicCrowdWebglCanvas: document.getElementById('dynamic-crowd-webgl-canvas'),
     heatmapLayer: document.getElementById('heatmap-layer'),
     overlayLayer: document.getElementById('overlay-layer'),
     pointPopover: document.getElementById('point-popover'),
@@ -1578,6 +2017,12 @@
     reportModalStatus: document.getElementById('report-modal-status'),
     reportModalCancelBtn: document.getElementById('report-modal-cancel-btn'),
     reportModalExportBtn: document.getElementById('report-modal-export-btn'),
+    reportLanguageLabel: document.getElementById('report-language-label'),
+    reportLanguageTrigger: document.getElementById('report-language-trigger'),
+    reportLanguageMenu: document.getElementById('report-language-menu'),
+    reportFormatLabel: document.getElementById('report-format-label'),
+    reportFormatTrigger: document.getElementById('report-format-trigger'),
+    reportFormatMenu: document.getElementById('report-format-menu'),
     reportLocaleZh: document.getElementById('report-locale-zh'),
     reportLocaleEn: document.getElementById('report-locale-en'),
     reportPreviewFrame: document.getElementById('report-preview-frame'),
@@ -1612,7 +2057,10 @@
     visualizationDetailStageTitle: document.getElementById('visualization-detail-stage-title'),
     visualizationDetailStageDescription: document.getElementById('visualization-detail-stage-description'),
     visualizationDetailLayerSelect: document.getElementById('visualization-detail-layer-select'),
+    visualizationDetailLayerMenu: document.getElementById('visualization-detail-layer-menu'),
     visualizationDetailViewSelect: document.getElementById('visualization-detail-view-select'),
+    visualizationDetailStageMetrics: document.getElementById('visualization-detail-stage-metrics'),
+    visualizationDetailStageLegend: document.getElementById('visualization-detail-stage-legend'),
     visualizationDetailBase: document.getElementById('visualization-detail-base'),
     visualizationDetailBackground: document.getElementById('visualization-detail-background'),
     visualizationDetailHeat: document.getElementById('visualization-detail-heat'),
@@ -1693,6 +2141,20 @@
 
   function getReportCopy(locale = getReportLocale()) {
     return REPORT_TEXT[locale] || REPORT_TEXT['zh-CN'];
+  }
+
+  function getReportLanguageLabel(locale = getReportLocale(), displayLocale = getReportLocale()) {
+    const copy = getReportCopy(displayLocale);
+    return locale === 'en' ? copy.reportLanguageEn : copy.reportLanguageZh;
+  }
+
+  function getReportFormatLabel(format = state.reportModal?.exportFormat, locale = getReportLocale()) {
+    const copy = getReportCopy(locale);
+    return format === 'pdf' ? copy.reportFormatPdf : copy.reportFormatHtml;
+  }
+
+  function getReportExportFormat() {
+    return state.reportModal?.exportFormat === 'pdf' ? 'pdf' : 'html';
   }
 
   function reportT(key, replacements, locale = getReportLocale()) {
@@ -2073,18 +2535,54 @@
     state.heatmapComputeToken += 1;
     state.heatmapComputing = false;
     state.heatmapComputeProgress = 0;
+    state.heatmapComputeStage = '';
     clearHeatCellMetricCache();
+  }
+
+  function normalizeHeatmapComputeStage(stage) {
+    return String(stage || '').trim().replace(/-([a-z])/g, (_, char) => char.toUpperCase());
+  }
+
+  function setHeatmapComputeStage(stage) {
+    const normalized = normalizeHeatmapComputeStage(stage);
+    if (normalized) {
+      state.heatmapComputeStage = normalized;
+    }
+  }
+
+  function getHeatmapComputeStatusText() {
+    const stage = normalizeHeatmapComputeStage(state.heatmapComputeStage);
+    if (stage) {
+      const text = getText(`loading.stage.${stage}`);
+      if (text !== undefined) {
+        return text;
+      }
+    }
+    return t('loading.statusComputing');
+  }
+
+  function advanceHeatmapComputeProgress(nextProgress, options = {}) {
+    const maximum = options.completed ? 1 : 0.99;
+    const clamped = clamp(Number(nextProgress || 0), 0, maximum);
+    state.heatmapComputeProgress = Math.max(
+      clamp(Number(state.heatmapComputeProgress || 0), 0, 1),
+      clamped
+    );
   }
 
   function clearHeatCellMetricCache() {
     state.heatCellMetricCache = new Map();
+    state.viewMetricRangeCache = new Map();
     state.revealedHeatCellsCache = new Map();
     state.heatRasterCache = new Map();
     state.visibleTraceSnapshotCache = null;
     state.playbackSnapshotCache = null;
     state.playbackFocusInspectionCache = null;
+    state.backgroundPlaybackRenderState = null;
     state.heatmapRenderCache = null;
     state.heatRevealMaskCache = new Map();
+    state.lastPlaybackOverlayRenderAt = 0;
+    state.lastPlaybackUiPanelRenderAt = 0;
   }
 
   function resetHeatmapPlaybackDisplayState() {
@@ -2138,6 +2636,63 @@
 
   function cloneJson(value) {
     return JSON.parse(JSON.stringify(value));
+  }
+
+  function stableStringify(value) {
+    if (value === null || typeof value !== 'object') {
+      return JSON.stringify(value);
+    }
+    if (Array.isArray(value)) {
+      return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+    }
+    const keys = Object.keys(value).sort();
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
+  }
+
+  function buildLocalHeatmapPlaybackCacheKey(payload) {
+    return stableStringify(payload);
+  }
+
+  function isUsableLocalHeatmapPlaybackCacheEntry(playback) {
+    return Boolean(
+      playback
+      && playback.heat
+      && Array.isArray(playback.traceSnapshots)
+      && playback.traceSnapshots.length
+    );
+  }
+
+  function readLocalHeatmapPlaybackCache(cacheKey) {
+    const cached = state.localHeatmapPlaybackCache.get(cacheKey);
+    return isUsableLocalHeatmapPlaybackCacheEntry(cached) ? cloneJson(cached) : null;
+  }
+
+  function isStableLocalHeatmapPlaybackCacheEntry(playback) {
+    return Boolean(
+      isUsableLocalHeatmapPlaybackCacheEntry(playback)
+      && playback?.meta?.source
+      && !playback?.meta?.llmDeferred
+    );
+  }
+
+  function writePersistentLocalHeatmapPlaybackCache(cacheKey, playback) {
+    if (!cacheKey || !isStableLocalHeatmapPlaybackCacheEntry(playback)) {
+      return;
+    }
+    // Persistent storage is intentionally avoided for large playback payloads; the server cache covers reloads.
+  }
+
+  function writeLocalHeatmapPlaybackCache(cacheKey, playback) {
+    if (!cacheKey || !isUsableLocalHeatmapPlaybackCacheEntry(playback)) {
+      return;
+    }
+    state.localHeatmapPlaybackCache.delete(cacheKey);
+    state.localHeatmapPlaybackCache.set(cacheKey, cloneJson(playback));
+    while (state.localHeatmapPlaybackCache.size > LOCAL_HEATMAP_PLAYBACK_SESSION_CACHE_LIMIT) {
+      const oldestKey = state.localHeatmapPlaybackCache.keys().next().value;
+      state.localHeatmapPlaybackCache.delete(oldestKey);
+    }
+    writePersistentLocalHeatmapPlaybackCache(cacheKey, playback);
   }
 
   function delay(ms) {
@@ -2285,6 +2840,7 @@
       duration: Number(backgroundField.duration || 0),
       maxSimulationSeconds: Number(backgroundField.maxSimulationSeconds || 0),
       frameStepSeconds: Number(backgroundField.frameStepSeconds || 0),
+      visualFrameStepSeconds: Number(backgroundField.visualFrameStepSeconds || backgroundField.frameStepSeconds || 0),
       initialTime: Number(backgroundField.initialTime || 0),
       initialAgents: Array.isArray(backgroundField.initialAgents)
         ? backgroundField.initialAgents.map((agent) => cloneBackgroundPlaybackAgent(agent))
@@ -2359,6 +2915,188 @@
     }).filter(Boolean);
   }
 
+  function getInterpolatedBackgroundPlaybackAgents() {
+    const playbackState = state.backgroundPlaybackRenderState;
+    if (!playbackState) {
+      return getRenderableBackgroundAgents(state.scenario?.backgroundAgents || []);
+    }
+    const prevFrameAgents = Array.isArray(playbackState.prevFrame?.agents) ? playbackState.prevFrame.agents : [];
+    const nextFrameAgents = Array.isArray(playbackState.nextFrame?.agents) ? playbackState.nextFrame.agents : [];
+    return interpolateBackgroundPlaybackAgents(prevFrameAgents, nextFrameAgents, Number(playbackState.ratio || 0));
+  }
+
+  function samplePackedBackgroundTrajectoryPoint(trajectory, sampleTime) {
+    const times = trajectory?.times;
+    if (!Array.isArray(times) || !times.length) {
+      return null;
+    }
+    if (!Number.isFinite(sampleTime) || sampleTime <= Number(times[0] || 0)) {
+      return trajectory.samples?.[0] || null;
+    }
+    const lastIndex = times.length - 1;
+    if (sampleTime >= Number(times[lastIndex] || 0)) {
+      return trajectory.samples?.[lastIndex] || null;
+    }
+    let low = 0;
+    let high = lastIndex;
+    while (low < high) {
+      const mid = Math.floor((low + high + 1) * 0.5);
+      if (Number(times[mid] || 0) <= sampleTime) {
+        low = mid;
+      } else {
+        high = mid - 1;
+      }
+    }
+    const previousIndex = Math.max(0, low);
+    const nextIndex = Math.min(lastIndex, previousIndex + 1);
+    const previousTime = Number(times[previousIndex] || 0);
+    const nextTime = Number(times[nextIndex] || previousTime);
+    const previous = trajectory.samples?.[previousIndex] || null;
+    const next = trajectory.samples?.[nextIndex] || previous;
+    if (!previous || !next) {
+      return previous || next || null;
+    }
+    const span = Math.max(1e-6, nextTime - previousTime);
+    const ratio = clamp((sampleTime - previousTime) / span, 0, 1);
+    const jumpDistance = getBackgroundPlaybackAgentTransitionDistance(previous.position, next.position);
+    const canInterpolate = jumpDistance <= BACKGROUND_AGENT_INTERPOLATION_MAX_JUMP_METERS;
+    const position = canInterpolate
+      ? {
+          x: Number(previous.position?.x || 0) + (Number(next.position?.x || 0) - Number(previous.position?.x || 0)) * ratio,
+          y: Number(previous.position?.y || 0) + (Number(next.position?.y || 0) - Number(previous.position?.y || 0)) * ratio,
+        }
+      : (ratio < 0.5 ? clonePlaybackPoint(previous.position) : clonePlaybackPoint(next.position));
+    return {
+      ...((ratio < 0.5 ? previous : next) || previous || next),
+      position,
+      active: ratio < 0.5 ? Boolean(previous.active) : Boolean(next.active),
+      backgroundState: (ratio < 0.5 ? previous.backgroundState : next.backgroundState) || previous.backgroundState || next.backgroundState || 'moving',
+    };
+  }
+
+  function ensureBackgroundPlaybackTrajectoryCache(backgroundField) {
+    if (!backgroundField || !Array.isArray(backgroundField.frames) || !backgroundField.frames.length) {
+      return null;
+    }
+    const cached = backgroundPlaybackTrajectoryCache.get(backgroundField);
+    if (cached) {
+      return cached;
+    }
+    const trajectories = new Map();
+    backgroundField.frames.forEach((frame, frameIndex) => {
+      const frameTime = Number(frame?.time || 0);
+      const agents = Array.isArray(frame?.agents) ? frame.agents : [];
+      agents.forEach((agent, agentIndex) => {
+        const agentId = agent?.id || `background-agent-${frameIndex}-${agentIndex}`;
+        if (!trajectories.has(agentId)) {
+          trajectories.set(agentId, {
+            id: agentId,
+            times: [],
+            samples: [],
+          });
+        }
+        const trajectory = trajectories.get(agentId);
+        trajectory.times.push(frameTime);
+        trajectory.samples.push({
+          id: agentId,
+          active: agent?.active !== false,
+          backgroundState: agent?.backgroundState || 'moving',
+          position: clonePlaybackPoint(agent?.position),
+        });
+      });
+    });
+    const packed = {
+      version: BACKGROUND_WEBGL_TRAJECTORY_CACHE_VERSION,
+      trajectories,
+      orderedIds: Array.from(trajectories.keys()),
+      firstFrameTime: Number(backgroundField.frames[0]?.time || 0),
+      lastFrameTime: Number(backgroundField.frames[backgroundField.frames.length - 1]?.time || 0),
+    };
+    backgroundPlaybackTrajectoryCache.set(backgroundField, packed);
+    return packed;
+  }
+
+  function resolveLoopedBackgroundPlaybackFramePair(backgroundField, targetTime, options = {}) {
+    const frames = Array.isArray(backgroundField?.frames) ? backgroundField.frames.filter(Boolean) : [];
+    if (!frames.length) {
+      return {
+        sampleTime: 0,
+        previousFrame: null,
+        nextFrame: null,
+        ratio: 0,
+      };
+    }
+
+    const firstFrameTime = Number.isFinite(Number(frames[0]?.time)) ? Number(frames[0].time) : 0;
+    const lastFrameTime = Number.isFinite(Number(frames[frames.length - 1]?.time))
+      ? Number(frames[frames.length - 1].time)
+      : firstFrameTime;
+    const playbackDuration = Math.max(0, lastFrameTime - firstFrameTime);
+    const loopStartTime = Number.isFinite(Number(options?.loopStartTime))
+      ? Number(options.loopStartTime)
+      : firstFrameTime;
+    const loopEndTime = Number.isFinite(Number(options?.loopEndTime))
+      ? Number(options.loopEndTime)
+      : null;
+
+    let sampleTime = Number.isFinite(Number(targetTime)) ? Number(targetTime) : firstFrameTime;
+    if (Number.isFinite(loopEndTime) && sampleTime > lastFrameTime + 1e-9) {
+      sampleTime = Math.min(sampleTime, lastFrameTime);
+    } else if (playbackDuration > 1e-9 && sampleTime > lastFrameTime + 1e-9) {
+      const loopOffset = Math.max(0, sampleTime - loopStartTime);
+      sampleTime = firstFrameTime + (loopOffset % playbackDuration);
+    }
+
+    let prevIndex = frames.length - 1;
+    let nextIndex = frames.length - 1;
+    if (sampleTime <= firstFrameTime + 1e-9) {
+      prevIndex = 0;
+      nextIndex = Math.min(frames.length - 1, 1);
+    } else {
+      for (let index = 0; index < frames.length - 1; index += 1) {
+        const leftTime = Number(frames[index]?.time || 0);
+        const rightTime = Number(frames[index + 1]?.time || leftTime);
+        if (sampleTime >= leftTime - 1e-9 && sampleTime <= rightTime + 1e-9) {
+          prevIndex = index;
+          nextIndex = index + 1;
+          break;
+        }
+      }
+    }
+
+    const previousFrame = frames[prevIndex] || frames[0] || null;
+    const nextFrame = frames[nextIndex] || previousFrame;
+    const previousTime = Number(previousFrame?.time || firstFrameTime);
+    const nextTime = Number(nextFrame?.time || previousTime);
+    const span = nextTime - previousTime;
+    const clampRatio = (value) => Math.min(1, Math.max(0, value));
+    const ratio = span > 1e-6
+      ? clampRatio((sampleTime - previousTime) / span)
+      : 0;
+
+    return {
+      sampleTime,
+      previousFrame,
+      nextFrame,
+      ratio,
+    };
+  }
+
+  function getFocusCycleBackgroundSampleTime(playback, backgroundField, targetTime) {
+    const frames = Array.isArray(backgroundField?.frames) ? backgroundField.frames.filter(Boolean) : [];
+    const backgroundStartTime = Number.isFinite(Number(frames[0]?.time))
+      ? Number(frames[0].time)
+      : Number(backgroundField?.initialTime || 0);
+    const playbackStartTime = Number.isFinite(Number(playback?.startTime)) ? Number(playback.startTime) : 0;
+    const playbackEndTime = Number.isFinite(Number(playback?.endTime)) ? Number(playback.endTime) : playbackStartTime;
+    const focusCycleDuration = Math.max(0, playbackEndTime - playbackStartTime);
+    if (focusCycleDuration <= 1e-9) {
+      return backgroundStartTime;
+    }
+    const elapsedInFocusCycle = Math.max(0, Number(targetTime || playbackStartTime) - playbackStartTime) % focusCycleDuration;
+    return backgroundStartTime + elapsedInFocusCycle;
+  }
+
   function normalizeLocalHeatmapPlayback(result) {
     const playback = result?.heat || result;
     if (!playback?.heat || !Array.isArray(playback?.traceSnapshots)) {
@@ -2369,6 +3107,11 @@
     const fallbackPressureAcc = normalizedHeatCells.map((cell) => Number(cell.pressure || 0));
     const fallbackFatigueAcc = normalizedHeatCells.map((cell) => Number(cell.fatigue || 0));
     const fallbackProgressAcc = normalizedHeatCells.map((cell) => Number(cell.progress || 0));
+    const pressureContributionLog = Array.isArray(playback.pressureContributionLog)
+      ? playback.pressureContributionLog.map((item) => ({ ...item }))
+      : (Array.isArray(playback.heat?.pressureContributionLog)
+        ? playback.heat.pressureContributionLog.map((item) => ({ ...item }))
+        : []);
     const normalizedHeat = playback.heat
       ? {
           ...playback.heat,
@@ -2382,6 +3125,7 @@
       : null;
     return {
       traceSnapshots: playback.traceSnapshots.map((item) => ({ ...item })),
+      pressureContributionLog,
       pressureRange: playback.pressureRange ? { ...playback.pressureRange } : { min: 0, max: 0 },
       duration: Number(playback.duration || 0),
       startTime: Number(playback.startTime || 0),
@@ -2391,10 +3135,12 @@
       suggestions: Array.isArray(playback.suggestions) ? playback.suggestions.slice() : [],
       summary: playback.summary ? { ...playback.summary } : (result?.summary ? { ...result.summary } : null),
       backgroundField: cloneBackgroundPlaybackField(playback.backgroundField),
+      llmDecisionPlan: playback.llmDecisionPlan ? JSON.parse(JSON.stringify(playback.llmDecisionPlan)) : null,
       meta: {
         ...(result?.meta ? { ...result.meta } : {}),
         cacheHit: Boolean(result?.cacheHit || result?.meta?.cacheHit),
         source: result?.meta?.source || null,
+        llmDecisionPlan: result?.meta?.llmDecisionPlan ? JSON.parse(JSON.stringify(result.meta.llmDecisionPlan)) : null,
       },
     };
   }
@@ -2406,7 +3152,7 @@
       let response;
       let body;
       try {
-        ({ response, body } = await fetchJson(getLocalSimServerUrl(`/api/heatmap/jobs/${encodeURIComponent(jobId)}`)));
+        ({ response, body } = await fetchJson(getLocalSimServerUrl(`/api/heatmap/jobs/${encodeURIComponent(jobId)}`), {}, LOCAL_SIM_SERVER_HEATMAP_REQUEST_TIMEOUT_MS));
         transientFailureCount = 0;
       } catch (error) {
         if (state.heatmapComputeToken !== computeToken) {
@@ -2424,7 +3170,10 @@
       if (!response.ok) {
         throw new Error(body?.error || `本地仿真服务任务查询失败（${response.status}）`);
       }
-      state.heatmapComputeProgress = clamp(Number(body?.progress || 0), 0, body?.status === 'completed' ? 1 : 0.99);
+      setHeatmapComputeStage(body?.stage);
+      advanceHeatmapComputeProgress(Number(body?.progress || 0), {
+        completed: body?.status === 'completed',
+      });
       requestRender();
       if (body?.status === 'completed') {
         return normalizeLocalHeatmapPlayback(body.result);
@@ -2443,35 +3192,76 @@
       scenarioOptions: buildScenarioOptions(),
       heatOptions: {
         ...DEFAULT_HEAT_OPTIONS,
-        maxSimulationSeconds: 120,
       },
     };
+    const cacheKey = buildLocalHeatmapPlaybackCacheKey(payload);
+    const cached = readLocalHeatmapPlaybackCache(cacheKey);
+    if (cached) {
+      state.heatmapComputeStage = '';
+      advanceHeatmapComputeProgress(1, { completed: true });
+      setHeatmapSourceInfo('localCache', { phase: 'ready', cacheHit: true });
+      requestRender();
+      return attachHeatmapSourceMeta(cached, state.heatmapSourceInfo);
+    }
     const { response, body } = await fetchJson(getLocalSimServerUrl('/api/heatmap/jobs'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
-    });
+    }, LOCAL_SIM_SERVER_HEATMAP_REQUEST_TIMEOUT_MS);
     if (state.heatmapComputeToken !== computeToken) {
       return null;
     }
     if (response.status === 200) {
-      state.heatmapComputeProgress = 1;
+      state.heatmapComputeStage = '';
+      advanceHeatmapComputeProgress(1, { completed: true });
       setHeatmapSourceInfo('localCache', { phase: 'ready', cacheHit: true });
       requestRender();
-      return attachHeatmapSourceMeta(normalizeLocalHeatmapPlayback(body?.result || body), state.heatmapSourceInfo);
+      const normalizedPlayback = attachHeatmapSourceMeta(normalizeLocalHeatmapPlayback(body?.result || body), state.heatmapSourceInfo);
+      writeLocalHeatmapPlaybackCache(cacheKey, normalizedPlayback);
+      return normalizedPlayback;
     }
     if (response.status === 202 && body?.jobId) {
-      state.heatmapComputeProgress = clamp(Math.max(0.02, Number(body?.progress || 0)), 0, 0.99);
+      setHeatmapComputeStage(body?.stage);
+      advanceHeatmapComputeProgress(Math.max(0.02, Number(body?.progress || 0)));
       requestRender();
       const playback = await fetchHeatmapJobResult(body.jobId, computeToken);
       if (playback && state.heatmapComputeToken === computeToken) {
         setHeatmapSourceInfo('localService', { phase: 'ready', cacheHit: false });
       }
-      return attachHeatmapSourceMeta(playback, state.heatmapSourceInfo);
+      const resolvedPlayback = attachHeatmapSourceMeta(playback, state.heatmapSourceInfo);
+      writeLocalHeatmapPlaybackCache(cacheKey, resolvedPlayback);
+      return resolvedPlayback;
     }
     throw new Error(body?.error || `本地仿真服务请求失败（${response.status}）`);
+  }
+
+  async function requestBackgroundFieldPrewarmForModel(rawData) {
+    if (!rawData) {
+      return;
+    }
+    try {
+      await fetchJson(getLocalSimServerUrl('/api/background-field/prewarm'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          simData: rawData,
+          healthyAgents: HEALTHY_AGENTS,
+          scenarioOptions: {
+            crowdPresetId: 'normal',
+            focusProfile: {},
+          },
+          heatOptions: {
+            maxSimulationSeconds: 480,
+          },
+        }),
+      });
+    } catch (error) {
+      // Prewarm is opportunistic; analysis still works through the normal job path.
+    }
   }
 
   async function precomputeHeatmapPlaybackInBrowser(computeToken) {
@@ -2488,7 +3278,11 @@
           const rawProgress = maxSimulationSeconds > 1e-6
             ? simulatedSeconds / maxSimulationSeconds
             : 0;
-          state.heatmapComputeProgress = firstPassComplete ? 1 : clamp(rawProgress, 0, 0.99);
+          if (firstPassComplete) {
+            advanceHeatmapComputeProgress(1, { completed: true });
+          } else {
+            advanceHeatmapComputeProgress(rawProgress);
+          }
           requestRender();
         },
       }
@@ -2563,14 +3357,44 @@
   }
 
   function getViewMetricRange(viewMode = getSafeViewMode(state.viewMode)) {
-    const values = getViewMetricValues(viewMode, { fullReveal: true });
-    if (!values.length) {
-      return { min: 0, max: 0 };
+    if (!state.prepared || !state.scenario?.heatActive) {
+      return { min: 0, max: 0, minMetric: 0, maxMetric: 0 };
     }
-    return {
-      min: Math.min(...values),
-      max: Math.max(...values),
+    const playback = getActivePlayback();
+    const heatState = playback?.heat || state.scenario?.heat || null;
+    const metricId = getSafeViewMode(viewMode);
+    const traceSnapshots = getPlaybackTraceSnapshots(playback);
+    const cacheKey = `${metricId}:final`;
+    const cached = state.viewMetricRangeCache?.get(cacheKey);
+    if (cached && cached.heatState === heatState && cached.traceSnapshots === traceSnapshots) {
+      return cached.range;
     };
+    const traceRevealRadiusMeters = getTraceRevealRadiusMeters(metricId);
+    const metricCells = getFinalHeatCells(heatState, traceSnapshots, metricId, traceRevealRadiusMeters);
+    let minMetric = Number.POSITIVE_INFINITY;
+    let maxMetric = 0;
+    metricCells.forEach((cell) => {
+      const value = Number(cell.metric || 0);
+      if (!Number.isFinite(value)) {
+        return;
+      }
+      minMetric = Math.min(minMetric, value);
+      maxMetric = Math.max(maxMetric, value);
+    });
+    if (!Number.isFinite(minMetric)) {
+      minMetric = 0;
+    }
+    const range = {
+      min: minMetric,
+      max: maxMetric,
+      minMetric,
+      maxMetric,
+    };
+    if (!(state.viewMetricRangeCache instanceof Map)) {
+      state.viewMetricRangeCache = new Map();
+    }
+    state.viewMetricRangeCache.set(cacheKey, { heatState, traceSnapshots, range });
+    return range;
   }
 
   function syncRangeSliderProgress(element) {
@@ -2631,6 +3455,212 @@
     return mapping[value] || String(value || '--');
   }
 
+  function getSeatLabelById(seatId) {
+    const normalizedSeatId = String(seatId || '').trim();
+    if (!normalizedSeatId || !Array.isArray(state.prepared?.seats)) {
+      return null;
+    }
+    const seat = state.prepared.seats.find((item) => item?.id === normalizedSeatId);
+    return seat ? (seat.label || seat.name || seat.id || null) : null;
+  }
+
+  function formatCurrentStatusLabel(inspection, locale = state.locale) {
+    if (!inspection) {
+      return '--';
+    }
+    const restState = String(inspection.restState || '').trim() || 'none';
+    const movementBehavior = inspection.movementBehavior
+      || inspection.fiveDimensions?.burdens?.locomotor?.movementBehavior
+      || inspection.fiveDimensions?.burdens?.locomotor?.behavior
+      || null;
+    const decisionDiagnostics = inspection.decisionDiagnostics || inspection.fiveDimensions?.burdens?.cognitive || null;
+    const problemSignCount = Number(decisionDiagnostics?.problemSignCount || 0);
+    const branchCount = Number(decisionDiagnostics?.branchCount || 0);
+    const recheckProbability = Number(decisionDiagnostics?.recheckProbability || 0);
+    const guideReviewPauseTime = Number(decisionDiagnostics?.guideReviewPauseTime || 0);
+
+    if (restState === 'searching') {
+      return locale === 'en' ? 'Searching for Seat' : '找座位';
+    }
+    if (restState === 'short-rest') {
+      return locale === 'en' ? 'Short Rest' : '短暂休息';
+    }
+    if (restState === 'sitting') {
+      return locale === 'en' ? 'Seated Rest' : '座位休息';
+    }
+    if (restState === 'standing') {
+      return locale === 'en' ? 'Standing Rest' : '站立休息';
+    }
+    if (inspection.queueLocked || movementBehavior === 'queue_blocked') {
+      return locale === 'en' ? 'Queueing' : '排队等待';
+    }
+    if (
+      decisionDiagnostics?.decisionNodeId
+      && (problemSignCount > 0 || branchCount > 1 || recheckProbability >= 0.12 || guideReviewPauseTime >= 0.12)
+    ) {
+      return locale === 'en' ? 'Confirming Direction' : '确认方向';
+    }
+    if (movementBehavior) {
+      return formatMovementBehaviorLabel(movementBehavior, locale);
+    }
+    return '--';
+  }
+
+  function formatRestMarginLabel(inspection) {
+    if (!inspection) {
+      return '--';
+    }
+    const fatigue = Number(inspection.fatigue || 0);
+    const fatigueThreshold = Number(inspection.fatigueThreshold || 0);
+    if (!Number.isFinite(fatigueThreshold) || fatigueThreshold <= 1e-6) {
+      return '--';
+    }
+    const restMarginPercent = clamp(((fatigueThreshold - fatigue) / fatigueThreshold) * 100, 0, 100);
+    return `${formatNumber(restMarginPercent, 0)}%`;
+  }
+
+  function inferDecisionFocusFromTarget(inspection, locale = state.locale) {
+    if (!inspection) {
+      return null;
+    }
+    const selectedTargetNode = inspection.selectedTargetNodeId
+      ? state.prepared?.nodeById?.[inspection.selectedTargetNodeId] || null
+      : null;
+    const selectedTargetNodeLabel = normalizeCategoryText(String(
+      (locale === 'en'
+        ? (selectedTargetNode?.displayLabelEn || selectedTargetNode?.displayLabel || selectedTargetNode?.id)
+        : (selectedTargetNode?.displayLabel || selectedTargetNode?.displayLabelEn || selectedTargetNode?.id))
+      || inspection.selectedTargetNodeLabel || ''
+    ));
+    if (!selectedTargetNodeLabel) {
+      return null;
+    }
+    if (selectedTargetNodeLabel.includes('lift') || selectedTargetNodeLabel.includes('elevator')) {
+      return locale === 'en' ? 'Elevator' : '电梯';
+    }
+    if (selectedTargetNodeLabel.includes('exit') || selectedTargetNodeLabel.includes('gate')) {
+      return locale === 'en' ? 'Exit' : '出口';
+    }
+    if (
+      selectedTargetNodeLabel.includes('line')
+      || selectedTargetNodeLabel.includes('platform')
+      || selectedTargetNodeLabel.includes('tsuen wan')
+      || selectedTargetNodeLabel.includes('chai wan')
+      || selectedTargetNodeLabel.includes('kennedy')
+    ) {
+      return locale === 'en' ? 'Platform' : '站台';
+    }
+    return locale === 'en' ? 'Route' : '路径';
+  }
+
+  function formatDecisionFocusFromSource(source, locale = state.locale) {
+    if (!source) {
+      return null;
+    }
+    const categoryId = getPressureLayerCategory(source);
+    const combined = normalizeCategoryText([
+      source.name,
+      source.feature,
+      source.category,
+      source.sourceKind,
+    ].filter(Boolean).join(' '));
+    if (categoryId === 'noise' || combined.includes('noise') || combined.includes('decibel')) {
+      return locale === 'en' ? 'Noise' : '噪音';
+    }
+    if (categoryId === 'flashing-ads' || categoryId === 'static-ads' || combined.includes('advert')) {
+      return locale === 'en' ? 'Ads' : '广告';
+    }
+    if (
+      categoryId === 'common-direction-signs'
+      || categoryId === 'ai-virtual-service-ambassador'
+      || categoryId === 'customer-service-centre'
+      || combined.includes('sign')
+      || combined.includes('guide')
+      || combined.includes('service')
+    ) {
+      return locale === 'en' ? 'Signage' : '标识';
+    }
+    if (combined.includes('lift') || combined.includes('elevator')) {
+      return locale === 'en' ? 'Elevator' : '电梯';
+    }
+    if (isLightingPressureLike(source, categoryId) || combined.includes('light') || combined.includes('lux')) {
+      return locale === 'en' ? 'Lighting' : '光照';
+    }
+    if (combined.includes('seat')) {
+      return locale === 'en' ? 'Seat' : '座位';
+    }
+    if (combined.includes('queue')) {
+      return locale === 'en' ? 'Queue' : '排队';
+    }
+    return null;
+  }
+
+  function formatDecisionFocusLabel(inspection, locale = state.locale) {
+    if (!inspection) {
+      return '--';
+    }
+    const restState = String(inspection.restState || '').trim() || 'none';
+    const topPressureSource = Array.isArray(inspection.topPressureSources) ? inspection.topPressureSources[0] || null : null;
+    const decisionDiagnostics = inspection.decisionDiagnostics || inspection.fiveDimensions?.burdens?.cognitive || null;
+    const movementMainCause = inspection.movementMainCause
+      || inspection.fiveDimensions?.burdens?.locomotor?.movementMainCause
+      || null;
+
+    if (restState === 'searching' || restState === 'sitting' || restState === 'standing') {
+      return locale === 'en' ? 'Seat' : '座位';
+    }
+    if (inspection.queueLocked || movementMainCause === 'queue') {
+      return locale === 'en' ? 'Queue' : '排队';
+    }
+    if (Number(decisionDiagnostics?.problemSignCount || 0) > 0) {
+      return locale === 'en' ? 'Signage' : '标识';
+    }
+    if (topPressureSource) {
+      const focusFromSource = formatDecisionFocusFromSource(topPressureSource, locale);
+      if (focusFromSource) {
+        return focusFromSource;
+      }
+    }
+    if (Number(decisionDiagnostics?.branchCount || 0) > 1) {
+      return locale === 'en' ? 'Route' : '路径';
+    }
+    if (movementMainCause === 'crowd') {
+      return locale === 'en' ? 'Crowd' : '人群';
+    }
+    if (movementMainCause === 'obstacle' || movementMainCause === 'narrow') {
+      return locale === 'en' ? 'Passage' : '通道';
+    }
+    return inferDecisionFocusFromTarget(inspection, locale) || '--';
+  }
+
+  function buildVisualizationStatusLabelMarkup(item, locale = state.locale) {
+    const label = escapeHtml(item.label || '--');
+    const classNames = [
+      'visualization-status-card__label',
+      item.multilineLabel ? 'is-multiline' : null,
+      item.nowrapLabel ? 'is-nowrap' : null,
+    ].filter(Boolean).join(' ');
+    if (item.multilineLabel && locale === 'en' && Array.isArray(item.labelLines) && item.labelLines.length) {
+      return `<div class="${classNames}">${item.labelLines.map((line) => escapeHtml(line)).join('<br>')}</div>`;
+    }
+    return `<div class="${classNames}">${label}</div>`;
+  }
+
+  function buildVisualizationStatusValueMarkup(item, locale = state.locale) {
+    const rawValue = String(item?.value ?? '--');
+    const shouldSplitCurrentStateValue = (
+      item?.id === 'currentState'
+      && locale === 'en'
+    );
+    if (shouldSplitCurrentStateValue) {
+      const words = rawValue.trim().split(/\s+/).filter(Boolean);
+      if (words.length === 2 && words.every((word) => /^[A-Za-z][A-Za-z-]*$/.test(word))) {
+        return `<div class="visualization-status-card__value is-multiline">${words.map((word) => escapeHtml(word)).join('<br>')}</div>`;
+      }
+    }
+    return `<div class="visualization-status-card__value">${escapeHtml(rawValue)}</div>`;
+  }
+
   function getCongestionLabel(value = 0, locale = state.locale) {
     const density = Math.max(0, Number(value) || 0);
     if (locale === 'en') {
@@ -2645,15 +3675,14 @@
 
   function getDynamicSummaryState() {
     const inspection = getCurrentFocusInspection();
-    const metricValues = getCurrentViewMetricValues();
+    const metricRange = getViewMetricRange(getSafeViewMode(state.viewMode));
     const fallbackMax = Number(
       inspection?.burdenScores?.[getSafeViewMode(state.viewMode)]
       || state.scenario?.heat?.maxHeat
       || 0
     );
-    const simultaneousCount = typeof InspectorUtils.getDynamicSimultaneousCount === 'function'
-      ? InspectorUtils.getDynamicSimultaneousCount(state.scenario?.agents || [])
-      : ((state.scenario?.agents || []).filter((agent) => agent && agent.active !== false).length);
+    const renderableBackgroundCount = getRenderableBackgroundAgents(state.scenario?.backgroundAgents || []).length;
+    const simultaneousCount = renderableBackgroundCount;
     const travelTime = typeof InspectorUtils.getCurrentTravelTimeSeconds === 'function'
       ? InspectorUtils.getCurrentTravelTimeSeconds({
         inspectionTime: inspection?.time,
@@ -2661,17 +3690,21 @@
         scenarioTime: state.scenario?.time,
       })
       : Math.max(0, Number(inspection?.time ?? state.scenario?.playbackRevealTime ?? state.scenario?.time ?? 0) || 0);
-    const metricRange = typeof InspectorUtils.getMetricRange === 'function'
-      ? InspectorUtils.getMetricRange(metricValues, fallbackMax)
+    const normalizedMetricRange = typeof InspectorUtils.getMetricRange === 'function'
+      ? InspectorUtils.getMetricRange(
+        [metricRange.minMetric, metricRange.maxMetric].filter((value) => Number.isFinite(Number(value))),
+        fallbackMax
+      )
       : {
-        minMetric: metricValues.length ? Math.min(...metricValues) : 0,
-        maxMetric: metricValues.length ? Math.max(...metricValues) : Math.max(0, fallbackMax),
+        minMetric: Number(metricRange.minMetric || 0),
+        maxMetric: Math.max(Number(metricRange.maxMetric || 0), Math.max(0, fallbackMax)),
       };
     return {
       simultaneousCount,
       travelTime,
-      minHeat: Number(metricRange.minMetric || 0),
-      maxHeat: Number(metricRange.maxMetric || 0),
+      progress: Number(inspection?.progress || 0),
+      minHeat: Number(normalizedMetricRange.minMetric || 0),
+      maxHeat: Number(normalizedMetricRange.maxMetric || 0),
     };
   }
 
@@ -2845,6 +3878,54 @@
     };
   }
 
+  function getVisualizationDetailIssuePanelState(activeView = getSafeViewMode(state.visualizationDetailView || state.viewMode)) {
+    const inspection = state.scenario ? getCurrentFocusInspection() : null;
+    if (!inspection) {
+      return {
+        mode: 'hint',
+        items: [],
+        summary: '',
+      };
+    }
+    const topPressureSources = inspection?.topPressureSources || [];
+    const selectedIssue = getSelectedIssueSource();
+    if (typeof InspectorUtils.buildIssuePanelState === 'function') {
+      return InspectorUtils.buildIssuePanelState({
+        inspection,
+        topPressureSources,
+        selectedIssue,
+        viewMode: activeView,
+        locale: state.locale,
+      });
+    }
+    const items = (topPressureSources.length ? topPressureSources : (selectedIssue ? [selectedIssue] : []))
+      .slice(0, activeView === COMPOSITE_BURDEN_VIEW ? 5 : 3)
+      .map((item, index) => ({ ...item, rank: index + 1 }));
+    return {
+      mode: items.length ? 'issues' : 'hint',
+      items,
+      summary: '',
+    };
+  }
+
+  function itemMatchesHotspotSelection(item, selectedId = state.selectedHotspotId) {
+    if (!item || !selectedId) {
+      return false;
+    }
+    return item.id === selectedId
+      || item.mapTargetId === selectedId
+      || (Array.isArray(item.mapTargetIds) && item.mapTargetIds.includes(selectedId));
+  }
+
+  function getVisualizationDetailDisplayedHotspots(activeView = getSafeViewMode(state.visualizationDetailView || state.viewMode)) {
+    const panelState = getVisualizationDetailIssuePanelState(activeView);
+    if (panelState.mode !== 'issues') {
+      return [];
+    }
+    return panelState.items.filter((item) => resolveHotspotTargets(item)
+      .some((target) => target.type === 'pressure' || target.type === 'seat'));
+  }
+
   function getBackgroundCrowdCount() {
     return Math.max(100, Math.min(3190, Math.round(Number(state.backgroundCrowd) || DEFAULT_BACKGROUND_CROWD)));
   }
@@ -2929,6 +4010,10 @@
       return 'bottom-left';
     }
     return 'top-right';
+  }
+
+  function getRouteSelectionLabelPlacement(node) {
+    return getSettingsRouteLabelPlacement(node);
   }
 
   function getSettingsRouteLabelLayout(node, displayNode, transform) {
@@ -3042,6 +4127,8 @@
     return backgroundAgents.filter((agent) => agent.active);
   }
 
+  const BACKGROUND_CROWD_DOT_RGB = Object.freeze([68, 72, 78]);
+
   function getBackgroundCrowdRenderStyle(activeCount, transform = state.transform) {
     const count = Math.max(0, Math.round(Number(activeCount) || 0));
     const scale = Math.max(0.01, Number(transform?.scale || 0));
@@ -3050,7 +4137,7 @@
     return {
       radius: Math.max(0.24, personDiameterMeters * 0.5 * scale),
       alpha: Number(clamp(0.44 - densityFactor * 0.22, 0.12, 0.44).toFixed(3)),
-      fill: 'rgba(18, 22, 26, 1)',
+      fill: `rgba(${BACKGROUND_CROWD_DOT_RGB[0]}, ${BACKGROUND_CROWD_DOT_RGB[1]}, ${BACKGROUND_CROWD_DOT_RGB[2]}, 1)`,
     };
   }
 
@@ -3079,12 +4166,202 @@
   function formatStartSelection(point = state.routeSelection.startPoint) {
     if (state.routeSelection.startNodeId && state.prepared?.nodeById?.[state.routeSelection.startNodeId]) {
       const node = state.prepared.nodeById[state.routeSelection.startNodeId];
-      return state.locale === 'zh-CN' ? node.displayLabel || node.id : node.displayLabelEn || node.displayLabel || node.id;
+      return getNodeDisplayLabel(node);
     }
     if (!point) {
       return '--';
     }
     return `${formatNumber(point.x, 1)}, ${formatNumber(point.y, 1)}`;
+  }
+
+  function getNodeDisplayLabel(node, locale = state.locale) {
+    if (!node) {
+      return '--';
+    }
+    return locale === 'zh-CN'
+      ? node.displayLabel || node.displayLabelEn || node.id
+      : node.displayLabelEn || node.displayLabel || node.id;
+  }
+
+  function getVisualizationNodeBadgeLabel(node, locale = state.locale) {
+    if (!node) {
+      return '--';
+    }
+    return getNodeDisplayLabel(node, locale) || getNodeKindLabel(node.kind) || '--';
+  }
+
+  function isNoisePressureLike(item) {
+    const text = `${item?.name || ''} ${item?.feature || ''} ${item?.category || ''}`.toLowerCase();
+    return text.includes('noise') || text.includes('noisy') || text.includes('decibel');
+  }
+
+  function isLightingPressureLike(item, categoryId = getLayerCategoryForObject('pressure', item)) {
+    const text = `${item?.name || ''} ${item?.feature || ''} ${item?.category || ''}`.toLowerCase();
+    return categoryId === 'flashing-ads'
+      || categoryId === 'static-ads'
+      || categoryId === 'lcd'
+      || text.includes('light')
+      || text.includes('lighting')
+      || text.includes('lux');
+  }
+
+  function getVisualizationPressureBadgeLabel(item) {
+    if (!item) {
+      return '--';
+    }
+    const categoryId = getLayerCategoryForObject('pressure', item);
+    const categoryLabel = getCategoryDefinition(categoryId)?.label || '';
+    if (categoryId === 'flashing-ads' || categoryId === 'static-ads') {
+      const label = categoryId === 'flashing-ads' ? 'Flashing Ads' : 'Static Ads';
+      if (Number.isFinite(Number(item?.lux))) {
+        return `${label} · ${formatMetricValue(Number(item.lux), 0)} lux`;
+      }
+      return label;
+    }
+    const metricSuffix = isNoisePressureLike(item)
+      ? (Number.isFinite(Number(item?.decibel)) ? ` · ${formatMetricValue(Number(item.decibel), 0)} dB` : '')
+      : (isLightingPressureLike(item, categoryId) && Number.isFinite(Number(item?.lux))
+        ? ` · ${formatMetricValue(Number(item.lux), 0)} lux`
+        : '');
+    if (categoryLabel && item.name && categoryLabel !== item.name) {
+      return `${categoryLabel} · ${item.name}${metricSuffix}`;
+    }
+    return `${item.name || categoryLabel || item.label || item.feature || item.id || '--'}${metricSuffix}`;
+  }
+
+  function estimateTooltipTextUnits(text) {
+    return Array.from(String(text || '')).reduce((total, char) => {
+      return total + (/[\u3400-\u9fff\uf900-\ufaff]/.test(char) ? 1.9 : 1);
+    }, 0);
+  }
+
+  function parseHexColorToRgb(color) {
+    const match = /^#?([0-9a-f]{6})$/i.exec(String(color || '').trim());
+    if (!match) {
+      return [120, 128, 138];
+    }
+    const value = match[1];
+    return [
+      parseInt(value.slice(0, 2), 16),
+      parseInt(value.slice(2, 4), 16),
+      parseInt(value.slice(4, 6), 16),
+    ];
+  }
+
+  function getCategoryStrokeColor(categoryId) {
+    const rgb = parseHexColorToRgb(getCategoryColor(categoryId));
+    return rgbToCss(rgb.map((value) => Math.max(0, Math.round(value * 0.58))));
+  }
+
+  function findNearestPreparedNode(point) {
+    if (!state.prepared?.nodes?.length || !point) {
+      return null;
+    }
+    let nearestNode = null;
+    let nearestDistanceSquared = Number.POSITIVE_INFINITY;
+    state.prepared.nodes.forEach((node) => {
+      const dx = Number(node.x || 0) - Number(point.x || 0);
+      const dy = Number(node.y || 0) - Number(point.y || 0);
+      const distanceSquared = dx * dx + dy * dy;
+      if (distanceSquared < nearestDistanceSquared) {
+        nearestDistanceSquared = distanceSquared;
+        nearestNode = node;
+      }
+    });
+    return nearestNode;
+  }
+
+  function getVisualizationDetailActiveLayerCategories() {
+    return Array.isArray(state.visualizationDetailActiveLayerCategories)
+      ? state.visualizationDetailActiveLayerCategories.filter(Boolean)
+      : [];
+  }
+
+  function applyVisualizationDetailSeatLayerPolicy(nextViewMode, previousViewMode = getSafeViewMode(state.visualizationDetailView || state.viewMode)) {
+    const nextSafeViewMode = getSafeViewMode(nextViewMode);
+    const previousSafeViewMode = getSafeViewMode(previousViewMode);
+    const activeCategories = new Set(getVisualizationDetailActiveLayerCategories());
+    if (nextSafeViewMode === 'vitality' && previousSafeViewMode !== 'vitality') {
+      activeCategories.add('seat');
+    } else if (previousSafeViewMode === 'vitality' && nextSafeViewMode !== 'vitality') {
+      activeCategories.delete('seat');
+    }
+    state.visualizationDetailActiveLayerCategories = LAYER_CATEGORY_DEFINITIONS
+      .map((item) => item.id)
+      .filter((id) => activeCategories.has(id));
+  }
+
+  function findVisualizationDetailHoverTarget(clientX, clientY, overlayElement = elements.visualizationDetailOverlay) {
+    if (!state.prepared || !overlayElement) {
+      return null;
+    }
+    const transform = computeTransformForViewportSize(overlayElement.clientWidth, overlayElement.clientHeight);
+    const pointerWorld = screenToWorld(clientX, clientY, transform, overlayElement);
+    const hitRadius = worldRadiusForPixels(24, transform);
+    const hitRadiusSquared = hitRadius * hitRadius;
+    let bestCandidate = null;
+    let bestDistanceSquared = Number.POSITIVE_INFINITY;
+    const selectedHotspotOverlays = getSelectedHotspotOverlayItems();
+
+    selectedHotspotOverlays.forEach(({ hotspotTarget }) => {
+      if (!hotspotTarget?.item) {
+        return;
+      }
+      const dx = Number(hotspotTarget.item.x || 0) - Number(pointerWorld.x || 0);
+      const dy = Number(hotspotTarget.item.y || 0) - Number(pointerWorld.y || 0);
+      const distanceSquared = dx * dx + dy * dy;
+      if (distanceSquared <= hitRadiusSquared && distanceSquared < bestDistanceSquared) {
+        bestDistanceSquared = distanceSquared;
+        bestCandidate = { type: hotspotTarget.type, id: hotspotTarget.item.id };
+      }
+    });
+
+    state.prepared.nodes.forEach((node) => {
+      const dx = Number(node.x || 0) - Number(pointerWorld.x || 0);
+      const dy = Number(node.y || 0) - Number(pointerWorld.y || 0);
+      const distanceSquared = dx * dx + dy * dy;
+      if (distanceSquared <= hitRadiusSquared && distanceSquared < bestDistanceSquared) {
+        bestDistanceSquared = distanceSquared;
+        bestCandidate = { type: 'node', id: node.id };
+      }
+    });
+
+    const activePressureItems = getLayerItemsForCategories(getVisualizationDetailActiveLayerCategories())
+      .filter((entry) => entry.type === 'pressure')
+      .map((entry) => entry.item);
+    activePressureItems.forEach((item) => {
+      const dx = Number(item.x || 0) - Number(pointerWorld.x || 0);
+      const dy = Number(item.y || 0) - Number(pointerWorld.y || 0);
+      const distanceSquared = dx * dx + dy * dy;
+      if (distanceSquared <= hitRadiusSquared && distanceSquared < bestDistanceSquared) {
+        bestDistanceSquared = distanceSquared;
+        bestCandidate = { type: 'pressure', id: item.id };
+      }
+    });
+
+    return bestCandidate;
+  }
+
+  function syncVisualizationDetailHoverTargetFromPointer() {
+    if (!state.visualizationDetailView || !elements.visualizationDetailOverlay) {
+      return;
+    }
+    const hoverPointer = state.visualizationDetailHoverPointer;
+    if (!hoverPointer) {
+      return;
+    }
+    const nextHoverTarget = findVisualizationDetailHoverTarget(
+      hoverPointer.clientX,
+      hoverPointer.clientY,
+      elements.visualizationDetailOverlay
+    );
+    if (
+      state.visualizationDetailHoverTarget?.type === nextHoverTarget?.type
+      && state.visualizationDetailHoverTarget?.id === nextHoverTarget?.id
+    ) {
+      return;
+    }
+    state.visualizationDetailHoverTarget = nextHoverTarget;
   }
 
   function getModelBounds() {
@@ -3238,6 +4515,14 @@
     return left.map((channel, index) => Math.round(channel + (right[index] - channel) * amount));
   }
 
+  function mixTowardWhite(rgb, amount) {
+    return mixRgb(rgb, [255, 255, 255], clamp(amount, 0, 1));
+  }
+
+  function mixTowardBlack(rgb, amount) {
+    return mixRgb(rgb, [20, 26, 34], clamp(amount, 0, 1));
+  }
+
   function samplePaletteRgb(normalized, colorStops) {
     for (let index = 1; index < colorStops.length; index += 1) {
       const previous = colorStops[index - 1];
@@ -3291,6 +4576,80 @@
     return baseRgb;
   }
 
+  function buildHeatDisplayProfile(metricValues, style = getHeatmapViewStyle()) {
+    const sortedValues = getSortedNumericValues(metricValues);
+    const valueStops = style?.valueStops || HEAT_VALUE_STOPS;
+    if (!sortedValues.length) {
+      return {
+        anchors: [0, 0.16, 0.34, 0.52, 0.7, 0.86, 1].map((normalized, index) => ({
+          value: Number(valueStops[Math.min(index, valueStops.length - 1)] || 0),
+          normalized,
+        })),
+        signature: 'default',
+      };
+    }
+    const anchorValues = [
+      sampleQuantile(sortedValues, 0),
+      sampleQuantile(sortedValues, 0.12),
+      sampleQuantile(sortedValues, 0.32),
+      sampleQuantile(sortedValues, 0.55),
+      sampleQuantile(sortedValues, 0.78),
+      sampleQuantile(sortedValues, 0.92),
+      sampleQuantile(sortedValues, 1),
+    ];
+    for (let index = 1; index < anchorValues.length; index += 1) {
+      if (anchorValues[index] <= anchorValues[index - 1]) {
+        anchorValues[index] = anchorValues[index - 1] + 1e-6;
+      }
+    }
+    const normalizedAnchors = [0, 0.14, 0.32, 0.5, 0.7, 0.88, 1];
+    return {
+      anchors: anchorValues.map((value, index) => ({
+        value,
+        normalized: normalizedAnchors[index],
+      })),
+      signature: anchorValues.map((value) => Number(value || 0).toFixed(4)).join(':'),
+    };
+  }
+
+  function mapHeatMetricToDisplayNormalized(metric, displayProfile, style = getHeatmapViewStyle()) {
+    const safeMetric = Math.max(0, Number(metric) || 0);
+    const anchors = Array.isArray(displayProfile?.anchors) ? displayProfile.anchors : null;
+    if (!anchors?.length) {
+      return heatAbsoluteNormalized(safeMetric, style);
+    }
+    if (safeMetric <= anchors[0].value) {
+      return anchors[0].normalized;
+    }
+    for (let index = 1; index < anchors.length; index += 1) {
+      const previous = anchors[index - 1];
+      const current = anchors[index];
+      if (safeMetric <= current.value) {
+        const amount = clamp(
+          (safeMetric - previous.value) / Math.max(1e-6, current.value - previous.value),
+          0,
+          1
+        );
+        return previous.normalized + (current.normalized - previous.normalized) * amount;
+      }
+    }
+    return anchors[anchors.length - 1].normalized;
+  }
+
+  function getSingleBurdenHeatColors(baseRgb, normalized, style = getHeatmapViewStyle()) {
+    const safeNormalized = clamp(Number(normalized) || 0, 0, 1);
+    const paletteStops = style?.colorStops || DEFAULT_HEAT_COLOR_STOPS;
+    const fieldColor = safeNormalized <= 0.42
+      ? mixTowardWhite(baseRgb, smoothstep(0.42, 0, safeNormalized) * 0.18)
+      : baseRgb;
+    const coreTarget = samplePaletteRgb(
+      clamp(0.04 + Math.pow(safeNormalized, 0.96), 0, 1),
+      paletteStops
+    );
+    const coreColor = mixRgb(baseRgb, coreTarget, 0.42);
+    return { fieldColor, coreColor };
+  }
+
   function getActivePlayback() {
     return state.scenario?.usePrecomputedHeatPlayback ? state.scenario?.precomputedPlayback || null : null;
   }
@@ -3321,6 +4680,7 @@
       const first = snapshots[0];
       const snapshot = {
         ...first,
+        actualWalkingSpeed: getPlaybackActualWalkingSpeed(Number(first.time || 0), playback),
         capacityScores: cloneCapacityScoreMap(first.capacityScores),
         burdenScores: cloneDimensionScoreMap(first.burdenScores),
         decisionDiagnostics: first.decisionDiagnostics ? { ...first.decisionDiagnostics } : null,
@@ -3335,6 +4695,7 @@
     if (time >= Number(last.time || 0)) {
       const snapshot = {
         ...last,
+        actualWalkingSpeed: getPlaybackActualWalkingSpeed(time, playback),
         capacityScores: cloneCapacityScoreMap(last.capacityScores),
         burdenScores: cloneDimensionScoreMap(last.burdenScores),
         decisionDiagnostics: last.decisionDiagnostics ? { ...last.decisionDiagnostics } : null,
@@ -3346,65 +4707,51 @@
       return snapshot;
     }
 
-    for (let index = 1; index < snapshots.length; index += 1) {
-      const previous = snapshots[index - 1];
-      const current = snapshots[index];
-      const previousTime = Number(previous.time || 0);
-      const currentTime = Number(current.time || 0);
-      if (time > currentTime + 1e-9) {
-        continue;
-      }
-      const segmentSpan = Math.max(1e-6, currentTime - previousTime);
-      const ratio = clamp((time - previousTime) / segmentSpan, 0, 1);
-      const anchor = ratio < 0.5 ? previous : current;
-      const fatigueThreshold = Number(anchor.fatigueThreshold || previous.fatigueThreshold || current.fatigueThreshold || getFatigueThreshold());
-      const fatigue = interpolateValue(previous, current, 'fatigue', ratio, 0);
-      const capacityScores = cloneCapacityScoreMap(anchor.capacityScores || state.focusProfile?.capacityScores);
-      const burdenScores = interpolateDimensionScoreMap(previous, current, 'burdenScores', ratio, anchor.burdenScores || current.burdenScores || {});
-      const nearbySeats = clonePlaybackArray(anchor.nearbySeats);
-      const needsRest = fatigue >= fatigueThreshold;
-      const snapshot = {
-        ...anchor,
-        x: interpolateValue(previous, current, 'x', ratio, Number(anchor.x || 0)),
-        y: interpolateValue(previous, current, 'y', ratio, Number(anchor.y || 0)),
-        time,
-        progress: interpolateValue(previous, current, 'progress', ratio, Number(anchor.progress || 0)),
-        heat: interpolateValue(previous, current, 'heat', ratio, Number(anchor.heat || 0)),
-        pressure: interpolateValue(previous, current, 'pressure', ratio, Number(anchor.pressure || 0)),
-        cognitiveLoad: interpolateValue(previous, current, 'cognitiveLoad', ratio, Number(anchor.cognitiveLoad || anchor.pressure || 0)),
-        fatigue,
-        crowdDensity: interpolateValue(previous, current, 'crowdDensity', ratio, Number(anchor.crowdDensity || 0)),
-        environmentNoise: interpolateValue(previous, current, 'environmentNoise', ratio, Number(anchor.environmentNoise || 0)),
-        environmentLighting: interpolateValue(previous, current, 'environmentLighting', ratio, Number(anchor.environmentLighting || 0)),
-        queueCount: interpolateValue(previous, current, 'queueCount', ratio, Number(anchor.queueCount || 0)),
-        persistentStress: interpolateValue(previous, current, 'persistentStress', ratio, Number(anchor.persistentStress || 0)),
-        localVisibleStress: interpolateValue(previous, current, 'localVisibleStress', ratio, Number(anchor.localVisibleStress || 0)),
-        ambientNoiseStress: interpolateValue(previous, current, 'ambientNoiseStress', ratio, Number(anchor.ambientNoiseStress || 0)),
-        ambientCrowdingStress: interpolateValue(previous, current, 'ambientCrowdingStress', ratio, Number(anchor.ambientCrowdingStress || 0)),
-        ambientLightingStress: interpolateValue(previous, current, 'ambientLightingStress', ratio, Number(anchor.ambientLightingStress || 0)),
-        ambientQueueStress: interpolateValue(previous, current, 'ambientQueueStress', ratio, Number(anchor.ambientQueueStress || 0)),
-        fatigueThreshold,
-        capacityScores,
-        burdenScores,
-        decisionDiagnostics: anchor.decisionDiagnostics ? { ...anchor.decisionDiagnostics } : null,
-        topBurdenId: getTopBurdenIdFromScores(burdenScores),
-        nearbySeats,
-        needsRest,
-        advice: anchor.advice || (needsRest ? (nearbySeats.length ? t('hint.restWithSeats') : t('hint.restWithoutSeats')) : t('hint.keepMoving')),
-        topPressureSources: clonePlaybackArray(anchor.topPressureSources),
-      };
-      state.playbackSnapshotCache = { playback, bucket, snapshot };
-      return snapshot;
-    }
-
+    const previousIndex = findPlaybackTraceUpperBound(snapshots, time);
+    const previous = snapshots[previousIndex];
+    const current = snapshots[Math.min(snapshots.length - 1, previousIndex + 1)];
+    const previousTime = Number(previous.time || 0);
+    const currentTime = Number(current.time || 0);
+    const segmentSpan = Math.max(1e-6, currentTime - previousTime);
+    const ratio = clamp((time - previousTime) / segmentSpan, 0, 1);
+    const anchor = previous;
+    const fatigueThreshold = Number(anchor.fatigueThreshold || previous.fatigueThreshold || current.fatigueThreshold || getFatigueThreshold());
+    const fatigue = interpolateValue(previous, current, 'fatigue', ratio, 0);
+    const capacityScores = cloneCapacityScoreMap(anchor.capacityScores || state.focusProfile?.capacityScores);
+    const burdenScores = interpolateDimensionScoreMap(previous, current, 'burdenScores', ratio, anchor.burdenScores || current.burdenScores || {});
+    const nearbySeats = clonePlaybackArray(anchor.nearbySeats);
+    const needsRest = fatigue >= fatigueThreshold;
+    const actualWalkingSpeed = getPlaybackActualWalkingSpeed(time, playback);
     const snapshot = {
-      ...last,
-      capacityScores: cloneCapacityScoreMap(last.capacityScores),
-      burdenScores: cloneDimensionScoreMap(last.burdenScores),
-      decisionDiagnostics: last.decisionDiagnostics ? { ...last.decisionDiagnostics } : null,
-      topBurdenId: last.topBurdenId || getTopBurdenIdFromScores(last.burdenScores),
-      nearbySeats: clonePlaybackArray(last.nearbySeats),
-      topPressureSources: clonePlaybackArray(last.topPressureSources),
+      ...anchor,
+      x: interpolateValue(previous, current, 'x', ratio, Number(anchor.x || 0)),
+      y: interpolateValue(previous, current, 'y', ratio, Number(anchor.y || 0)),
+      time,
+      progress: interpolateValue(previous, current, 'progress', ratio, Number(anchor.progress || 0)),
+      heat: interpolateValue(previous, current, 'heat', ratio, Number(anchor.heat || 0)),
+      pressure: interpolateValue(previous, current, 'pressure', ratio, Number(anchor.pressure || 0)),
+      cognitiveLoad: interpolateValue(previous, current, 'cognitiveLoad', ratio, Number(anchor.cognitiveLoad || anchor.pressure || 0)),
+      fatigue,
+      crowdDensity: interpolateValue(previous, current, 'crowdDensity', ratio, Number(anchor.crowdDensity || 0)),
+      environmentNoise: interpolateValue(previous, current, 'environmentNoise', ratio, Number(anchor.environmentNoise || 0)),
+      environmentLighting: interpolateValue(previous, current, 'environmentLighting', ratio, Number(anchor.environmentLighting || 0)),
+      queueCount: interpolateValue(previous, current, 'queueCount', ratio, Number(anchor.queueCount || 0)),
+      actualWalkingSpeed,
+      persistentStress: interpolateValue(previous, current, 'persistentStress', ratio, Number(anchor.persistentStress || 0)),
+      localVisibleStress: interpolateValue(previous, current, 'localVisibleStress', ratio, Number(anchor.localVisibleStress || 0)),
+      ambientNoiseStress: interpolateValue(previous, current, 'ambientNoiseStress', ratio, Number(anchor.ambientNoiseStress || 0)),
+      ambientCrowdingStress: interpolateValue(previous, current, 'ambientCrowdingStress', ratio, Number(anchor.ambientCrowdingStress || 0)),
+      ambientLightingStress: interpolateValue(previous, current, 'ambientLightingStress', ratio, Number(anchor.ambientLightingStress || 0)),
+      ambientQueueStress: interpolateValue(previous, current, 'ambientQueueStress', ratio, Number(anchor.ambientQueueStress || 0)),
+      fatigueThreshold,
+      capacityScores,
+      burdenScores,
+      decisionDiagnostics: anchor.decisionDiagnostics ? { ...anchor.decisionDiagnostics } : null,
+      topBurdenId: getTopBurdenIdFromScores(burdenScores),
+      nearbySeats,
+      needsRest,
+      advice: anchor.advice || (needsRest ? (nearbySeats.length ? t('hint.restWithSeats') : t('hint.restWithoutSeats')) : t('hint.keepMoving')),
+      topPressureSources: clonePlaybackArray(anchor.topPressureSources),
     };
     state.playbackSnapshotCache = { playback, bucket, snapshot };
     return snapshot;
@@ -3416,6 +4763,27 @@
 
   function getPlaybackFocusSnapshotBucket(time) {
     return Math.round((Number(time) || 0) * PLAYBACK_FOCUS_SNAPSHOT_BUCKETS_PER_SECOND) / PLAYBACK_FOCUS_SNAPSHOT_BUCKETS_PER_SECOND;
+  }
+
+  function getPlaybackActualWalkingSpeed(time = Number(state.scenario?.playbackRevealTime || 0), playback = getActivePlayback()) {
+    const snapshots = playback?.traceSnapshots;
+    if (!Array.isArray(snapshots) || snapshots.length < 2) {
+      return Number.NaN;
+    }
+    const numericTime = Number(time);
+    const upperBound = findPlaybackTraceUpperBound(snapshots, Number.isFinite(numericTime) ? numericTime : Number(snapshots[0].time || 0));
+    const currentIndex = clamp(upperBound + 1, 1, snapshots.length - 1);
+    const previous = snapshots[currentIndex - 1];
+    const current = snapshots[currentIndex];
+    if (current?.playbackComplete && numericTime >= Number(current.time || 0) - 1e-6) {
+      return 0;
+    }
+    const elapsedSeconds = Math.max(1e-6, Number(current.time || 0) - Number(previous.time || 0));
+    const movedMeters = Math.hypot(
+      Number(current.x || 0) - Number(previous.x || 0),
+      Number(current.y || 0) - Number(previous.y || 0)
+    );
+    return movedMeters / elapsedSeconds;
   }
 
   function getCurrentHeatmapRevealTime(playback = getActivePlayback()) {
@@ -3439,6 +4807,40 @@
       return true;
     }
     return getCurrentHeatmapRevealTime(playback) >= endTime - 1e-6;
+  }
+
+  function shouldRenderHeatmapDuringPlaybackFrame() {
+    const playback = getActivePlayback();
+    if (!playback) {
+      return true;
+    }
+    return !isHeatmapFullyRevealed(playback);
+  }
+
+  function getPlaybackRenderClock() {
+    return typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? performance.now()
+      : Date.now();
+  }
+
+  function shouldRenderPlaybackOverlayFrame() {
+    const now = getPlaybackRenderClock();
+    const minIntervalMs = state.pointPopover?.visible || state.visualizationDetailHoverTarget ? 48 : 80;
+    if (!state.lastPlaybackOverlayRenderAt || now - state.lastPlaybackOverlayRenderAt >= minIntervalMs) {
+      state.lastPlaybackOverlayRenderAt = now;
+      return true;
+    }
+    return false;
+  }
+
+  function shouldRenderPlaybackUiPanels() {
+    const now = getPlaybackRenderClock();
+    const minIntervalMs = 160;
+    if (!state.lastPlaybackUiPanelRenderAt || now - state.lastPlaybackUiPanelRenderAt >= minIntervalMs) {
+      state.lastPlaybackUiPanelRenderAt = now;
+      return true;
+    }
+    return false;
   }
 
   function getHeatmapRevealTraceSnapshots(playback = getActivePlayback()) {
@@ -3540,9 +4942,9 @@
           }
         : null);
     const needsRest = fatigue >= fatigueThreshold;
-    const topPressureSources = !useSnapshotPressure && Array.isArray(playbackPressureState?.contributions)
-      ? playbackPressureState.contributions
-        .slice()
+      const topPressureSources = !useSnapshotPressure && Array.isArray(playbackPressureState?.contributions)
+        ? playbackPressureState.contributions
+          .slice()
         .sort((left, right) => Number(right.score || 0) - Number(left.score || 0))
         .slice(0, 3)
         .map(({ pressurePoint, influence, score, state, sourceKind, pressureDelta }) => ({
@@ -3557,32 +4959,58 @@
           pressure: score,
           pressureDelta: Number.isFinite(Number(pressureDelta)) ? Number(pressureDelta) : Number(influence || 0),
           state: state || null,
-          sourceKind: sourceKind || null,
-        }))
-      : clonePlaybackArray(snapshot.topPressureSources);
-    const inspection = {
-      type: 'agent',
-      id: focusAgent.id,
-      routeId: focusAgent.routeId,
-      routeLabel: focusAgent.routeLabel,
-      isFocusAgent: true,
-      queueLocked: Boolean(focusAgent.queueLocked),
-      selectedTargetNodeId: snapshot.selectedTargetNodeId ?? focusAgent.selectedTargetNodeId ?? null,
-      selectedTargetNodeLabel: snapshot.selectedTargetNodeLabel ?? focusAgent.selectedTargetNodeLabel ?? null,
-      time: Number(snapshot.time ?? state.scenario?.playbackRevealTime ?? state.scenario?.time ?? 0),
+            sourceKind: sourceKind || null,
+          }))
+        : clonePlaybackArray(snapshot.topPressureSources);
+      const realtimePlaybackFields = {
+        walkingSpeed: Number(snapshot.currentWalkingSpeed),
+        decisionDelay: Number(snapshot.decisionReactionTime),
+      };
+      const actualWalkingSpeed = Number(snapshot.actualWalkingSpeed);
+      const realtimeWalkingSpeed = Number(snapshot.currentWalkingSpeed);
+      const fallbackWalkingSpeed = Number(focusAgent.currentWalkingSpeed ?? focusAgent.profile?.walkingSpeed ?? 0);
+      const realtimeDecisionDelay = Number(snapshot.decisionReactionTime);
+      const derivedDecisionDelay = Number(
+        dimensionState?.burdens?.cognitive?.decisionReactionTime
+        ?? snapshot.decisionDiagnostics?.decisionReactionTime
+        ?? focusAgent.lastDecisionDiagnostics?.decisionReactionTime
+        ?? focusAgent.profile?.decisionDelay
+        ?? 0
+      );
+      const inspection = {
+        type: 'agent',
+        id: focusAgent.id,
+        routeId: focusAgent.routeId,
+        routeLabel: focusAgent.routeLabel,
+        isFocusAgent: true,
+        queueLocked: Boolean(snapshot.queueLocked ?? focusAgent.queueLocked),
+        restState: snapshot.restState ?? focusAgent.restState ?? 'none',
+        restMode: snapshot.restMode ?? focusAgent.restMode ?? null,
+        restTargetSeatId: snapshot.restTargetSeatId ?? focusAgent.restTargetSeatId ?? null,
+        reservedSeatId: snapshot.reservedSeatId ?? focusAgent.reservedSeatId ?? null,
+        selectedTargetNodeId: snapshot.selectedTargetNodeId ?? focusAgent.selectedTargetNodeId ?? null,
+        selectedTargetNodeLabel: snapshot.selectedTargetNodeLabel ?? focusAgent.selectedTargetNodeLabel ?? null,
+        time: Number(snapshot.time ?? state.scenario?.playbackRevealTime ?? state.scenario?.time ?? 0),
       x: point.x,
       y: point.y,
       pressure: Number(useSnapshotPressure ? (snapshot.pressure ?? snapshot.cognitiveLoad ?? 0) : (playbackPressureState?.pressureScore ?? snapshot.pressure ?? snapshot.cognitiveLoad ?? 0)),
       cognitiveLoad: Number(useSnapshotPressure ? (snapshot.cognitiveLoad ?? snapshot.pressure ?? 0) : (playbackPressureState?.pressureScore ?? snapshot.cognitiveLoad ?? snapshot.pressure ?? 0)),
-      fatigue,
-      heat: Number(snapshot.heat ?? snapshot.cognitiveLoad ?? snapshot.pressure ?? 0),
-      progress: Number(snapshot.progress || 0),
-      crowdDensity: Number(useSnapshotPressure ? (snapshot.crowdDensity || 0) : (playbackPressureState?.crowdDensity ?? (snapshot.crowdDensity || 0))),
-      walkingSpeed: focusAgent.profile?.walkingSpeed,
-      decisionDelay: focusAgent.profile?.decisionDelay,
-      visionRadius: Number(snapshot.visionRadius || 15),
-      fatigueThreshold,
-      environmentNoise: Number(snapshot.environmentNoise || 0),
+        fatigue,
+        heat: Number(snapshot.heat ?? snapshot.cognitiveLoad ?? snapshot.pressure ?? 0),
+        progress: Number(snapshot.progress || 0),
+        crowdDensity: Number(useSnapshotPressure ? (snapshot.crowdDensity || 0) : (playbackPressureState?.crowdDensity ?? (snapshot.crowdDensity || 0))),
+        walkingSpeed: Number.isFinite(actualWalkingSpeed) ? actualWalkingSpeed : (Number.isFinite(realtimeWalkingSpeed) ? realtimeWalkingSpeed : (Number.isFinite(fallbackWalkingSpeed) ? fallbackWalkingSpeed : 0)),
+        decisionDelay: Number.isFinite(realtimeDecisionDelay) ? realtimeDecisionDelay : (Number.isFinite(derivedDecisionDelay) ? derivedDecisionDelay : 0),
+        movementBehavior: dimensionState?.burdens?.locomotor?.movementBehavior
+          || dimensionState?.burdens?.locomotor?.behavior
+          || focusAgent.movementBehavior
+          || 'normal_walk',
+        movementMainCause: dimensionState?.burdens?.locomotor?.movementMainCause
+          || focusAgent.movementMainCause
+          || 'speed',
+        visionRadius: Number(snapshot.visionRadius || 15),
+        fatigueThreshold,
+        environmentNoise: Number(snapshot.environmentNoise || 0),
       environmentLighting: Number(snapshot.environmentLighting || 0),
       queueCount: Number(snapshot.queueCount || 0),
       persistentStress: Number(snapshot.persistentStress || 0),
@@ -3717,7 +5145,10 @@
   }
 
   function getTraceRevealRadiusMeters(viewMode = getSafeViewMode(state.viewMode)) {
-    return Math.max(HEAT_TRACE_RADIUS_METERS, VITALITY_RIBBON_MAX_WIDTH_METERS * 0.5);
+    if (viewMode === 'vitality') {
+      return Math.max(HEAT_TRACE_RADIUS_METERS, VITALITY_RIBBON_MAX_WIDTH_METERS * 0.5);
+    }
+    return HEAT_NON_VITALITY_CORRIDOR_RADIUS_METERS;
   }
 
   function getHeatSurfaceRasterScale() {
@@ -3732,6 +5163,19 @@
     if (cached && cached.heatState === heatState && cached.traceSnapshots === traceSnapshots) {
       return cached.cells;
     }
+    const traceProgressDistances = traceSnapshots.reduce((distances, snapshot, index) => {
+      if (index === 0) {
+        distances.push(0);
+        return distances;
+      }
+      const previous = traceSnapshots[index - 1];
+      const segmentLength = Math.hypot(
+        Number(snapshot?.x || 0) - Number(previous?.x || 0),
+        Number(snapshot?.y || 0) - Number(previous?.y || 0)
+      );
+      distances.push((distances[index - 1] || 0) + segmentLength);
+      return distances;
+    }, []);
     const gridPadding = Math.min(0.32, Math.max(0.12, Number(state.prepared?.grid?.cellSize || 1.15) * 0.25));
     const revealDistance = revealRadiusMeters + gridPadding;
     const revealedCells = heatState.cells
@@ -3739,15 +5183,25 @@
         const pressure = Math.max(0, Number(cell.pressure || 0));
         const heat = Math.max(0, Number(cell.heat || 0));
         let traceDistance = Number.POSITIVE_INFINITY;
+        let traceProgressMeters = 0;
         if (traceSnapshots.length === 1) {
           traceDistance = Math.hypot(cell.x - traceSnapshots[0].x, cell.y - traceSnapshots[0].y);
         } else {
           for (let index = 1; index < traceSnapshots.length; index += 1) {
             const previous = traceSnapshots[index - 1];
             const current = traceSnapshots[index];
-            const segmentDistance = distancePointToSegment(cell, previous, current);
+            const dx = Number(current?.x || 0) - Number(previous?.x || 0);
+            const dy = Number(current?.y || 0) - Number(previous?.y || 0);
+            const lengthSquared = dx * dx + dy * dy;
+            const projection = lengthSquared <= 1e-9
+              ? 0
+              : clamp(((cell.x - previous.x) * dx + (cell.y - previous.y) * dy) / lengthSquared, 0, 1);
+            const closestX = Number(previous?.x || 0) + dx * projection;
+            const closestY = Number(previous?.y || 0) + dy * projection;
+            const segmentDistance = Math.hypot(cell.x - closestX, cell.y - closestY);
             if (segmentDistance < traceDistance) {
               traceDistance = segmentDistance;
+              traceProgressMeters = Number(traceProgressDistances[index - 1] || 0) + Math.sqrt(lengthSquared) * projection;
             }
             if (traceDistance <= 0.05) {
               break;
@@ -3769,6 +5223,7 @@
           heat,
           metric,
           traceDistance,
+          traceProgressMeters,
           revealWeight,
         };
       })
@@ -3826,7 +5281,14 @@
     return clamp(featheredAlpha * (0.78 + pressureNormalized * 0.22), 0, 1);
   }
 
-  function createHeatFieldRaster(revealedHeatCells, localPressureMin, localPressureMax, style = getHeatmapViewStyle(), transform = state.transform) {
+  function createHeatFieldRasterLegacy(
+    revealedHeatCells,
+    localPressureMin,
+    localPressureMax,
+    style = getHeatmapViewStyle(),
+    transform = state.transform,
+    viewMode = getSafeViewMode(state.viewMode)
+  ) {
     if (!transform || !revealedHeatCells.length) {
       return null;
     }
@@ -3841,16 +5303,24 @@
     rasterCtx.imageSmoothingQuality = 'high';
     const pixelWidth = raster.width;
     const pixelHeight = raster.height;
-    const weightBuffer = new Float32Array(pixelWidth * pixelHeight);
+    const coverageBuffer = new Float32Array(pixelWidth * pixelHeight);
+    const metricWeightBuffer = new Float32Array(pixelWidth * pixelHeight);
     const metricBuffer = new Float32Array(pixelWidth * pixelHeight);
+    const metricPowerBuffer = new Float32Array(pixelWidth * pixelHeight);
+    const routeProgressBuffer = new Float32Array(pixelWidth * pixelHeight);
+    const prominenceBuffer = new Float32Array(pixelWidth * pixelHeight);
     let maxWeight = 0;
-    revealedHeatCells.forEach((cell) => {
+    const isSingleBurdenView = viewMode !== 'composite' && viewMode !== 'vitality';
+    const isCompositeRelativeView = viewMode === 'composite';
+    const rasterHeatCells = isSingleBurdenView
+      ? annotateSingleBurdenCellProminence(revealedHeatCells)
+      : revealedHeatCells;
+    rasterHeatCells.forEach((cell) => {
       const point = worldToScreen(cell, transform);
       const rasterX = point.x * rasterScale;
       const rasterY = point.y * rasterScale;
       const pressure = Math.max(0, Number(cell.metric ?? cell.pressure ?? 0));
       const revealWeight = clamp(Number(cell.revealWeight ?? 1), 0, 1);
-      const alpha = getHeatCellAlpha(pressure, cell.revealWeight);
       const cellSizePixels = Math.max(2.2, Number(state.prepared?.grid?.cellSize || 1.15) * Number(transform.scale || 1));
       const fieldRadius = Math.max(
         cellSizePixels * (1.04 + revealWeight * 0.12),
@@ -3872,7 +5342,179 @@
           }
           const normalized = 1 - distanceSquared / Math.max(1, radiusSquared);
           const kernel = normalized * normalized;
-          const weight = kernel * (0.2 + alpha * 0.8);
+          const coverageWeight = kernel * (0.35 + revealWeight * 0.65);
+          const metricWeight = kernel * (0.35 + revealWeight * 0.65);
+          const index = pixelY * pixelWidth + pixelX;
+          coverageBuffer[index] += coverageWeight;
+          metricWeightBuffer[index] += metricWeight;
+          metricBuffer[index] += metricWeight * pressure;
+          metricPowerBuffer[index] += metricWeight * Math.pow(pressure, HEAT_SINGLE_BURDEN_SOFT_PEAK_POWER);
+          routeProgressBuffer[index] += metricWeight * Number(cell.traceProgressMeters || 0);
+          prominenceBuffer[index] += metricWeight * Number(cell.localProminence || 0);
+          if (coverageBuffer[index] > maxWeight) {
+            maxWeight = coverageBuffer[index];
+          }
+        }
+      }
+    });
+    const image = rasterCtx.createImageData(pixelWidth, pixelHeight);
+    const peakImage = rasterCtx.createImageData(pixelWidth, pixelHeight);
+    const densityThreshold = maxWeight > 0 ? maxWeight * 0.18 : 0;
+    const displayMetricValues = [];
+    for (let index = 0; index < coverageBuffer.length; index += 1) {
+      const coverage = coverageBuffer[index];
+      const metricWeight = metricWeightBuffer[index];
+      if (coverage <= densityThreshold || metricWeight <= 1e-6) {
+        continue;
+      }
+      const meanMetric = metricBuffer[index] / Math.max(metricWeight, 1e-6);
+      const softPeakMetric = Math.pow(
+        Math.max(0, metricPowerBuffer[index] / Math.max(metricWeight, 1e-6)),
+        1 / HEAT_SINGLE_BURDEN_SOFT_PEAK_POWER
+      );
+      displayMetricValues.push(isSingleBurdenView
+        ? meanMetric + (softPeakMetric - meanMetric) * HEAT_SINGLE_BURDEN_SOFT_PEAK_BLEND
+        : meanMetric);
+    }
+    const sortedDisplayMetrics = getSortedNumericValues(displayMetricValues);
+    const displayMetricMin = sortedDisplayMetrics.length
+      ? sampleQuantile(
+        sortedDisplayMetrics,
+        isSingleBurdenView
+          ? HEAT_SINGLE_BURDEN_RELATIVE_LOW_QUANTILE
+          : isCompositeRelativeView ? HEAT_COMPOSITE_RELATIVE_LOW_QUANTILE : 0.02
+      )
+      : localPressureMin;
+    const displayMetricMax = sortedDisplayMetrics.length
+      ? sampleQuantile(
+        sortedDisplayMetrics,
+        isSingleBurdenView
+          ? HEAT_SINGLE_BURDEN_RELATIVE_HIGH_QUANTILE
+          : isCompositeRelativeView ? HEAT_COMPOSITE_RELATIVE_HIGH_QUANTILE : 0.98
+      )
+      : localPressureMax;
+    const displayMetricSpan = Math.max(1e-6, displayMetricMax - displayMetricMin);
+    const shouldDrawLegendPeakLayer = isSingleBurdenView;
+    const peakRgb = samplePaletteRgb(1, style?.colorStops || DEFAULT_HEAT_COLOR_STOPS);
+    for (let index = 0; index < coverageBuffer.length; index += 1) {
+      const coverage = coverageBuffer[index];
+      const metricWeight = metricWeightBuffer[index];
+      if (coverage <= densityThreshold || metricWeight <= 1e-6) {
+        continue;
+      }
+      const meanMetric = metricBuffer[index] / Math.max(metricWeight, 1e-6);
+      const softPeakMetric = Math.pow(
+        Math.max(0, metricPowerBuffer[index] / Math.max(metricWeight, 1e-6)),
+        1 / HEAT_SINGLE_BURDEN_SOFT_PEAK_POWER
+      );
+      const metric = shouldDrawLegendPeakLayer
+        ? meanMetric + (softPeakMetric - meanMetric) * HEAT_SINGLE_BURDEN_SOFT_PEAK_BLEND
+        : meanMetric;
+      const densityNormalized = maxWeight > 1e-6 ? clamp(coverage / maxWeight, 0, 1) : 0;
+      const displayNormalized = clamp((metric - displayMetricMin) / displayMetricSpan, 0, 1);
+      const paletteNormalized = isSingleBurdenView
+        ? applySingleBurdenRelativeDisplayCurve(displayNormalized)
+        : isCompositeRelativeView
+          ? applyCompositeRelativeDisplayCurve(displayNormalized)
+          : displayNormalized;
+      const localProminence = isSingleBurdenView ? clamp(prominenceBuffer[index] / Math.max(metricWeight, 1e-6), 0, 1) : 1;
+      const rgb = samplePaletteRgb(paletteNormalized, style?.colorStops || DEFAULT_HEAT_COLOR_STOPS);
+      const edgeAlpha = smoothstep(0.18, 0.22, densityNormalized);
+      const prominenceAlpha = isSingleBurdenView
+        ? (HEAT_SINGLE_BURDEN_PROMINENCE_ALPHA_FLOOR + (1 - HEAT_SINGLE_BURDEN_PROMINENCE_ALPHA_FLOOR) * localProminence)
+        : 1;
+      const offset = index * 4;
+      image.data[offset] = rgb[0];
+      image.data[offset + 1] = rgb[1];
+      image.data[offset + 2] = rgb[2];
+      image.data[offset + 3] = Math.round(clamp(edgeAlpha * prominenceAlpha, 0, 1) * 255);
+      if (shouldDrawLegendPeakLayer) {
+        const peakAlpha = smoothstep(0.58, 0.94, localProminence) * smoothstep(0.18, 0.38, densityNormalized) * 0.42;
+        if (peakAlpha > 0) {
+          peakImage.data[offset] = peakRgb[0];
+          peakImage.data[offset + 1] = peakRgb[1];
+          peakImage.data[offset + 2] = peakRgb[2];
+          peakImage.data[offset + 3] = Math.round(peakAlpha * 255);
+        }
+      }
+    }
+    rasterCtx.putImageData(image, 0, 0);
+    if (shouldDrawLegendPeakLayer) {
+      const peakCanvas = document.createElement('canvas');
+      peakCanvas.width = pixelWidth;
+      peakCanvas.height = pixelHeight;
+      const peakCtx = peakCanvas.getContext('2d');
+      peakCtx.putImageData(peakImage, 0, 0);
+      rasterCtx.globalCompositeOperation = 'source-over';
+      rasterCtx.drawImage(peakCanvas, 0, 0);
+    }
+    return raster;
+  }
+
+  function createHeatFieldRaster(
+    revealedHeatCells,
+    localPressureMin,
+    localPressureMax,
+    style = getHeatmapViewStyle(),
+    transform = state.transform,
+    displayProfile = null,
+    viewMode = getSafeViewMode(state.viewMode)
+  ) {
+    if (!transform || !revealedHeatCells.length) {
+      return null;
+    }
+    const rasterScale = getHeatSurfaceRasterScale();
+    const width = Math.max(1, Math.round(transform.width || 0));
+    const height = Math.max(1, Math.round(transform.height || 0));
+    const raster = document.createElement('canvas');
+    raster.width = Math.max(1, Math.round(width * rasterScale));
+    raster.height = Math.max(1, Math.round(height * rasterScale));
+    const rasterCtx = raster.getContext('2d');
+    rasterCtx.imageSmoothingEnabled = true;
+    rasterCtx.imageSmoothingQuality = 'high';
+    rasterCtx.setTransform(rasterScale, 0, 0, rasterScale, 0, 0);
+    rasterCtx.clearRect(0, 0, width, height);
+    rasterCtx.globalCompositeOperation = 'source-over';
+    const pixelWidth = raster.width;
+    const pixelHeight = raster.height;
+    const weightBuffer = new Float32Array(pixelWidth * pixelHeight);
+    const metricBuffer = new Float32Array(pixelWidth * pixelHeight);
+    let maxWeight = 0;
+    const cellSizePixels = Math.max(2.4, Number(state.prepared?.grid?.cellSize || 1.15) * Number(transform.scale || 1));
+
+    revealedHeatCells.forEach((cell) => {
+      const point = worldToScreen(cell, transform);
+      const rasterX = point.x * rasterScale;
+      const rasterY = point.y * rasterScale;
+      const pressure = Math.max(0, Number(cell.metric ?? cell.pressure ?? 0));
+      const revealWeight = clamp(Number(cell.revealWeight ?? 1), 0, 1);
+      const absoluteNormalized = heatAbsoluteNormalized(pressure, style);
+      const localNormalized = localPressureMax > localPressureMin + 1e-6
+        ? clamp((pressure - localPressureMin) / (localPressureMax - localPressureMin), 0, 1)
+        : absoluteNormalized;
+      const fieldIntensity = clamp(Math.max(Math.pow(localNormalized, 1.18), absoluteNormalized * 0.62), 0, 1);
+      const fieldRadius = Math.max(
+        cellSizePixels * (1.34 + fieldIntensity * 0.42 + revealWeight * 0.12),
+        5.4
+      );
+      const radiusPixels = Math.max(4, Math.round(fieldRadius * rasterScale));
+      const radiusSquared = radiusPixels * radiusPixels;
+      const minX = Math.max(0, Math.floor(rasterX - radiusPixels));
+      const maxX = Math.min(pixelWidth - 1, Math.ceil(rasterX + radiusPixels));
+      const minY = Math.max(0, Math.floor(rasterY - radiusPixels));
+      const maxY = Math.min(pixelHeight - 1, Math.ceil(rasterY + radiusPixels));
+      const weightGain = 0.22 + fieldIntensity * 0.78;
+      for (let pixelY = minY; pixelY <= maxY; pixelY += 1) {
+        const dy = (pixelY + 0.5) - rasterY;
+        for (let pixelX = minX; pixelX <= maxX; pixelX += 1) {
+          const dx = (pixelX + 0.5) - rasterX;
+          const distanceSquared = dx * dx + dy * dy;
+          if (distanceSquared > radiusSquared) {
+            continue;
+          }
+          const normalized = 1 - distanceSquared / Math.max(1, radiusSquared);
+          const kernel = normalized * normalized * normalized;
+          const weight = kernel * weightGain;
           const index = pixelY * pixelWidth + pixelX;
           weightBuffer[index] += weight;
           metricBuffer[index] += weight * pressure;
@@ -3882,26 +5524,86 @@
         }
       }
     });
-    const image = rasterCtx.createImageData(pixelWidth, pixelHeight);
-    const densityThreshold = maxWeight > 0 ? maxWeight * 0.015 : 0;
+
+    const fieldCanvas = document.createElement('canvas');
+    fieldCanvas.width = pixelWidth;
+    fieldCanvas.height = pixelHeight;
+    const fieldCtx = fieldCanvas.getContext('2d');
+    const fieldImage = fieldCtx.createImageData(pixelWidth, pixelHeight);
+
+    const coreCanvas = document.createElement('canvas');
+    coreCanvas.width = pixelWidth;
+    coreCanvas.height = pixelHeight;
+    const coreCtx = coreCanvas.getContext('2d');
+    const coreImage = coreCtx.createImageData(pixelWidth, pixelHeight);
+
+    const densityThreshold = maxWeight > 0
+      ? maxWeight * (viewMode === 'composite' ? 0.0009 : 0.0018)
+      : 0;
     for (let index = 0; index < weightBuffer.length; index += 1) {
       const weight = weightBuffer[index];
       if (weight <= densityThreshold) {
         continue;
       }
       const metric = metricBuffer[index] / Math.max(weight, 1e-6);
-      const rgb = getHeatDisplayRgb(metric, localPressureMin, localPressureMax, style);
-      const offset = index * 4;
-      image.data[offset] = rgb[0];
-      image.data[offset + 1] = rgb[1];
-      image.data[offset + 2] = rgb[2];
-      image.data[offset + 3] = 255;
+      const displayNormalized = mapHeatMetricToDisplayNormalized(metric, displayProfile, style);
+      const fogNormalized = clamp(Math.pow(displayNormalized, 1.04), 0, 1);
+      const coreNormalized = clamp(Math.pow(displayNormalized, 0.82), 0, 1);
+      const baseColor = samplePaletteRgb(displayNormalized, style?.colorStops || DEFAULT_HEAT_COLOR_STOPS);
+      const isCompositeView = viewMode === 'composite';
+        const { fieldColor, coreColor: singleCoreColor } = getSingleBurdenHeatColors(baseColor, displayNormalized, style);
+        const color = isCompositeView ? baseColor : fieldColor;
+        const coreColor = isCompositeView ? baseColor : singleCoreColor;
+        const densityNormalized = maxWeight > 1e-6 ? clamp(weight / maxWeight, 0, 1) : 0;
+        const fieldAlpha = clamp(
+          isCompositeView
+            ? (0.12 + fogNormalized * 0.34) * (0.68 + densityNormalized * 0.32)
+            : (0.11 + fogNormalized * 0.24) * (0.76 + densityNormalized * 0.24),
+          isCompositeView ? 0.1 : 0.1,
+          isCompositeView ? 0.54 : 0.44
+        );
+        const coreAlpha = isCompositeView
+          ? 0
+          : smoothstep(0.8, 0.98, coreNormalized) * 0.5;
+        const offset = index * 4;
+        fieldImage.data[offset] = color[0];
+        fieldImage.data[offset + 1] = color[1];
+        fieldImage.data[offset + 2] = color[2];
+      fieldImage.data[offset + 3] = Math.round(fieldAlpha * 255);
+      if (coreAlpha > 0) {
+        coreImage.data[offset] = coreColor[0];
+        coreImage.data[offset + 1] = coreColor[1];
+        coreImage.data[offset + 2] = coreColor[2];
+        coreImage.data[offset + 3] = Math.round(coreAlpha * 255);
+      }
     }
-    rasterCtx.putImageData(image, 0, 0);
+
+    fieldCtx.putImageData(fieldImage, 0, 0);
+    coreCtx.putImageData(coreImage, 0, 0);
+
+    rasterCtx.filter = viewMode === 'composite'
+      ? `blur(${Math.max(0.45, rasterScale * 0.18)}px)`
+      : `blur(${Math.max(1.2, rasterScale * 0.6)}px)`;
+    rasterCtx.globalAlpha = 1;
+    rasterCtx.drawImage(fieldCanvas, 0, 0, width, height);
+    rasterCtx.filter = 'none';
+    rasterCtx.drawImage(coreCanvas, 0, 0, width, height);
+
     return raster;
   }
 
-  function getCachedHeatRaster(cacheKey, heatState, revealedHeatCells, localMetricMin, localMetricMax, style, transformSignature, transform) {
+  function getCachedHeatRaster(
+    cacheKey,
+    heatState,
+    revealedHeatCells,
+    localMetricMin,
+    localMetricMax,
+    style,
+    transformSignature,
+    transform,
+    displayProfile = null,
+    viewMode = getSafeViewMode(state.viewMode)
+  ) {
     if (!(state.heatRasterCache instanceof Map)) {
       state.heatRasterCache = new Map();
     }
@@ -3912,12 +5614,14 @@
       && cached.revealedHeatCells === revealedHeatCells
       && cached.localMetricMin === localMetricMin
       && cached.localMetricMax === localMetricMax
+      && cached.displayProfileSignature === (displayProfile?.signature || '')
+      && cached.viewMode === viewMode
       && cached.style === style
       && cached.transformSignature === transformSignature
     ) {
       return cached.raster;
     }
-    const raster = createHeatFieldRaster(revealedHeatCells, localMetricMin, localMetricMax, style, transform);
+    const raster = createHeatFieldRasterLegacy(revealedHeatCells, localMetricMin, localMetricMax, style, transform, viewMode);
     if (state.heatRasterCache.size > 24) {
       const oldestKey = state.heatRasterCache.keys().next().value;
       state.heatRasterCache.delete(oldestKey);
@@ -3927,6 +5631,8 @@
       revealedHeatCells,
       localMetricMin,
       localMetricMax,
+      displayProfileSignature: displayProfile?.signature || '',
+      viewMode,
       style,
       transformSignature,
       raster,
@@ -3953,13 +5659,11 @@
     ctx.strokeStyle = '#ffffff';
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.filter = 'blur(1.4px)';
     if (traceSnapshots.length === 1) {
       const point = worldToScreen(traceSnapshots[0], transform);
       ctx.beginPath();
       ctx.arc(point.x, point.y, lineWidth * 0.5, 0, Math.PI * 2);
       ctx.fill();
-      ctx.filter = 'none';
       return mask;
     }
     ctx.beginPath();
@@ -3979,7 +5683,6 @@
     ctx.arc(firstPoint.x, firstPoint.y, lineWidth * 0.5, 0, Math.PI * 2);
     ctx.arc(lastPoint.x, lastPoint.y, lineWidth * 0.5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.filter = 'none';
     return mask;
   }
 
@@ -4305,6 +6008,7 @@
     state.scenario.hotspots = Array.isArray(playback.hotspots) ? playback.hotspots.map((item) => ({ ...item })) : state.scenario.hotspots;
     state.scenario.suggestions = Array.isArray(playback.suggestions) ? playback.suggestions.slice() : state.scenario.suggestions;
     state.scenario.summary = playback.summary ? { ...playback.summary } : state.scenario.summary;
+    state.scenario.llmDecisionPlan = playback.llmDecisionPlan || playback.meta?.llmDecisionPlan || state.scenario.llmDecisionPlan || null;
   }
 
   function ensurePlaybackScenarioState() {
@@ -4364,35 +6068,30 @@
 
     // Inject background agents from precomputed background field (avoids per-frame simulation + keeps agent count stable)
     if (frames?.length) {
-      let prevFrame = frames[0];
-      let nextFrame = frames[frames.length - 1];
-      for (let i = 0; i < frames.length - 1; i++) {
-        if (frames[i].time <= nextTime && frames[i + 1].time >= nextTime) {
-          prevFrame = frames[i];
-          nextFrame = frames[i + 1];
-          break;
-        }
-      }
-      const timeSpan = nextFrame.time - prevFrame.time;
-      const ratio = timeSpan > 1e-6
-        ? Math.min(1, Math.max(0, (nextTime - prevFrame.time) / timeSpan))
-        : 0;
-      if (prevFrame.agents?.length && nextFrame.agents?.length) {
-        state.scenario.backgroundAgents = interpolateBackgroundPlaybackAgents(prevFrame.agents, nextFrame.agents, ratio);
-      } else if (prevFrame.agents?.length) {
-        state.scenario.backgroundAgents = prevFrame.agents.map((agent) => ({
-          ...agent,
-          position: clonePlaybackPoint(agent.position),
-        }));
-      } else if (nextFrame.agents?.length) {
-        state.scenario.backgroundAgents = nextFrame.agents.map((agent) => ({
-          ...agent,
-          position: clonePlaybackPoint(agent.position),
-        }));
-      }
+      const backgroundSampleTime = getFocusCycleBackgroundSampleTime(playback, backgroundField, nextTime);
+      const backgroundPlaybackState = resolveLoopedBackgroundPlaybackFramePair(backgroundField, backgroundSampleTime, {
+        loopStartTime: Number(backgroundField?.initialTime || frames[0]?.time || 0),
+      });
+      const prevFrame = backgroundPlaybackState.previousFrame || frames[0];
+      const nextFrame = backgroundPlaybackState.nextFrame || prevFrame;
+      const ratio = backgroundPlaybackState.ratio;
+      const backgroundFrameTimeSpan = Math.max(0, Number(nextFrame?.time || 0) - Number(prevFrame?.time || 0));
+      state.backgroundPlaybackRenderState = backgroundPlaybackState ? {
+        prevFrame,
+        nextFrame,
+        ratio,
+        backgroundFrameTimeSpan,
+        sampleTime: Number(backgroundPlaybackState.sampleTime || backgroundSampleTime),
+      } : null;
+      state.scenario.backgroundAgents = ratio < 0.5
+        ? (Array.isArray(prevFrame?.agents) ? prevFrame.agents : [])
+        : (Array.isArray(nextFrame?.agents) ? nextFrame.agents : []);
     } else if (backgroundField?.initialAgents?.length) {
       // Fallback: use initial agents if frames not yet available
       state.scenario.backgroundAgents = backgroundField.initialAgents.map((a) => ({ ...a }));
+      state.backgroundPlaybackRenderState = null;
+    } else {
+      state.backgroundPlaybackRenderState = null;
     }
 
     syncScenarioToPlaybackArtifacts(playback);
@@ -4611,6 +6310,11 @@
     }
   }
 
+  function renderSettingsRoutePlanner() {
+    renderSettingsDestinationMenu();
+    renderSettingsRouteMap();
+  }
+
   function updateControls() {
     const routeReady = Boolean(state.routeSelection.startPoint && state.routeSelection.targetRegionId);
     const reportReady = Boolean(state.prepared && state.scenario?.heatActive && routeReady);
@@ -4669,13 +6373,13 @@
       : (state.scenario?.heatActive ? t('button.rerunHeatmap') : t('button.runHeatmap'));
     elements.showFinalHeatmapBtn.textContent = t('button.showFinalHeatmap');
     if (elements.analysisLoadingProgressBtn) {
-      elements.analysisLoadingProgressBtn.textContent = state.heatmapComputing
+      elements.analysisLoadingProgressBtn.textContent = (state.heatmapComputing || state.analysisTransitioning)
         ? formatPercent(state.heatmapComputeProgress * 100)
-        : (state.analysisTransitioning ? t('loading.preparing') : t('settings.analyzeBtn'));
+        : t('settings.analyzeBtn');
     }
     if (elements.analysisLoadingStatus) {
       elements.analysisLoadingStatus.textContent = state.heatmapComputing
-        ? t('loading.statusComputing')
+        ? getHeatmapComputeStatusText()
         : (state.analysisTransitioning ? t('loading.statusReady') : t('loading.statusDone'));
     }
     if (elements.visualizationExportReportBtn) {
@@ -4696,7 +6400,10 @@
     if (elements.settingsBackgroundCrowdValue) {
       elements.settingsBackgroundCrowdValue.textContent = formatNumber(getBackgroundCrowdCount(), 0);
     }
-    if (elements.settingsBackgroundCrowdInput) {
+    if (
+      elements.settingsBackgroundCrowdInput
+      && document.activeElement !== elements.settingsBackgroundCrowdInput
+    ) {
       elements.settingsBackgroundCrowdInput.value = String(getBackgroundCrowdCount());
     }
     elements.agentProfileSummary.innerHTML = getCurrentAgentSummary();
@@ -4722,23 +6429,38 @@
     }
   }
 
-  function renderBaseLayer() {
-    if (!state.prepared) {
-      elements.baseLayer.innerHTML = '';
+  function renderBaseLayer(
+    target = elements.baseLayer,
+    overlayTarget = elements.overlayLayer,
+    transform = computeTransform(),
+    options = {}
+  ) {
+    if (!target) {
       return;
     }
-    const transform = computeTransform();
-    state.transform = transform;
-    const viewBox = `${transform.viewBox.x} ${transform.viewBox.y} ${transform.viewBox.width} ${transform.viewBox.height}`;
-    elements.baseLayer.setAttribute('viewBox', viewBox);
-    elements.overlayLayer.setAttribute('viewBox', viewBox);
+    if (!state.prepared) {
+      target.innerHTML = '';
+      if (overlayTarget) {
+        overlayTarget.innerHTML = '';
+      }
+      return;
+    }
+    const activeTransform = transform || computeTransform();
+    if (options.syncState !== false && target === elements.baseLayer) {
+      state.transform = activeTransform;
+    }
+    const viewBox = `${activeTransform.viewBox.x} ${activeTransform.viewBox.y} ${activeTransform.viewBox.width} ${activeTransform.viewBox.height}`;
+    target.setAttribute('viewBox', viewBox);
+    if (overlayTarget) {
+      overlayTarget.setAttribute('viewBox', viewBox);
+    }
     const walkable = state.prepared.walkableAreas
-      .map((polygon) => `<polygon class="walkable-shape" points="${polygonToPoints(polygon, transform)}"></polygon>`)
+      .map((polygon) => `<polygon class="walkable-shape" points="${polygonToPoints(polygon, activeTransform)}"></polygon>`)
       .join('');
     const obstacles = state.prepared.obstacles
-      .map((polygon) => `<polygon class="obstacle-shape" points="${polygonToPoints(polygon, transform)}"></polygon>`)
+      .map((polygon) => `<polygon class="obstacle-shape" points="${polygonToPoints(polygon, activeTransform)}"></polygon>`)
       .join('');
-    elements.baseLayer.innerHTML = `${walkable}${obstacles}`;
+    target.innerHTML = `${walkable}${obstacles}`;
   }
 
   function getDynamicInspection() {
@@ -4777,36 +6499,76 @@
 
   function getHotspotById(id = state.selectedHotspotId) {
     const hotspots = getDisplayedHotspots();
-    if (!id || !hotspots.length) {
+    if (!id) {
       return null;
     }
-    return hotspots.find((item) => item.id === id || item.mapTargetId === id || item.mapTargetIds?.includes(id)) || null;
+    const match = hotspots.find((item) => item.id === id || item.mapTargetId === id || item.mapTargetIds?.includes(id));
+    if (match) {
+      return match;
+    }
+    if (state.visualizationDetailView) {
+      const detailHotspots = getVisualizationDetailDisplayedHotspots();
+      const detailMatch = detailHotspots.find((item) => item.id === id || item.mapTargetId === id || item.mapTargetIds?.includes(id));
+      if (detailMatch) {
+        return detailMatch;
+      }
+      const selectedIssue = state.visualizationDetailSelectedIssue;
+      if (selectedIssue && (selectedIssue.id === id || selectedIssue.mapTargetId === id || selectedIssue.mapTargetIds?.includes(id))) {
+        return selectedIssue;
+      }
+      return null;
+    }
+    return null;
   }
 
-  function getSelectedHotspotOverlayItems() {
-    if (!state.prepared || !state.selectedHotspotId) {
-      return [];
-    }
-    const displayedHotspots = getDisplayedHotspots();
-    const hotspot = displayedHotspots.find((item) => (
-      item.id === state.selectedHotspotId || item.mapTargetId === state.selectedHotspotId || item.mapTargetIds?.includes(state.selectedHotspotId)
-    ))
-      || getHotspotById(state.selectedHotspotId);
+  function buildSelectedHotspotOverlayEntries(hotspot) {
     if (!hotspot) {
       return [];
     }
-    const hotspotTargets = resolveHotspotTargets(hotspot)
-      .filter((target) => target.type === 'pressure');
-    if (!hotspotTargets.length) {
-      return [];
-    }
+    const displayedHotspots = state.visualizationDetailView
+      ? getVisualizationDetailDisplayedHotspots()
+      : getDisplayedHotspots();
     const rankIndex = displayedHotspots.findIndex((item) => item.id === hotspot.id);
+    const resolvedTargets = resolveHotspotTargets(hotspot);
+    const pressureTargets = resolvedTargets.filter((target) => target.type === 'pressure');
+    const hotspotTargets = pressureTargets.length
+      ? pressureTargets
+      : resolvedTargets.filter((target) => target.type === 'seat');
     return hotspotTargets.map((hotspotTarget) => ({
       hotspot,
       hotspotTarget,
       item: hotspotTarget.item,
       rank: rankIndex >= 0 ? rankIndex + 1 : null,
     }));
+  }
+
+  function getSelectedHotspotOverlayItems() {
+    if (!state.prepared || !state.selectedHotspotId) {
+      return [];
+    }
+    const snapshot = state.selectedHotspotOverlaySnapshot;
+    const displayedHotspots = state.visualizationDetailView
+      ? getVisualizationDetailDisplayedHotspots()
+      : getDisplayedHotspots();
+    const hotspot = displayedHotspots.find((item) => (
+      item.id === state.selectedHotspotId || item.mapTargetId === state.selectedHotspotId || item.mapTargetIds?.includes(state.selectedHotspotId)
+    ))
+      || (state.visualizationDetailView ? state.visualizationDetailSelectedIssue : null)
+      || getHotspotById(state.selectedHotspotId);
+    if (!hotspot) {
+      if (snapshot?.selectionId === state.selectedHotspotId && Array.isArray(snapshot.items) && snapshot.items.length) {
+        return snapshot.items;
+      }
+      return [];
+    }
+    const overlayItems = buildSelectedHotspotOverlayEntries(hotspot);
+    if (overlayItems.length) {
+      return overlayItems;
+    }
+    if (snapshot?.selectionId === state.selectedHotspotId && Array.isArray(snapshot.items) && snapshot.items.length) {
+      return snapshot.items;
+    }
+    return [];
   }
 
   function getSelectedHotspotOverlayItem() {
@@ -4825,6 +6587,13 @@
       .map((item) => ({ type: 'pressure', item }));
   }
 
+  function getLayerItemsForCategories(categoryIds = []) {
+    if (!state.prepared || !Array.isArray(categoryIds) || !categoryIds.length) {
+      return [];
+    }
+    return categoryIds.flatMap((categoryId) => getLayerItemsForCategory(categoryId));
+  }
+
   function getPointPopoverSelection() {
     if (!state.pointPopover.visible || !state.prepared) {
       return null;
@@ -4836,7 +6605,7 @@
   }
 
   function closePointPopover() {
-    state.pointPopover = { visible: false, type: null, id: null, draft: null, anchor: null, readOnly: true };
+    state.pointPopover = { visible: false, type: null, id: null, draft: null, anchor: null, overlayTarget: null, readOnly: true };
   }
 
   function createPointPopoverDraft(type, item) {
@@ -4858,7 +6627,7 @@
     return null;
   }
 
-  function openPointPopover(type, item) {
+  function openPointPopover(type, item, options = {}) {
     const categoryId = getLayerCategoryForObject(type, item);
     const definition = getCategoryDefinition(categoryId);
     state.selectedObject = { type, id: item.id };
@@ -4868,18 +6637,52 @@
       id: item.id,
       draft: createPointPopoverDraft(type, item),
       anchor: { x: item.x, y: item.y },
+      overlayTarget: options.overlayTarget || null,
       readOnly: !(definition && definition.editable),
     };
   }
 
-  function renderHeatmap() {
-    const canvas = elements.heatmapLayer;
+  function normalizeHeatmapRenderOptions(
+    targetCanvas = elements.heatmapLayer,
+    transform = state.transform || computeTransform(),
+    options = {}
+  ) {
+    if (
+      targetCanvas
+      && typeof targetCanvas === 'object'
+      && !('getContext' in targetCanvas)
+      && (targetCanvas.targetCanvas || targetCanvas.transform || targetCanvas.useSharedCache !== undefined)
+    ) {
+      return {
+        targetCanvas: targetCanvas.targetCanvas || elements.heatmapLayer,
+        transform: targetCanvas.transform || state.transform || computeTransform(),
+        useSharedCache: targetCanvas.useSharedCache,
+      };
+    }
+    return {
+      targetCanvas: targetCanvas || elements.heatmapLayer,
+      transform: transform || state.transform || computeTransform(),
+      useSharedCache: options.useSharedCache,
+    };
+  }
+
+  function renderHeatmap(
+    targetCanvas = elements.heatmapLayer,
+    transform = state.transform || computeTransform(),
+    options = {}
+  ) {
+    const normalized = normalizeHeatmapRenderOptions(targetCanvas, transform, options);
+    const canvas = normalized.targetCanvas;
+    if (!canvas) {
+      return;
+    }
     const ctx = canvas.getContext('2d');
-    const transform = state.transform || computeTransform();
+    const activeTransform = normalized.transform || state.transform || computeTransform();
     const heatmapStyle = getHeatmapViewStyle();
+    const useSharedCache = normalized.useSharedCache !== false && canvas === elements.heatmapLayer;
     const dpr = window.devicePixelRatio || 1;
-    const width = Math.max(1, Math.round(transform.width));
-    const height = Math.max(1, Math.round(transform.height));
+    const width = Math.max(1, Math.round(activeTransform.width));
+    const height = Math.max(1, Math.round(activeTransform.height));
     if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
@@ -4887,7 +6690,9 @@
       canvas.style.height = `${height}px`;
     }
     if (!state.scenario?.heatActive || !state.prepared) {
-      state.heatmapRenderCache = null;
+      if (useSharedCache) {
+        state.heatmapRenderCache = null;
+      }
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       return;
@@ -4902,16 +6707,17 @@
       width,
       height,
       dpr,
-      Number(transform.scale || 0).toFixed(5),
-      Number(transform.offsetX || 0).toFixed(2),
-      Number(transform.offsetY || 0).toFixed(2),
-      Number(transform.viewBox?.x || 0).toFixed(2),
-      Number(transform.viewBox?.y || 0).toFixed(2),
-      Number(transform.viewBox?.width || 0).toFixed(2),
-      Number(transform.viewBox?.height || 0).toFixed(2),
+      Number(activeTransform.scale || 0).toFixed(5),
+      Number(activeTransform.offsetX || 0).toFixed(2),
+      Number(activeTransform.offsetY || 0).toFixed(2),
+      Number(activeTransform.viewBox?.x || 0).toFixed(2),
+      Number(activeTransform.viewBox?.y || 0).toFixed(2),
+      Number(activeTransform.viewBox?.width || 0).toFixed(2),
+      Number(activeTransform.viewBox?.height || 0).toFixed(2),
     ].join(':');
     if (
-      heatFullyRevealed
+      useSharedCache
+      && heatFullyRevealed
       && state.heatmapRenderCache
       && state.heatmapRenderCache.heatState === heatState
       && state.heatmapRenderCache.viewMode === activeViewMode
@@ -4921,7 +6727,9 @@
     ) {
       return;
     }
-    state.heatmapRenderCache = null;
+    if (useSharedCache) {
+      state.heatmapRenderCache = null;
+    }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.scale(dpr, dpr);
@@ -4932,48 +6740,62 @@
     const renderedHeatCells = shouldDrawRasterField && !heatFullyRevealed
       ? getRevealedHeatCells(heatState, revealTraceSnapshots, activeViewMode, traceRevealRadiusMeters)
       : finalHeatCells;
-    const localMetricValues = finalHeatCells
-      .map((cell) => Number(cell.metric || 0))
-      .filter((value) => Number.isFinite(value));
-    const localMetricMin = localMetricValues.length ? Math.min(...localMetricValues) : 0;
-    const localMetricMax = localMetricValues.length ? Math.max(...localMetricValues) : 0;
-    const rasterCacheKey = `final-route:${activeViewMode}`;
-    const revealTime = getCurrentHeatmapRevealTime(precomputedPlayback);
-    const revealBucket = getPlaybackRevealTimeBucket(revealTime);
-    const activeTraceSnapshots = heatFullyRevealed ? fullTraceSnapshots : revealTraceSnapshots;
-    const heatRaster = shouldDrawRasterField
+      const localMetricValues = finalHeatCells
+        .map((cell) => Number(cell.metric || 0))
+        .filter((value) => Number.isFinite(value));
+      const localMetricMin = localMetricValues.length ? Math.min(...localMetricValues) : 0;
+      const localMetricMax = localMetricValues.length ? Math.max(...localMetricValues) : 0;
+      const heatDisplayProfile = shouldDrawRasterField
+        ? buildHeatDisplayProfile(localMetricValues, heatmapStyle)
+        : null;
+      const rasterCacheKey = `final-route:${activeViewMode}`;
+      const revealTime = getCurrentHeatmapRevealTime(precomputedPlayback);
+      const revealBucket = getPlaybackRevealTimeBucket(revealTime);
+      const activeTraceSnapshots = heatFullyRevealed ? fullTraceSnapshots : revealTraceSnapshots;
+      const heatRaster = shouldDrawRasterField
       ? getCachedHeatRaster(
         heatFullyRevealed ? rasterCacheKey : `${activeViewMode}:${revealBucket}`,
         heatState,
         renderedHeatCells,
         localMetricMin,
-        localMetricMax,
-        heatmapStyle,
-        transformSignature,
-        transform
-      )
-      : null;
+          localMetricMax,
+          heatmapStyle,
+          transformSignature,
+          activeTransform,
+          heatDisplayProfile,
+          activeViewMode
+        )
+        : null;
     const vitalityRaster = !shouldDrawRasterField
       ? getCachedVitalityRibbonRaster(
         `vitality:${heatFullyRevealed ? 'final' : revealBucket}`,
         activeTraceSnapshots,
         transformSignature,
-        transform,
+        activeTransform,
         localMetricMin,
         localMetricMax
       )
       : null;
-    const heatSurface = shouldDrawRasterField ? heatRaster : vitalityRaster;
+      const heatSurface = shouldDrawRasterField ? heatRaster : vitalityRaster;
+      const corridorMask = shouldDrawRasterField
+        ? getCachedHeatRevealMask(
+          `corridor:${activeViewMode}:${heatFullyRevealed ? 'final' : revealBucket}`,
+          transformSignature,
+          activeTraceSnapshots,
+          activeTransform,
+          traceRevealRadiusMeters
+        )
+        : null;
 
-    if (finalHeatCells.length && heatSurface) {
-      ctx.save();
-      clipHeatmapToWalkableArea(ctx, transform);
-      paintHeatSurface(ctx, heatSurface, width, height);
-      clearHeatmapObstacles(ctx, transform);
-      ctx.restore();
+      if (finalHeatCells.length && heatSurface) {
+        ctx.save();
+        clipHeatmapToWalkableArea(ctx, activeTransform);
+        paintHeatSurface(ctx, heatSurface, width, height, corridorMask);
+        clearHeatmapObstacles(ctx, activeTransform);
+        ctx.restore();
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = 'source-over';
-      if (heatFullyRevealed) {
+      if (useSharedCache && heatFullyRevealed) {
         state.heatmapRenderCache = {
           heatState,
           traceSnapshots: fullTraceSnapshots,
@@ -4989,16 +6811,229 @@
     ctx.globalCompositeOperation = 'source-over';
   }
 
-  function renderBackgroundCrowdCanvas() {
-    const canvas = elements.backgroundCrowdCanvas;
+  function normalizeBackgroundCrowdRenderOptions(
+    targetCanvas = elements.backgroundCrowdCanvas,
+    transform = state.transform || computeTransform(),
+    extraOptions = {}
+  ) {
+    if (
+      targetCanvas
+      && typeof targetCanvas === 'object'
+      && !('getContext' in targetCanvas)
+      && (targetCanvas.targetCanvas || targetCanvas.transform || targetCanvas.clearOnly !== undefined)
+    ) {
+      return {
+        targetCanvas: targetCanvas.targetCanvas || elements.backgroundCrowdCanvas,
+        transform: targetCanvas.transform || state.transform || computeTransform(),
+        clearOnly: targetCanvas.clearOnly === true,
+      };
+    }
+    return {
+      targetCanvas: targetCanvas || elements.backgroundCrowdCanvas,
+      transform: transform || state.transform || computeTransform(),
+      clearOnly: extraOptions.clearOnly === true,
+    };
+  }
+
+  function createBackgroundWebglRuntime(canvas, gl) {
+    const compileShader = (type, source) => {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        const error = gl.getShaderInfoLog(shader) || 'Unknown shader compile error';
+        gl.deleteShader(shader);
+        throw new Error(error);
+      }
+      return shader;
+    };
+    const vertexShader = compileShader(gl.VERTEX_SHADER, `
+      attribute vec2 a_position;
+      attribute float a_size;
+      attribute vec4 a_color;
+      attribute float a_ringInner;
+      uniform vec2 u_resolution;
+      varying vec4 v_color;
+      varying float v_ringInner;
+      void main() {
+        vec2 zeroToOne = a_position / u_resolution;
+        vec2 clipSpace = zeroToOne * 2.0 - 1.0;
+        gl_Position = vec4(clipSpace * vec2(1.0, -1.0), 0.0, 1.0);
+        gl_PointSize = a_size;
+        v_color = a_color;
+        v_ringInner = a_ringInner;
+      }
+    `);
+    const fragmentShader = compileShader(gl.FRAGMENT_SHADER, `
+      precision mediump float;
+      varying vec4 v_color;
+      varying float v_ringInner;
+      void main() {
+        vec2 centered = gl_PointCoord * 2.0 - 1.0;
+        float dist = length(centered);
+        if (dist > 1.0) {
+          discard;
+        }
+        if (v_ringInner > 0.0 && dist < v_ringInner) {
+          discard;
+        }
+        float outerAlpha = 1.0 - smoothstep(0.88, 1.0, dist);
+        gl_FragColor = vec4(v_color.rgb, v_color.a * outerAlpha);
+      }
+    `);
+    const program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      throw new Error(gl.getProgramInfoLog(program) || 'Unknown WebGL link error');
+    }
+    gl.deleteShader(vertexShader);
+    gl.deleteShader(fragmentShader);
+    return {
+      canvas,
+      gl,
+      program,
+      positionBuffer: gl.createBuffer(),
+      sizeBuffer: gl.createBuffer(),
+      colorBuffer: gl.createBuffer(),
+      ringInnerBuffer: gl.createBuffer(),
+      positions: new Float32Array(0),
+      sizes: new Float32Array(0),
+      colors: new Float32Array(0),
+      ringInners: new Float32Array(0),
+      capacity: 0,
+      attributes: {
+        position: gl.getAttribLocation(program, 'a_position'),
+        size: gl.getAttribLocation(program, 'a_size'),
+        color: gl.getAttribLocation(program, 'a_color'),
+        ringInner: gl.getAttribLocation(program, 'a_ringInner'),
+      },
+      uniforms: {
+        resolution: gl.getUniformLocation(program, 'u_resolution'),
+      },
+    };
+  }
+
+  function ensureBackgroundCrowdWebglCapacity(runtime, projectedCount) {
+    const nextCapacity = Math.max(0, Math.ceil(Number(projectedCount) || 0));
+    if (!runtime || nextCapacity <= runtime.capacity) {
+      return;
+    }
+    const gl = runtime.gl;
+    runtime.capacity = Math.max(nextCapacity, runtime.capacity ? runtime.capacity * 2 : 256);
+    runtime.positions = new Float32Array(runtime.capacity * 2);
+    runtime.sizes = new Float32Array(runtime.capacity);
+    runtime.colors = new Float32Array(runtime.capacity * 4);
+    runtime.ringInners = new Float32Array(runtime.capacity);
+    gl.bindBuffer(gl.ARRAY_BUFFER, runtime.positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, runtime.positions.byteLength, gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, runtime.sizeBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, runtime.sizes.byteLength, gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, runtime.colorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, runtime.colors.byteLength, gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, runtime.ringInnerBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, runtime.ringInners.byteLength, gl.DYNAMIC_DRAW);
+  }
+
+  function shouldRenderDynamicCrowdWithWebgl(options = {}) {
+    const targetCanvas = options.targetCanvas || elements.backgroundCrowdCanvas;
+    return Boolean(
+      state.backgroundRendererMode === 'webgl'
+      && state.scenario
+      && targetCanvas === elements.backgroundCrowdCanvas
+      && elements.dynamicCrowdWebglCanvas
+    );
+  }
+
+  function ensureBackgroundCrowdWebgl() {
+    if (state.dynamicCrowdWebglRuntime) {
+      return state.dynamicCrowdWebglRuntime;
+    }
+    const canvas = elements.dynamicCrowdWebglCanvas;
+    if (!canvas) {
+      return null;
+    }
+    try {
+      const gl = canvas.getContext('webgl', {
+        alpha: true,
+        antialias: true,
+        premultipliedAlpha: true,
+      }) || canvas.getContext('experimental-webgl');
+      if (!gl) {
+        state.backgroundRendererMode = 'canvas';
+        return null;
+      }
+      const runtime = createBackgroundWebglRuntime(canvas, gl);
+      state.dynamicCrowdWebglRuntime = runtime;
+      return runtime;
+    } catch (error) {
+      console.warn('Dynamic crowd WebGL initialization failed:', error);
+      state.backgroundRendererMode = 'canvas';
+      state.dynamicCrowdWebglRuntime = null;
+      return null;
+    }
+  }
+
+  function fillBackgroundCrowdWebglFromTrajectoryCache(runtime, trajectoryCache, sampleTime, transform, renderStyle, dpr) {
+    if (!runtime || !trajectoryCache) {
+      return 0;
+    }
+    const playbackState = state.backgroundPlaybackRenderState;
+    const candidateIds = new Set();
+    if (playbackState?.prevFrame?.agents?.length) {
+      playbackState.prevFrame.agents.forEach((agent, index) => candidateIds.add(agent?.id || `prev-${index}`));
+    }
+    if (playbackState?.nextFrame?.agents?.length) {
+      playbackState.nextFrame.agents.forEach((agent, index) => candidateIds.add(agent?.id || `next-${index}`));
+    }
+    if (!candidateIds.size) {
+      trajectoryCache.orderedIds.forEach((id) => candidateIds.add(id));
+    }
+    const pointSize = Math.max(1, renderStyle.radius * 2 * dpr);
+    let writeIndex = 0;
+    candidateIds.forEach((id) => {
+      const trajectory = trajectoryCache.trajectories.get(id);
+      const sample = samplePackedBackgroundTrajectoryPoint(trajectory, sampleTime);
+      if (!sample?.active || !sample?.position) {
+        return;
+      }
+      const point = worldToScreen(sample.position, transform);
+      runtime.positions[writeIndex * 2] = point.x * dpr;
+      runtime.positions[writeIndex * 2 + 1] = point.y * dpr;
+      runtime.sizes[writeIndex] = pointSize;
+      runtime.colors[writeIndex * 4] = BACKGROUND_CROWD_DOT_RGB[0] / 255;
+      runtime.colors[writeIndex * 4 + 1] = BACKGROUND_CROWD_DOT_RGB[1] / 255;
+      runtime.colors[writeIndex * 4 + 2] = BACKGROUND_CROWD_DOT_RGB[2] / 255;
+      runtime.colors[writeIndex * 4 + 3] = 1;
+      runtime.ringInners[writeIndex] = 0;
+      writeIndex += 1;
+    });
+    return writeIndex;
+  }
+
+  function getDynamicCrowdRenderSourceCanvas() {
+    return shouldRenderDynamicCrowdWithWebgl()
+      ? elements.dynamicCrowdWebglCanvas
+      : elements.backgroundCrowdCanvas;
+  }
+
+  function renderBackgroundCrowdCanvasLegacy(options = {}) {
+    const canvas = options.targetCanvas || elements.backgroundCrowdCanvas;
     if (!canvas) {
       return;
     }
+    if (canvas === elements.backgroundCrowdCanvas && state.dynamicCrowdWebglRuntime?.gl) {
+      const dynamicGl = state.dynamicCrowdWebglRuntime.gl;
+      dynamicGl.viewport(0, 0, state.dynamicCrowdWebglRuntime.canvas.width, state.dynamicCrowdWebglRuntime.canvas.height);
+      dynamicGl.clearColor(0, 0, 0, 0);
+      dynamicGl.clear(dynamicGl.COLOR_BUFFER_BIT);
+    }
     const ctx = canvas.getContext('2d');
-    const transform = state.transform || computeTransform();
+    const activeTransform = options.transform || state.transform || computeTransform();
     const dpr = window.devicePixelRatio || 1;
-    const width = Math.max(1, Math.round(transform.width));
-    const height = Math.max(1, Math.round(transform.height));
+    const width = Math.max(1, Math.round(activeTransform.width));
+    const height = Math.max(1, Math.round(activeTransform.height));
     if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
@@ -5007,69 +7042,274 @@
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (state.backgroundRendererMode !== 'canvas' || !state.scenario) {
+    const isPrimaryDynamicCanvas = canvas === elements.backgroundCrowdCanvas;
+    if (options.clearOnly || !state.scenario || (isPrimaryDynamicCanvas && state.backgroundRendererMode !== 'canvas')) {
       return;
     }
     ctx.scale(dpr, dpr);
-    const renderableAgents = getRenderableBackgroundAgents(state.scenario.backgroundAgents);
+    const interpolatedPlaybackAgents = getInterpolatedBackgroundPlaybackAgents();
+    const renderableAgents = interpolatedPlaybackAgents.length
+      ? interpolatedPlaybackAgents
+      : getRenderableBackgroundAgents(state.scenario.backgroundAgents);
     if (!renderableAgents.length) {
       return;
     }
-    const renderStyle = getBackgroundCrowdRenderStyle(renderableAgents.length, transform);
+    const renderStyle = getBackgroundCrowdRenderStyle(renderableAgents.length, activeTransform);
     const radius = renderStyle.radius;
     ctx.fillStyle = renderStyle.fill;
-    ctx.globalAlpha = renderStyle.alpha;
+    ctx.globalAlpha = 1;
     ctx.beginPath();
     renderableAgents.forEach((agent) => {
-      const point = worldToScreen(agent.position, transform);
+      const point = worldToScreen(agent.position, activeTransform);
       ctx.moveTo(point.x + radius, point.y);
       ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
     });
     ctx.fill();
+    const focusSource = getPlaybackSnapshotAtTime() || getPlaybackFocusInspection() || state.scenario?.focusAgent?.position || null;
+    if (focusSource) {
+      const point = worldToScreen(focusSource, activeTransform);
+      ctx.fillStyle = 'rgba(13, 15, 20, 1)';
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 8.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 5.9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 4.8, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(13, 15, 20, 1)';
+      ctx.fill();
+    }
     ctx.globalAlpha = 1;
+  }
+
+  function renderBackgroundCrowdWebgl(options = {}) {
+    const runtime = ensureBackgroundCrowdWebgl();
+    if (!runtime || !state.scenario) {
+      return false;
+    }
+    const canvas = runtime.canvas;
+    const gl = runtime.gl;
+    const transform = options.transform || state.transform || computeTransform();
+    const dpr = Math.max(1, Number(window.devicePixelRatio || 1));
+    const width = Math.max(1, Math.round(transform.width));
+    const height = Math.max(1, Math.round(transform.height));
+    if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+    }
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    const trajectoryCache = ensureBackgroundPlaybackTrajectoryCache(getActivePlayback()?.backgroundField);
+    const sampleTime = Number(state.backgroundPlaybackRenderState?.sampleTime ?? state.scenario?.playbackRevealTime ?? state.scenario?.time ?? 0);
+    const representativeCount = Math.max(
+      0,
+      Number(state.scenario?.backgroundAgents?.length || 0)
+    );
+    const renderStyle = getBackgroundCrowdRenderStyle(representativeCount, transform);
+    const playbackState = state.backgroundPlaybackRenderState;
+    const projectedCount = Math.max(
+      2,
+      representativeCount + 2,
+      (Array.isArray(playbackState?.prevFrame?.agents) ? playbackState.prevFrame.agents.length : 0)
+        + (Array.isArray(playbackState?.nextFrame?.agents) ? playbackState.nextFrame.agents.length : 0)
+        + 2,
+      trajectoryCache?.orderedIds?.length ? trajectoryCache.orderedIds.length + 2 : 0
+    );
+    ensureBackgroundCrowdWebglCapacity(runtime, projectedCount);
+    let visibleCount = trajectoryCache
+      ? fillBackgroundCrowdWebglFromTrajectoryCache(runtime, trajectoryCache, sampleTime, transform, renderStyle, dpr)
+      : 0;
+    if (!trajectoryCache) {
+      const fallbackAgents = getInterpolatedBackgroundPlaybackAgents();
+      fallbackAgents.forEach((agent) => {
+        if (!agent?.active || !agent?.position) {
+          return;
+        }
+        const point = worldToScreen(agent.position, transform);
+        runtime.positions[visibleCount * 2] = point.x * dpr;
+        runtime.positions[visibleCount * 2 + 1] = point.y * dpr;
+        runtime.sizes[visibleCount] = Math.max(1, renderStyle.radius * 2 * dpr);
+        runtime.colors[visibleCount * 4] = BACKGROUND_CROWD_DOT_RGB[0] / 255;
+        runtime.colors[visibleCount * 4 + 1] = BACKGROUND_CROWD_DOT_RGB[1] / 255;
+        runtime.colors[visibleCount * 4 + 2] = BACKGROUND_CROWD_DOT_RGB[2] / 255;
+        runtime.colors[visibleCount * 4 + 3] = 1;
+        runtime.ringInners[visibleCount] = 0;
+        visibleCount += 1;
+      });
+    }
+    const focusSource = getPlaybackSnapshotAtTime() || getPlaybackFocusInspection() || state.scenario?.focusAgent?.position || null;
+    if (focusSource) {
+      const point = worldToScreen(focusSource, transform);
+      runtime.positions[visibleCount * 2] = point.x * dpr;
+      runtime.positions[visibleCount * 2 + 1] = point.y * dpr;
+      runtime.sizes[visibleCount] = Math.max(1, 16.4 * dpr);
+      runtime.colors[visibleCount * 4] = 0.05;
+      runtime.colors[visibleCount * 4 + 1] = 0.06;
+      runtime.colors[visibleCount * 4 + 2] = 0.08;
+      runtime.colors[visibleCount * 4 + 3] = 1;
+      runtime.ringInners[visibleCount] = 0.72;
+      visibleCount += 1;
+
+      runtime.positions[visibleCount * 2] = point.x * dpr;
+      runtime.positions[visibleCount * 2 + 1] = point.y * dpr;
+      runtime.sizes[visibleCount] = Math.max(1, 9.6 * dpr);
+      runtime.colors[visibleCount * 4] = 0.05;
+      runtime.colors[visibleCount * 4 + 1] = 0.06;
+      runtime.colors[visibleCount * 4 + 2] = 0.08;
+      runtime.colors[visibleCount * 4 + 3] = 1;
+      runtime.ringInners[visibleCount] = 0;
+      visibleCount += 1;
+    }
+
+    gl.useProgram(runtime.program);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.uniform2f(runtime.uniforms.resolution, canvas.width, canvas.height);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, runtime.positionBuffer);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, runtime.positions.subarray(0, visibleCount * 2));
+    gl.enableVertexAttribArray(runtime.attributes.position);
+    gl.vertexAttribPointer(runtime.attributes.position, 2, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, runtime.sizeBuffer);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, runtime.sizes.subarray(0, visibleCount));
+    gl.enableVertexAttribArray(runtime.attributes.size);
+    gl.vertexAttribPointer(runtime.attributes.size, 1, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, runtime.colorBuffer);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, runtime.colors.subarray(0, visibleCount * 4));
+    gl.enableVertexAttribArray(runtime.attributes.color);
+    gl.vertexAttribPointer(runtime.attributes.color, 4, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, runtime.ringInnerBuffer);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, runtime.ringInners.subarray(0, visibleCount));
+    gl.enableVertexAttribArray(runtime.attributes.ringInner);
+    gl.vertexAttribPointer(runtime.attributes.ringInner, 1, gl.FLOAT, false, 0, 0);
+
+    gl.drawArrays(gl.POINTS, 0, visibleCount);
+    return true;
+  }
+
+  function renderBackgroundCrowdCanvas(
+    targetCanvas = elements.backgroundCrowdCanvas,
+    transform = null,
+    extraOptions = {}
+  ) {
+    const options = normalizeBackgroundCrowdRenderOptions(targetCanvas, transform, extraOptions);
+    if (shouldRenderDynamicCrowdWithWebgl(options)) {
+      if (renderBackgroundCrowdWebgl(options)) {
+        renderBackgroundCrowdCanvasLegacy({ ...options, clearOnly: true });
+      } else {
+        renderBackgroundCrowdCanvasLegacy(options);
+      }
+      return;
+    }
+    renderBackgroundCrowdCanvasLegacy(options);
   }
 
   function renderBackgroundCrowdSvgFallback() {
     return state.backgroundRendererMode === 'svg';
   }
 
-  function renderOverlayLayer() {
-    if (!state.prepared) {
-      elements.overlayLayer.innerHTML = '';
+  function normalizeOverlayRenderOptions(target = elements.overlayLayer, options = {}) {
+    if (
+      target
+      && typeof target === 'object'
+      && !('setAttribute' in target)
+      && (
+        target.target
+        || target.transform
+        || target.isVisualizationDetail !== undefined
+        || target.showAllNodes !== undefined
+        || target.activeLayerCategories !== undefined
+      )
+    ) {
+      return {
+        target: target.target || elements.overlayLayer,
+        transform: target.transform,
+        isVisualizationDetail: target.isVisualizationDetail,
+        showAllNodes: target.showAllNodes,
+        activeLayerCategories: target.activeLayerCategories,
+      };
+    }
+    return {
+      target: target || elements.overlayLayer,
+      ...options,
+    };
+  }
+
+  function renderOverlayLayer(target = elements.overlayLayer, options = {}) {
+    const normalized = normalizeOverlayRenderOptions(target, options);
+    const overlayTarget = normalized.target;
+    if (!overlayTarget) {
       return;
     }
-    const transform = state.transform || computeTransform();
+    if (!state.prepared) {
+      overlayTarget.innerHTML = '';
+      return;
+    }
+    const transform = normalized.transform
+      || (overlayTarget === elements.overlayLayer ? (state.transform || computeTransform()) : computeTransformForViewportSize(overlayTarget.clientWidth, overlayTarget.clientHeight));
+    const isVisualizationDetail = Boolean(normalized.isVisualizationDetail);
+    const detailFocusInspectionActive = isVisualizationDetail || state.selectedDynamic?.kind === 'focus-agent';
+    const showAllNodes = Boolean(normalized.showAllNodes);
+    overlayTarget.setAttribute('viewBox', `${transform.viewBox.x} ${transform.viewBox.y} ${transform.viewBox.width} ${transform.viewBox.height}`);
+
     const selectedObject = state.selectedObject;
     const dynamicInspection = getDynamicInspection();
     const playbackFocusSnapshot = getActivePlayback() ? getPlaybackSnapshotAtTime() : null;
-    const playbackFocusInspection = state.selectedDynamic?.kind === 'focus-agent' ? getPlaybackFocusInspection() : null;
+    const playbackFocusInspection = detailFocusInspectionActive ? getPlaybackFocusInspection() : null;
+    const activeLayerCategories = Array.isArray(normalized.activeLayerCategories)
+      ? normalized.activeLayerCategories.filter(Boolean)
+      : null;
     const activeTargetRegion =
       getTargetRegionById() ||
       state.scenario?.focusTargetRegion ||
       (state.scenario?.focusRoute?.targetRegionId ? state.prepared.targetRegionById[state.scenario.focusRoute.targetRegionId] : null);
-    const startPoint = state.routeSelection.startPoint || state.scenario?.focusStartPoint || state.scenario?.focusRoute?.startAnchor || null;
-    const endPoint = activeTargetRegion?.anchor || state.scenario?.focusRoute?.endAnchor || null;
-    const activeLayerItems = getLayerItemsForCategory();
+    const inspection = getCurrentFocusInspection();
+    const effectiveInspection = detailFocusInspectionActive ? (inspection || dynamicInspection) : dynamicInspection;
+    const rawStartPoint = state.routeSelection.startPoint || state.scenario?.focusStartPoint || state.scenario?.focusRoute?.startAnchor || null;
+    const rawEndPoint = state.scenario?.focusRoute?.endAnchor || activeTargetRegion?.anchor || null;
+    const startNode = state.routeSelection.startNodeId
+      ? state.prepared.nodeById?.[state.routeSelection.startNodeId] || null
+      : findNearestPreparedNode(rawStartPoint);
+    const endNode = effectiveInspection?.selectedTargetNodeId
+      ? state.prepared.nodeById?.[effectiveInspection.selectedTargetNodeId] || null
+      : findNearestPreparedNode(rawEndPoint);
+    const startPoint = startNode || rawStartPoint;
+    const endPoint = endNode || rawEndPoint;
+    const activeLayerItems = activeLayerCategories
+      ? getLayerItemsForCategories(activeLayerCategories)
+      : getLayerItemsForCategory();
     const selectedHotspotOverlay = getSelectedHotspotOverlayItem();
     const selectedHotspotOverlays = selectedHotspotOverlay ? getSelectedHotspotOverlayItems() : [];
     const traceSnapshots = state.viewMode === 'vitality'
       ? getVisibleTraceSnapshots(getActivePlayback())
       : [];
+    const renderDynamicAgentsInWebgl = shouldRenderDynamicCrowdWithWebgl();
     const highlightedSeatIds = new Set();
-    if (state.selectedDynamic?.kind === 'focus-agent' && dynamicInspection?.needsRest) {
-      (dynamicInspection.nearbySeats || []).forEach((seat) => highlightedSeatIds.add(seat.id));
+    if (detailFocusInspectionActive && effectiveInspection?.needsRest) {
+      (effectiveInspection.nearbySeats || []).forEach((seat) => highlightedSeatIds.add(seat.id));
     }
 
-    const badgeRadius = worldRadiusForPixels(6.5, transform);
-    const pressureRadius = worldRadiusForPixels(4.2, transform);
+    const badgeRadius = worldRadiusForPixels(7.6, transform);
+    const pressureRadius = worldRadiusForPixels(4.8, transform);
     const seatRadius = worldRadiusForPixels(4, transform);
     const bgRadius = 0.25;
-    const focusRadius = 0.72;
+    const focusRadius = worldRadiusForPixels(4.8, transform);
+    const focusRingRadius = worldRadiusForPixels(8.2, transform);
     const hitRadius = worldRadiusForPixels(18, transform);
-    const markerLabelGap = worldRadiusForPixels(4, transform);
-    const markerLabelFill = 'rgba(255, 255, 255, 0.96)';
+    const markerLabelGap = worldRadiusForPixels(14, transform);
+    const markerLabelFill = 'rgba(255, 255, 255, 0.98)';
 
     const parts = [];
+    const detailHotspotHighlightParts = [];
     const placedBadges = [];
     const renderedPressureIds = new Set();
     const renderedHotspotTargetKeys = new Set();
@@ -5080,19 +7320,17 @@
       : null;
 
     [
-      { point: startPoint, markerType: 'start' },
-      { point: endPoint, markerType: 'end' },
+      { point: startPoint, markerType: 'start', nodeId: startNode?.id || null },
+      { point: endPoint, markerType: 'end', nodeId: endNode?.id || null },
     ]
       .filter((item) => item.point)
-      .forEach(({ point, markerType }) => {
+      .forEach(({ point, markerType, nodeId }) => {
         const displayPoint = worldToDisplayPoint(point, transform);
-        const badge = getMarkerBadgePlacement(displayPoint, placedBadges, transform);
         const badgeLabel = t(`marker.${markerType}Short`);
-        const textAnchor = badge.edge === 'left' ? 'end' : 'start';
-        const labelX = badge.edge === 'left' ? badge.x - badgeRadius - markerLabelGap : badge.x + badgeRadius + markerLabelGap;
-        parts.push(`<line class="map-marker-line" x1="${displayPoint.x}" y1="${displayPoint.y}" x2="${badge.x}" y2="${badge.y}"></line>`);
+        const labelX = displayPoint.x;
+        const labelY = displayPoint.y - badgeRadius - markerLabelGap;
         parts.push(
-          `<g class="map-marker-badge ${markerType}"><circle cx="${badge.x}" cy="${badge.y}" r="${badgeRadius}"></circle><text x="${labelX}" y="${badge.y}" fill="${markerLabelFill}" text-anchor="${textAnchor}">${escapeHtml(badgeLabel)}</text></g>`
+          `<g class="map-marker-badge ${markerType}"><circle cx="${displayPoint.x}" cy="${displayPoint.y}" r="${badgeRadius}" data-type="${nodeId ? 'node' : ''}" data-id="${escapeHtml(nodeId || '')}"></circle><text x="${labelX}" y="${labelY}" fill="${markerLabelFill}" text-anchor="middle">${escapeHtml(badgeLabel)}</text></g>`
         );
       });
 
@@ -5113,40 +7351,55 @@
       const categoryId = getLayerCategoryForObject(type, item);
       const isSelected = selectedObject?.type === type && selectedObject.id === item.id;
       const className = type === 'seat' ? `seat-dot${isSelected || highlightedSeatIds.has(item.id) ? ' highlighted' : ''}` : `pressure-dot${isSelected ? ' highlighted' : ''}`;
+      const strokeColor = type === 'seat' ? getCategoryStrokeColor('seat') : getCategoryStrokeColor(categoryId);
       if (type === 'pressure') {
         renderedPressureIds.add(item.id);
       }
       parts.push(
-        `<circle class="${className}" cx="${displayPoint.x}" cy="${displayPoint.y}" r="${type === 'seat' ? seatRadius : pressureRadius}" fill="${escapeHtml(type === 'seat' ? getCategoryColor('seat') : getCategoryColor(categoryId))}" data-type="${escapeHtml(type)}" data-id="${escapeHtml(item.id)}"></circle>`
+        `<circle class="${className}" cx="${displayPoint.x}" cy="${displayPoint.y}" r="${type === 'seat' ? seatRadius : pressureRadius}" fill="${escapeHtml(type === 'seat' ? getCategoryColor('seat') : getCategoryColor(categoryId))}" stroke="${escapeHtml(strokeColor)}" stroke-width="0.2" data-type="${escapeHtml(type)}" data-id="${escapeHtml(item.id)}"></circle>`
       );
-      if (isSelected && !(type === 'pressure' && state.selectedHotspotId === item.id)) {
+      if (!isVisualizationDetail && isSelected && !(type === 'pressure' && state.selectedHotspotId === item.id)) {
         parts.push(`<circle class="hotspot-highlight-ring" cx="${displayPoint.x}" cy="${displayPoint.y}" r="${worldRadiusForPixels(9, transform)}"></circle>`);
       }
     });
+
+    if (showAllNodes) {
+      const nodeRadius = worldRadiusForPixels(4.8, transform);
+      const nodeHitRadius = worldRadiusForPixels(11.5, transform);
+      state.prepared.nodes.forEach((node) => {
+        const displayNode = worldToDisplayPoint(node, transform);
+        parts.push(`<circle class="visualization-node-dot" cx="${displayNode.x}" cy="${displayNode.y}" r="${nodeRadius}"></circle>`);
+        parts.push(`<circle class="agent-hit-area visualization-node-hit" cx="${displayNode.x}" cy="${displayNode.y}" r="${nodeHitRadius}" data-type="node" data-id="${escapeHtml(node.id)}"></circle>`);
+      });
+    }
 
     selectedHotspotOverlays.forEach(({ item: hotspotItem, hotspotTarget, rank }) => {
       const hotspotTargetKey = hotspotTarget ? `${hotspotTarget.type}:${hotspotTarget.item.id}` : null;
       if (!hotspotTargetKey || renderedHotspotTargetKeys.has(hotspotTargetKey)) {
         return;
       }
-      const showInlineHotspotRank = state.viewMode === 'psychological' && rank;
-      const showHotspotRankBadge = state.viewMode !== 'cognitive' && state.viewMode !== 'psychological' && rank;
+      const showInlineHotspotRank = !isVisualizationDetail && state.viewMode === 'psychological' && rank;
+      const showHotspotRankBadge = !isVisualizationDetail && state.viewMode !== 'cognitive' && state.viewMode !== 'psychological' && rank;
       const hotspotPoint = worldToDisplayPoint(hotspotItem, transform);
       const hotspotCategory = hotspotTarget?.type === 'pressure' ? getLayerCategoryForObject('pressure', hotspotItem) : null;
-      if (hotspotTarget?.type === 'pressure' && !renderedPressureIds.has(hotspotItem.id)) {
+      if (hotspotTarget?.type === 'pressure' && !renderedPressureIds.has(hotspotItem.id) && !isVisualizationDetail) {
         parts.push(
-          `<circle class="pressure-dot highlighted hotspot-highlight-dot" cx="${hotspotPoint.x}" cy="${hotspotPoint.y}" r="${pressureRadius}" fill="${escapeHtml(getCategoryColor(hotspotCategory))}" data-type="pressure" data-id="${escapeHtml(hotspotItem.id)}"></circle>`
+          `<circle class="pressure-dot highlighted hotspot-highlight-dot" cx="${hotspotPoint.x}" cy="${hotspotPoint.y}" r="${pressureRadius}" fill="${escapeHtml(getCategoryColor(hotspotCategory))}" stroke="${escapeHtml(getCategoryStrokeColor(hotspotCategory))}" stroke-width="0.2" data-type="pressure" data-id="${escapeHtml(hotspotItem.id)}"></circle>`
         );
-      } else if (hotspotTarget?.type === 'seat' && state.activeLayerCategory !== 'seat') {
+      } else if (hotspotTarget?.type === 'seat' && !(activeLayerCategories || []).includes('seat') && state.activeLayerCategory !== 'seat' && !isVisualizationDetail) {
         parts.push(
-          `<circle class="seat-dot highlighted" cx="${hotspotPoint.x}" cy="${hotspotPoint.y}" r="${seatRadius}" fill="${escapeHtml(getCategoryColor('seat'))}" data-type="seat" data-id="${escapeHtml(hotspotItem.id)}"></circle>`
+          `<circle class="seat-dot highlighted" cx="${hotspotPoint.x}" cy="${hotspotPoint.y}" r="${seatRadius}" fill="${escapeHtml(getCategoryColor('seat'))}" stroke="${escapeHtml(getCategoryStrokeColor('seat'))}" stroke-width="0.2" data-type="seat" data-id="${escapeHtml(hotspotItem.id)}"></circle>`
         );
       } else if (hotspotTarget?.type === 'node') {
         parts.push(
-          `<circle class="node-dot ${getNodeDisplayClass(hotspotItem)} highlighted" cx="${hotspotPoint.x}" cy="${hotspotPoint.y}" r="${worldRadiusForPixels(6.1, transform)}" data-type="node" data-id="${escapeHtml(hotspotItem.id)}"></circle>`
+          `<circle class="${isVisualizationDetail ? 'visualization-node-dot' : `node-dot ${getNodeDisplayClass(hotspotItem)}`} highlighted" cx="${hotspotPoint.x}" cy="${hotspotPoint.y}" r="${worldRadiusForPixels(6.1, transform)}" data-type="node" data-id="${escapeHtml(hotspotItem.id)}"></circle>`
         );
       }
-      parts.push(`<circle class="hotspot-highlight-ring" cx="${hotspotPoint.x}" cy="${hotspotPoint.y}" r="${worldRadiusForPixels(9, transform)}"></circle>`);
+      if (isVisualizationDetail && (hotspotTarget?.type === 'pressure' || hotspotTarget?.type === 'seat')) {
+        detailHotspotHighlightParts.push(`<circle class="visualization-detail-hotspot-ring" cx="${hotspotPoint.x}" cy="${hotspotPoint.y}" r="${worldRadiusForPixels(7, transform)}"></circle>`);
+      } else if (!isVisualizationDetail) {
+        parts.push(`<circle class="hotspot-highlight-ring" cx="${hotspotPoint.x}" cy="${hotspotPoint.y}" r="${worldRadiusForPixels(9, transform)}"></circle>`);
+      }
       if (showInlineHotspotRank) {
         parts.push(`<text class="hotspot-inline-rank" x="${hotspotPoint.x}" y="${hotspotPoint.y}">${escapeHtml(String(rank))}</text>`);
       }
@@ -5165,27 +7418,29 @@
       if (node) {
         const displayNode = worldToDisplayPoint(node, transform);
         parts.push(
-          `<circle class="node-dot ${getNodeDisplayClass(node)} highlighted" cx="${displayNode.x}" cy="${displayNode.y}" r="${worldRadiusForPixels(6.1, transform)}" data-type="node" data-id="${escapeHtml(node.id)}"></circle>`
+          `<circle class="${isVisualizationDetail ? 'visualization-node-dot' : `node-dot ${getNodeDisplayClass(node)}`} highlighted" cx="${displayNode.x}" cy="${displayNode.y}" r="${worldRadiusForPixels(6.1, transform)}" data-type="node" data-id="${escapeHtml(node.id)}"></circle>`
         );
-        parts.push(
-          `<text class="route-node-label" x="${displayNode.x + worldRadiusForPixels(4, transform)}" y="${displayNode.y - worldRadiusForPixels(4, transform)}">${escapeHtml(state.locale === 'zh-CN' ? node.displayLabel || node.id : node.displayLabelEn || node.displayLabel || node.id)}</text>`
-        );
+        if (!isVisualizationDetail) {
+          parts.push(
+            `<text class="route-node-label" x="${displayNode.x + worldRadiusForPixels(4, transform)}" y="${displayNode.y - worldRadiusForPixels(4, transform)}">${escapeHtml(getNodeDisplayLabel(node))}</text>`
+          );
+        }
       }
     }
 
-    if (highlightedSeatIds.size && state.activeLayerCategory !== 'seat') {
+    if (highlightedSeatIds.size && !(activeLayerCategories || []).includes('seat') && state.activeLayerCategory !== 'seat') {
       state.prepared.seats.forEach((seat) => {
         if (!highlightedSeatIds.has(seat.id)) {
           return;
         }
         const displaySeat = worldToDisplayPoint(seat, transform);
-        parts.push(`<circle class="seat-dot highlighted" cx="${displaySeat.x}" cy="${displaySeat.y}" r="${seatRadius}" fill="${escapeHtml(getCategoryColor('seat'))}" data-type="seat" data-id="${escapeHtml(seat.id)}"></circle>`);
+        parts.push(`<circle class="seat-dot highlighted" cx="${displaySeat.x}" cy="${displaySeat.y}" r="${seatRadius}" fill="${escapeHtml(getCategoryColor('seat'))}" stroke="${escapeHtml(getCategoryStrokeColor('seat'))}" stroke-width="0.2" data-type="seat" data-id="${escapeHtml(seat.id)}"></circle>`);
       });
     }
 
-    if (state.selectedDynamic?.kind === 'focus-agent' && dynamicInspection && (state.viewMode === 'sensory' || state.viewMode === 'vitality')) {
-      const displayPoint = worldToDisplayPoint(dynamicInspection, transform);
-      parts.push(`<circle class="vision-ring" cx="${displayPoint.x}" cy="${displayPoint.y}" r="${dynamicInspection.visionRadius}"></circle>`);
+    if (detailFocusInspectionActive && effectiveInspection && (state.viewMode === 'sensory' || state.viewMode === 'vitality')) {
+      const displayPoint = worldToDisplayPoint(effectiveInspection, transform);
+      parts.push(`<circle class="vision-ring" cx="${displayPoint.x}" cy="${displayPoint.y}" r="${effectiveInspection.visionRadius}"></circle>`);
     }
 
     if (state.selectedDynamic?.kind === 'point' && dynamicInspection) {
@@ -5204,7 +7459,10 @@
           const focusSource = playbackFocusSnapshot || playbackFocusInspection || agent.position || agent;
           const displayAgent = worldToDisplayPoint(focusSource, transform);
           const pausedClass = state.animationPaused && state.selectedDynamic?.kind === 'focus-agent' ? ' paused' : '';
-          focusAgentParts.push(`<circle class="agent-dot focus${pausedClass}" cx="${displayAgent.x}" cy="${displayAgent.y}" r="${focusRadius}"></circle>`);
+          if (!renderDynamicAgentsInWebgl) {
+            focusAgentParts.push(`<circle class="agent-dot focus-ring${pausedClass}" cx="${displayAgent.x}" cy="${displayAgent.y}" r="${focusRingRadius}"></circle>`);
+            focusAgentParts.push(`<circle class="agent-dot focus${pausedClass}" cx="${displayAgent.x}" cy="${displayAgent.y}" r="${focusRadius}"></circle>`);
+          }
           focusAgentParts.push(`<circle class="agent-hit-area" cx="${displayAgent.x}" cy="${displayAgent.y}" r="${hitRadius}" data-type="focus-agent" data-id="${escapeHtml(agent.id)}"></circle>`);
         } else if (renderBackgroundCrowdSvgFallback() && renderableBackgroundAgentIds?.has(agent.id)) {
           const displayAgent = worldToDisplayPoint(agent.position, transform);
@@ -5213,9 +7471,56 @@
       });
     }
 
-    parts.push(...backgroundAgentParts, ...focusAgentParts);
+    const overlayParts = [...backgroundAgentParts, ...parts, ...detailHotspotHighlightParts, ...focusAgentParts];
 
-    elements.overlayLayer.innerHTML = parts.join('');
+    if (isVisualizationDetail && state.visualizationDetailHoverTarget?.id) {
+      const hoveredType = state.visualizationDetailHoverTarget?.type || null;
+      const hoveredId = state.visualizationDetailHoverTarget?.id || null;
+      let hoveredItem = null;
+      let badgeText = '--';
+      let hoveredPoint = null;
+      if (hoveredType === 'node' && hoveredId) {
+        hoveredItem = state.prepared.nodeById?.[hoveredId] || null;
+        badgeText = getVisualizationNodeBadgeLabel(hoveredItem);
+        hoveredPoint = hoveredItem ? worldToDisplayPoint(hoveredItem, transform) : null;
+      } else if (hoveredType === 'pressure' && hoveredId) {
+        hoveredItem = state.prepared.pressureObjects.find((item) => item.id === hoveredId) || null;
+        badgeText = getVisualizationPressureBadgeLabel(hoveredItem);
+        hoveredPoint = hoveredItem ? worldToDisplayPoint(hoveredItem, transform) : null;
+      } else if (hoveredType === 'seat' && hoveredId) {
+        hoveredItem = state.prepared.seats?.find((item) => item.id === hoveredId) || null;
+        badgeText = hoveredItem?.name || hoveredItem?.label || hoveredItem?.id || '--';
+        hoveredPoint = hoveredItem ? worldToDisplayPoint(hoveredItem, transform) : null;
+      }
+      if (hoveredItem && hoveredPoint) {
+        const badgePaddingX = worldRadiusForPixels(10, transform);
+        const badgePaddingY = worldRadiusForPixels(7, transform);
+        const badgeFontSize = worldRadiusForPixels(11, transform);
+        const badgeHeight = badgePaddingY * 2 + badgeFontSize;
+        const badgeWidth = Math.max(
+          worldRadiusForPixels(96, transform),
+          badgePaddingX * 2 + estimateTooltipTextUnits(badgeText) * worldRadiusForPixels(6.8, transform)
+        );
+        const badgeX = clamp(
+          hoveredPoint.x + worldRadiusForPixels(8, transform),
+          transform.viewBox.x + worldRadiusForPixels(8, transform),
+          transform.viewBox.x + transform.viewBox.width - badgeWidth - worldRadiusForPixels(8, transform)
+        );
+        const badgeY = clamp(
+          hoveredPoint.y + worldRadiusForPixels(8, transform),
+          transform.viewBox.y + worldRadiusForPixels(8, transform),
+          transform.viewBox.y + transform.viewBox.height - badgeHeight - worldRadiusForPixels(8, transform)
+        );
+        overlayParts.push(`
+          <g class="visualization-hover-tooltip">
+            <rect class="visualization-hover-tooltip__backplate" x="${badgeX}" y="${badgeY}" width="${badgeWidth}" height="${badgeHeight}" rx="${worldRadiusForPixels(6, transform)}" ry="${worldRadiusForPixels(6, transform)}"></rect>
+            <text class="visualization-hover-tooltip__text" x="${badgeX + badgePaddingX}" y="${badgeY + badgeHeight * 0.5}" style="font-size:${badgeFontSize}px;">${escapeHtml(badgeText)}</text>
+          </g>
+        `);
+      }
+    }
+
+    overlayTarget.innerHTML = overlayParts.join('');
   }
 
   function renderRouteModal() {
@@ -5301,6 +7606,59 @@
       })
       .join('');
     elements.settingsRouteMap.innerHTML = `${walkable}${obstacles}${nodes}`;
+  }
+
+  function renderSpatialEditorRouteMap() {
+    if (!elements.spatialEditorMap) {
+      return;
+    }
+    if (!state.prepared || !elements.spatialEditorRouteMapStage) {
+      elements.spatialEditorMap.innerHTML = '';
+      return;
+    }
+    const viewBox = getModelBounds();
+    const transformForEditor = computeTransformForContainer(elements.spatialEditorRouteMapStage);
+    elements.spatialEditorMap.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`);
+    const walkable = state.prepared.walkableAreas
+      .map((polygon) => `<polygon class="walkable-shape" points="${polygonToPoints(polygon, transformForEditor)}"></polygon>`)
+      .join('');
+    const obstacles = state.prepared.obstacles
+      .map((polygon) => `<polygon class="obstacle-shape" points="${polygonToPoints(polygon, transformForEditor)}"></polygon>`)
+      .join('');
+    const nodes = state.prepared.nodes
+      .map((node) => {
+        const displayNode = worldToDisplayPoint(node, transformForEditor);
+        const nodeClass = getNodeDisplayClass(node);
+        const label = state.locale === 'zh-CN' ? node.displayLabel || node.id : node.displayLabelEn || node.displayLabel || node.id;
+        const labelLayout = getSettingsRouteLabelLayout(node, displayNode, transformForEditor);
+        return `
+          <g class="spatial-editor-object spatial-editor-object--node" data-spatial-editor-object="${escapeHtml(label)}" data-object-type="Node" data-x="${displayNode.x}" data-y="${displayNode.y}">
+            <circle class="route-modal-node node-dot ${nodeClass}" data-editor-shape cx="${displayNode.x}" cy="${displayNode.y}" r="${worldRadiusForPixels(5.2, transformForEditor)}"></circle>
+            <text class="route-modal-node-label settings-route-node-label" data-editor-label x="${labelLayout.x}" y="${labelLayout.y}" text-anchor="${labelLayout.textAnchor}" dominant-baseline="${labelLayout.dominantBaseline}">${escapeHtml(label)}</text>
+          </g>
+        `;
+      })
+      .join('');
+    const pressureObjects = [
+      ...(state.prepared.pressureObjects || []).map((item) => ({ type: 'pressure', item })),
+      ...(state.prepared.seats || []).map((item) => ({ type: 'seat', item })),
+    ]
+      .map(({ type, item }) => {
+        const displayPoint = worldToDisplayPoint(item, transformForEditor);
+        const categoryId = getLayerCategoryForObject(type, item);
+        const label = item.name || item.feature || item.id || categoryId;
+        const color = getCategoryColor(categoryId);
+        const radius = worldRadiusForPixels(5.2, transformForEditor);
+        const labelOffset = worldRadiusForPixels(6.5, transformForEditor);
+        return `
+          <g class="spatial-editor-object spatial-editor-object--pressure" data-spatial-editor-object="${escapeHtml(label)}" data-object-type="${type === 'seat' ? 'Seat' : 'Pressure Point'}" data-x="${displayPoint.x}" data-y="${displayPoint.y}">
+            <circle class="spatial-editor-pressure-point" data-editor-shape cx="${displayPoint.x}" cy="${displayPoint.y}" r="${radius}" fill="${escapeHtml(color)}"></circle>
+            <text class="spatial-editor-pressure-label" data-editor-label x="${displayPoint.x + labelOffset}" y="${displayPoint.y - labelOffset}">${escapeHtml(label)}</text>
+          </g>
+        `;
+      })
+      .join('');
+    elements.spatialEditorMap.innerHTML = `${walkable}${obstacles}${nodes}${pressureObjects}`;
   }
 
   function getAgentRadarLayout() {
@@ -6616,15 +8974,23 @@
     const polygonPoints = currentPoints
       .map(({ point }) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`)
       .join(' ');
+    const showHitTargets = options.showHitTargets !== false;
+    const hitRadius = Math.max(0, Number(options.hitRadius ?? 17));
+    const activeHitRadius = Math.max(hitRadius, Number(options.activeHitRadius ?? 19));
+    const handleRadius = Math.max(0.1, Number(options.handleRadius ?? 8));
+    const activeHandleRadius = Math.max(0.1, Number(options.activeHandleRadius ?? 9));
     const axisMarkup = currentPoints.map(({ id, score, point, labelTextPoint, scoreTextPoint, lineEndPoint }) => {
       const activeClass = id === activeDimensionId ? ' is-active' : '';
       const handleColor = getAgentPreviewScoreColor(score);
+      const hitMarkup = showHitTargets
+        ? `<circle class="agent-radar-hit" data-radar-dimension="${escapeHtml(id)}" cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="${id === activeDimensionId ? activeHitRadius : hitRadius}"></circle>`
+        : '';
       return `
         <line class="agent-radar-axis" x1="${layout.centerX}" y1="${layout.centerY}" x2="${lineEndPoint.x.toFixed(2)}" y2="${lineEndPoint.y.toFixed(2)}"></line>
         <text class="agent-radar-label" x="${labelTextPoint.x.toFixed(2)}" y="${labelTextPoint.y.toFixed(2)}" text-anchor="middle" dominant-baseline="middle">${escapeHtml(getLabel(id, locale))}</text>
         <text class="agent-radar-score" x="${scoreTextPoint.x.toFixed(2)}" y="${scoreTextPoint.y.toFixed(2)}" text-anchor="middle" dominant-baseline="middle">${escapeHtml(formatAgentRadarScore(score, locale))}</text>
-        <circle class="agent-radar-hit" data-radar-dimension="${escapeHtml(id)}" cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="${id === activeDimensionId ? 19 : 17}"></circle>
-        <circle class="agent-radar-handle${activeClass}" data-radar-dimension="${escapeHtml(id)}" style="--radar-handle-fill:${handleColor}" cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="${id === activeDimensionId ? 9 : 8}"></circle>
+        ${hitMarkup}
+        <circle class="agent-radar-handle${activeClass}" data-radar-dimension="${escapeHtml(id)}" style="--radar-handle-fill:${escapeHtml(handleColor)}" cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="${id === activeDimensionId ? activeHandleRadius : handleRadius}"></circle>
       `;
     }).join('');
     return `
@@ -6828,6 +9194,194 @@
     showUiScreen('landing');
   }
 
+  function openSpatialEditor() {
+    closeRouteModal();
+    showUiScreen('spatial-editor');
+  }
+
+  function closeSpatialEditor() {
+    state.spatialEditor.drag = null;
+    showUiScreen('settings');
+  }
+
+  function setSpatialEditorTool(tool) {
+    state.spatialEditor.activeTool = tool || 'select';
+    state.spatialEditor.statusKey = 'spatialEditor.statusIdle';
+    requestRender();
+  }
+
+  function getSpatialEditorSvgPoint(event) {
+    const svg = elements.spatialEditorMap;
+    if (!svg) {
+      return null;
+    }
+    if (typeof svg.createSVGPoint === 'function' && svg.getScreenCTM()) {
+      const point = svg.createSVGPoint();
+      point.x = event.clientX;
+      point.y = event.clientY;
+      const transformed = point.matrixTransform(svg.getScreenCTM().inverse());
+      return { x: transformed.x, y: transformed.y };
+    }
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) {
+      return null;
+    }
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * 1000,
+      y: ((event.clientY - rect.top) / rect.height) * 560,
+    };
+  }
+
+  function updateSpatialEditorObjectPosition(object, x, y) {
+    if (!object) {
+      return;
+    }
+    const safeX = clamp(safeNumber(x, 0), 40, 960);
+    const safeY = clamp(safeNumber(y, 0), 40, 520);
+    object.dataset.x = String(Number(safeX.toFixed(1)));
+    object.dataset.y = String(Number(safeY.toFixed(1)));
+    const shape = object.querySelector('[data-editor-shape]');
+    if (shape) {
+      shape.setAttribute('cx', String(Number(safeX.toFixed(1))));
+      shape.setAttribute('cy', String(Number(safeY.toFixed(1))));
+    }
+    const label = object.querySelector('[data-editor-label]');
+    if (label) {
+      label.setAttribute('x', String(Number((safeX + 20).toFixed(1))));
+      label.setAttribute('y', String(Number((safeY - 6).toFixed(1))));
+    }
+    state.spatialEditor.selectedX = safeX;
+    state.spatialEditor.selectedY = safeY;
+  }
+
+  function selectSpatialEditorObject(object) {
+    if (!object) {
+      return;
+    }
+    elements.spatialEditorMap?.querySelectorAll('.spatial-editor-object').forEach((item) => {
+      item.classList.toggle('active', item === object);
+    });
+    state.spatialEditor.selectedObjectName = object.dataset.spatialEditorObject || '--';
+    state.spatialEditor.selectedObjectType = object.dataset.objectType || '--';
+    state.spatialEditor.selectedX = safeNumber(object.dataset.x, 0);
+    state.spatialEditor.selectedY = safeNumber(object.dataset.y, 0);
+    requestRender();
+  }
+
+  function handleSpatialEditorMapPointerDown(event) {
+    const object = event.target.closest?.('.spatial-editor-object');
+    if (!object || !elements.spatialEditorMap?.contains(object)) {
+      return;
+    }
+    event.preventDefault();
+    selectSpatialEditorObject(object);
+    const point = getSpatialEditorSvgPoint(event);
+    if (!point) {
+      return;
+    }
+    const objectX = safeNumber(object.dataset.x, point.x);
+    const objectY = safeNumber(object.dataset.y, point.y);
+    state.spatialEditor.drag = {
+      object,
+      pointerId: event.pointerId,
+      offsetX: point.x - objectX,
+      offsetY: point.y - objectY,
+    };
+    if (typeof elements.spatialEditorMap.setPointerCapture === 'function') {
+      try {
+        elements.spatialEditorMap.setPointerCapture(event.pointerId);
+      } catch (error) {
+        // Ignore pointer capture failures in static prototype mode.
+      }
+    }
+  }
+
+  function handleSpatialEditorMapPointerMove(event) {
+    const drag = state.spatialEditor.drag;
+    if (!drag || (event.pointerId !== undefined && drag.pointerId !== event.pointerId)) {
+      return;
+    }
+    const point = getSpatialEditorSvgPoint(event);
+    if (!point) {
+      return;
+    }
+    event.preventDefault();
+    updateSpatialEditorObjectPosition(drag.object, point.x - drag.offsetX, point.y - drag.offsetY);
+    requestRender();
+  }
+
+  function handleSpatialEditorMapPointerEnd(event) {
+    const drag = state.spatialEditor.drag;
+    if (!drag) {
+      return;
+    }
+    if (event.pointerId !== undefined && drag.pointerId !== event.pointerId) {
+      return;
+    }
+    if (
+      event.pointerId !== undefined
+      && typeof elements.spatialEditorMap?.hasPointerCapture === 'function'
+      && elements.spatialEditorMap.hasPointerCapture(event.pointerId)
+    ) {
+      elements.spatialEditorMap.releasePointerCapture(event.pointerId);
+    }
+    state.spatialEditor.drag = null;
+    state.spatialEditor.statusKey = 'spatialEditor.statusIdle';
+    requestRender();
+  }
+
+  function handleSpatialEditorAction(action) {
+    const statusMap = {
+      save: 'spatialEditor.statusSave',
+      saveAs: 'spatialEditor.statusSaveAs',
+      history: 'spatialEditor.statusHistory',
+      openHeatmap: 'spatialEditor.statusOpenHeatmap',
+      copyScheme: 'spatialEditor.statusCopyScheme',
+      simulate: 'spatialEditor.statusSimulate',
+      undo: 'spatialEditor.statusUndo',
+      reset: 'spatialEditor.statusReset',
+    };
+    if (action === 'reset') {
+      const defaults = {
+        'Boundary Control P1': [126, 154],
+        'Boundary Control P2': [878, 202],
+        'Gate Node A': [204, 374],
+        'Transfer Node B': [512, 282],
+        'Platform Node C': [802, 184],
+        'Noise Pressure Point': [396, 220],
+        'Advertising Pressure Point': [650, 350],
+      };
+      elements.spatialEditorMap?.querySelectorAll('.spatial-editor-object').forEach((object) => {
+        const position = defaults[object.dataset.spatialEditorObject];
+        if (position) {
+          updateSpatialEditorObjectPosition(object, position[0], position[1]);
+        }
+      });
+    }
+    state.spatialEditor.statusKey = statusMap[action] || 'spatialEditor.statusIdle';
+    requestRender();
+  }
+
+  function renderSpatialEditorScreen() {
+    renderSpatialEditorRouteMap();
+    const editor = state.spatialEditor;
+    elements.spatialEditorToolButtons.forEach((button) => {
+      button.classList.toggle('active', button.dataset.spatialEditorTool === editor.activeTool);
+    });
+    if (elements.spatialEditorObjectName) {
+      elements.spatialEditorObjectName.textContent = editor.selectedObjectName || '--';
+    }
+    if (elements.spatialEditorObjectCoord) {
+      elements.spatialEditorObjectCoord.textContent = `x ${Math.round(safeNumber(editor.selectedX, 0))} · y ${Math.round(safeNumber(editor.selectedY, 0))}`;
+    }
+    if (elements.spatialEditorObjectType) {
+      elements.spatialEditorObjectType.textContent = editor.selectedObjectType || '--';
+    }
+    if (elements.spatialEditorStatus) {
+      elements.spatialEditorStatus.textContent = t(editor.statusKey || 'spatialEditor.statusIdle');
+    }
+  }
+
   function handleVisualizationBack() {
     closeRouteModal();
     if (state.visualizationDetailView) {
@@ -6849,20 +9403,20 @@
       return;
     }
     state.analysisTransitioning = true;
+    state.heatmapComputeProgress = 0;
     closeRouteModal();
     showUiScreen('analysis-loading');
     requestRender();
     await new Promise((resolve) => window.setTimeout(resolve, 40));
     try {
+      state.focusProfile = createFocusProfile(state.agentModal.draft);
       handleGenerateCrowd();
-      state.heatmapComputeProgress = 0.06;
+      advanceHeatmapComputeProgress(0.06);
       requestRender();
-      await handleRunHeatmap();
-      if (state.scenario?.heatActive) {
+      const heatmapReady = await handleRunHeatmap();
+      if (heatmapReady && state.scenario?.heatActive) {
         state.viewMode = COMPOSITE_BURDEN_VIEW;
         showUiScreen('workspace');
-      } else {
-        showUiScreen('settings');
       }
     } finally {
       state.analysisTransitioning = false;
@@ -6964,6 +9518,7 @@
   function renderSettingsScreen() {
     const showLanding = state.uiScreen === 'landing';
     const showSettings = state.uiScreen === 'settings';
+    const showSpatialEditor = state.uiScreen === 'spatial-editor';
     const showAgentSettings = state.uiScreen === 'agent-settings';
     const showLoading = state.uiScreen === 'analysis-loading';
     const showWorkspace = state.uiScreen === 'workspace';
@@ -6973,6 +9528,9 @@
     }
     if (elements.settingsScreen) {
       elements.settingsScreen.classList.toggle('hidden', !showSettings);
+    }
+    if (elements.spatialEditorScreen) {
+      elements.spatialEditorScreen.classList.toggle('hidden', !showSpatialEditor);
     }
     if (elements.agentSettingsScreen) {
       elements.agentSettingsScreen.classList.toggle('hidden', !showAgentSettings);
@@ -6990,9 +9548,12 @@
     if (elements.analysisLoadingDescription) {
       elements.analysisLoadingDescription.textContent = t('loading.description');
     }
+    if (showSpatialEditor) {
+      renderSpatialEditorScreen();
+    }
     if (elements.analysisLoadingStatus) {
       elements.analysisLoadingStatus.textContent = state.heatmapComputing
-        ? t('loading.statusComputing')
+        ? getHeatmapComputeStatusText()
         : (state.analysisTransitioning ? t('loading.statusReady') : t('loading.statusDone'));
     }
     if (!showSettings && !showAgentSettings) {
@@ -7018,13 +9579,135 @@
     state.reportModal.fileName = buildRouteReportFileName(reportData);
     state.reportModal.error = '';
     state.reportModal.status = typeof window.showSaveFilePicker === 'function'
-      ? reportT('readyPreviewPicker', null, locale)
-      : reportT('readyPreviewDownload', null, locale);
+      ? reportT('readyPreviewPicker', null, state.locale)
+      : reportT('readyPreviewDownload', null, state.locale);
+  }
+
+  async function requestRouteAnalysisFromLocalService(reportData, locale = getReportLocale()) {
+    const { response, body } = await fetchJson(getLocalSimServerUrl('/api/route-analysis'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        locale: locale === 'en' ? 'en' : 'zh-CN',
+        payload: reportData?.llmInput || buildSharedRouteAnalysisLlmInput({ reportData }),
+      }),
+    }, Math.max(12000, LOCAL_SIM_SERVER_REQUEST_TIMEOUT_MS));
+    if (!response.ok) {
+      throw new Error(body?.error || `Route analysis failed (${response.status})`);
+    }
+    return body?.analysis ? {
+      ...body.analysis,
+      provider: body.analysis.provider || body.provider || null,
+    } : null;
+  }
+
+  function getReportLlmAnalysisKey(reportData, locale = getReportLocale()) {
+    return JSON.stringify({
+      locale: locale === 'en' ? 'en' : 'zh-CN',
+      route: reportData?.route,
+      score: reportData?.routeScoreSummary,
+      pressureIds: (reportData?.routePressurePoints || []).slice(0, 12).map((point) => point.id),
+    });
+  }
+
+  async function ensureRouteAnalysisForCurrentState(locale = getReportLocale()) {
+    if (!state.reportModal.open) {
+      return null;
+    }
+    let reportData = null;
+    try {
+      reportData = state.reportModal.data || buildRouteReportData(locale);
+    } catch (error) {
+      return null;
+    }
+    const analysisKey = getReportLlmAnalysisKey(reportData, locale);
+    if (
+      state.reportModal.llmAnalysisPending
+      && state.reportModal.llmAnalysisPromise
+      && state.reportModal.llmAnalysisRequestKey === analysisKey
+    ) {
+      return state.reportModal.llmAnalysisPromise;
+    }
+    if (state.reportModal.llmAnalysis && state.reportModal.llmAnalysisKey === analysisKey) {
+      return state.reportModal.llmAnalysis;
+    }
+    state.reportModal.llmAnalysisPending = true;
+    state.reportModal.llmAnalysisRequestKey = analysisKey;
+    state.reportModal.status = locale === 'en' ? 'Generating intelligent report recommendations...' : '正在生成智能报告建议...';
+    requestRender();
+    state.reportModal.llmAnalysisPromise = (async () => {
+      const analysis = await requestRouteAnalysisFromLocalService(reportData, locale);
+      if (
+        !analysis
+        || !state.reportModal.open
+        || getReportLocale() !== locale
+        || state.reportModal.llmAnalysisRequestKey !== analysisKey
+      ) {
+        return null;
+      }
+      state.reportModal.llmAnalysis = localizeRouteAnalysisOutput(analysis, locale);
+      state.reportModal.llmAnalysisKey = analysisKey;
+      rebuildReportModalContent(locale);
+      return state.reportModal.llmAnalysis;
+    })();
+    try {
+      return await state.reportModal.llmAnalysisPromise;
+    } catch (error) {
+      state.reportModal.status = typeof window.showSaveFilePicker === 'function'
+        ? reportT('readyPreviewPicker', null, state.locale)
+        : reportT('readyPreviewDownload', null, state.locale);
+      return null;
+    } finally {
+      if (state.reportModal.llmAnalysisRequestKey === analysisKey) {
+        state.reportModal.llmAnalysisPending = false;
+        state.reportModal.llmAnalysisPromise = null;
+        state.reportModal.llmAnalysisRequestKey = '';
+      }
+      requestRender();
+    }
+  }
+
+  function renderReportDropdownState(reportLocale = getReportLocale(), uiLocale = state.locale) {
+    const exportFormat = getReportExportFormat();
+    const reportCopy = getReportCopy(uiLocale);
+    if (elements.reportLanguageLabel) {
+      elements.reportLanguageLabel.textContent = reportCopy.reportLanguage;
+    }
+    if (elements.reportLanguageTrigger) {
+      elements.reportLanguageTrigger.textContent = getReportLanguageLabel(reportLocale, uiLocale);
+      elements.reportLanguageTrigger.setAttribute('aria-expanded', state.reportModal.languageMenuOpen ? 'true' : 'false');
+    }
+    if (elements.reportLanguageMenu) {
+      elements.reportLanguageMenu.classList.toggle('hidden', !state.reportModal.languageMenuOpen);
+      elements.reportLanguageMenu.querySelectorAll('[data-report-locale]').forEach((button) => {
+        const isActive = button.dataset.reportLocale === reportLocale;
+        button.textContent = getReportLanguageLabel(button.dataset.reportLocale, uiLocale);
+        button.classList.toggle('active', isActive);
+        button.disabled = state.reportModal.exporting;
+      });
+    }
+    if (elements.reportFormatLabel) {
+      elements.reportFormatLabel.textContent = reportCopy.reportFormat;
+    }
+    if (elements.reportFormatTrigger) {
+      elements.reportFormatTrigger.textContent = getReportFormatLabel(exportFormat, uiLocale);
+      elements.reportFormatTrigger.setAttribute('aria-expanded', state.reportModal.formatMenuOpen ? 'true' : 'false');
+    }
+    if (elements.reportFormatMenu) {
+      elements.reportFormatMenu.classList.toggle('hidden', !state.reportModal.formatMenuOpen);
+      elements.reportFormatMenu.querySelectorAll('[data-report-format]').forEach((button) => {
+        const format = button.dataset.reportFormat;
+        button.textContent = getReportFormatLabel(format, uiLocale);
+        button.classList.toggle('active', format === exportFormat);
+        button.disabled = state.reportModal.exporting;
+      });
+    }
   }
 
   function renderReportModal() {
     const reportLocale = getReportLocale();
-    const reportCopy = getReportCopy(reportLocale);
+    const uiLocale = state.locale === 'en' ? 'en' : 'zh-CN';
+    const reportCopy = getReportCopy(uiLocale);
     elements.reportModal.classList.toggle('hidden', !state.reportModal.open);
     if (elements.reportLocaleZh) {
       elements.reportLocaleZh.classList.toggle('active', reportLocale === 'zh-CN');
@@ -7034,33 +9717,29 @@
       elements.reportLocaleEn.classList.toggle('active', reportLocale === 'en');
       elements.reportLocaleEn.disabled = state.reportModal.exporting;
     }
-    elements.reportModalCancelBtn.textContent = reportCopy.close;
-    elements.reportModalExportBtn.textContent = state.reportModal.exporting ? reportCopy.exporting : reportCopy.exportHtml;
-    const reportSummaryEl = elements.reportModalSummary;
+    elements.reportModalTitle.textContent = reportCopy.previewTitle;
+    elements.reportModalCancelBtn.textContent = reportCopy.cancelExport;
+    elements.reportModalExportBtn.textContent = state.reportModal.exporting ? reportCopy.exporting : reportCopy.confirmExport;
+    renderReportDropdownState(reportLocale, uiLocale);
     const reportPreviewFrameEl = elements.reportPreviewFrame;
-    if (!reportSummaryEl || !reportPreviewFrameEl) {
-      elements.reportModalStatus.textContent = state.reportModal.status || (state.reportModal.error ? reportCopy.errorPreview : reportCopy.readyPreview);
+    if (!reportPreviewFrameEl) {
+      elements.reportModalStatus.textContent = state.reportModal.status || state.reportModal.error || reportCopy.readyPreview;
       elements.reportModalExportBtn.disabled = !state.reportModal.documentHtml || state.reportModal.exporting;
       elements.reportModalCancelBtn.disabled = state.reportModal.exporting;
       return;
     }
     if (!state.reportModal.open) {
-      reportSummaryEl.innerHTML = '';
       reportPreviewFrameEl.srcdoc = '';
       return;
     }
-    elements.reportModalTitle.textContent = state.reportModal.data?.title || reportCopy.title;
     if (state.reportModal.error) {
-      reportSummaryEl.innerHTML = `<div class="detail-card glass-card muted">${escapeHtml(state.reportModal.error)}</div>`;
       reportPreviewFrameEl.srcdoc = '';
     } else if (state.reportModal.data) {
-      reportSummaryEl.innerHTML = buildRouteReportSummaryMarkup(state.reportModal.data);
       reportPreviewFrameEl.srcdoc = state.reportModal.documentHtml || '';
     } else {
-      reportSummaryEl.innerHTML = `<div class="detail-card glass-card muted">${escapeHtml(reportCopy.emptyPreview)}</div>`;
       reportPreviewFrameEl.srcdoc = '';
     }
-    elements.reportModalStatus.textContent = state.reportModal.status || (state.reportModal.error ? reportCopy.errorPreview : reportCopy.readyPreview);
+    elements.reportModalStatus.textContent = state.reportModal.status || state.reportModal.error || reportCopy.readyPreview;
     elements.reportModalExportBtn.disabled = !state.reportModal.documentHtml || state.reportModal.exporting;
     elements.reportModalCancelBtn.disabled = state.reportModal.exporting;
   }
@@ -7071,7 +9750,23 @@
       elements.pointPopover.classList.add('hidden');
       return;
     }
-    const position = worldToScreen(state.pointPopover.anchor);
+    const referenceOverlay = state.pointPopover.overlayTarget === 'detail'
+      ? elements.visualizationDetailOverlay
+      : elements.overlayLayer;
+    const referenceTransform = state.pointPopover.overlayTarget === 'detail'
+      ? computeTransformForViewportSize(referenceOverlay?.clientWidth, referenceOverlay?.clientHeight)
+      : state.transform;
+    const displayPoint = worldToDisplayPoint(state.pointPopover.anchor, referenceTransform);
+    const localPosition = {
+      x: referenceTransform.offsetX + (displayPoint.x - referenceTransform.viewBox.x) * referenceTransform.scale,
+      y: referenceTransform.offsetY + (displayPoint.y - referenceTransform.viewBox.y) * referenceTransform.scale,
+    };
+    const referenceRect = referenceOverlay?.getBoundingClientRect?.() || elements.mapWrapper.getBoundingClientRect();
+    const mapRect = elements.mapWrapper.getBoundingClientRect();
+    const position = {
+      x: (referenceRect.left - mapRect.left) + localPosition.x,
+      y: (referenceRect.top - mapRect.top) + localPosition.y,
+    };
     const categoryId = getLayerCategoryForObject(state.pointPopover.type, selectedPoint);
     elements.pointPopover.classList.remove('hidden');
     elements.pointPopover.style.left = `${Math.min(position.x + 18, (elements.mapWrapper.clientWidth || 0) - 252)}px`;
@@ -7398,11 +10093,1385 @@
     `;
   }
 
+  function buildReportExportCopy(locale = getReportLocale()) {
+    const base = getReportCopy(locale);
+    const zh = locale !== 'en';
+    return {
+      ...base,
+      pageOneTitle: zh ? '空间模型信息' : 'Spatial Model Information',
+      pageOneInputTitle: zh ? '输入参数信息' : 'Input Parameters',
+      pageTwoSimulationTitle: zh ? '模拟参数信息' : 'Simulation Parameters',
+      pageTwoThoughtTitle: zh ? '代理人思维链' : 'Agent Thought Chain',
+      thoughtMapNote: zh
+        ? '平面图上的黑色圆环和实心圆点表示代理人在该位置触发对应思维链判断。'
+        : 'Black rings and solid dots on the plan mark where the corresponding thought-chain decisions were triggered.',
+      pageTwoPressureTitle: zh ? '涉及的压力点' : 'Involved Stressors',
+      pageThreeHeatTitle: zh ? '热力图结果' : 'Heatmap Results',
+      coverTitle: zh ? '智能诊断报告' : 'INTELLIGENT DIAGNOSTIC REPORT',
+      coverSubtitle: zh ? '老人负担模拟' : 'Elderly Burden Simulation',
+      coverProjectFile: zh ? '项目文件:' : 'Project File:',
+      coverExportTime: zh ? '导出时间:' : 'Export Time:',
+      coverRoute: zh ? '模拟路线:' : 'Simulation Route:',
+      coverBackgroundCrowd: zh ? '背景人流:' : 'Background Crowd:',
+      frontExecutiveTitle: zh ? '路线诊断摘要' : 'Route Diagnosis Summary',
+      frontAdjustmentTitle: zh ? '模型调整建议' : 'Model Adjustment Recommendations',
+      frontLlmBadge: zh ? 'LLM智能总结' : 'LLM-generated insight',
+      frontEvidenceBadge: zh ? '基于模拟证据' : 'Simulation-grounded',
+      frontRouteJudgement: zh ? '路线总体判断' : 'Route Judgement',
+      frontCoreProblems: zh ? '核心问题摘要' : 'Core Problems',
+      frontPriorityActions: zh ? '重点修改内容' : 'Key Modifications',
+      frontRouteMapTitle: zh ? '路线诊断平面图' : 'Route Diagnosis Plan',
+      frontScoreScale: zh ? '负担等级' : 'Burden Level',
+      frontSpatialChanges: zh ? '空间模型修改建议' : 'Spatial Model Changes',
+      frontPriorityAreas: zh ? '重点修改区域' : 'Priority Areas',
+      frontPriorityFacilities: zh ? '重点修改设施' : 'Priority Facilities',
+      frontExpectedImpact: zh ? '预计改善方向' : 'Expected Improvement',
+      frontEvidenceSource: zh ? '证据来源' : 'Evidence Source',
+      frontOverallScore: zh ? '总体负担' : 'Overall Burden',
+      frontFriendlyScore: zh ? '路线友好度' : 'Route Friendliness',
+      frontDominantBurden: zh ? '主导负担' : 'Dominant Burden',
+      frontTraceability: zh ? '后续模拟结果页提供热力图、思维链和压力点贡献证据。' : 'The following simulation-result pages provide heatmaps, thought-chain evidence, and stressor contribution records.',
+      detailAnalysisTitle: zh ? '详细负担分析' : 'Detailed Burden Analysis',
+      llmAdjustmentTitle: zh ? '模型调整建议总结' : 'Model Adjustment Recommendations',
+      llmAdjustmentSpaceTitle: zh ? '空间模型修改建议' : 'Spatial Model Changes',
+      llmAdjustmentAreaTitle: zh ? '重点修改区域' : 'Priority Areas',
+      llmAdjustmentFacilityTitle: zh ? '重点修改设施' : 'Priority Facilities',
+      routeScoreTitle: zh ? '路线总体评分' : 'Route Score',
+      overallBurdenScore: zh ? '总体负担评分' : 'Overall Burden Score',
+      routeFriendlyScore: zh ? '路线友好度' : 'Route Friendliness',
+      fiveDimensionScore: zh ? '五维负担评分' : 'Five-Dimension Burden Scores',
+      influenceRankingTitle: zh ? '对应影响压力点按贡献值排序' : 'Influencing Stressors Ranked By Contribution',
+      importedModel: zh ? '导入模型' : 'Imported Model',
+      modelArea: zh ? '面积' : 'Area',
+      category: zh ? '类别' : 'Category',
+      type: zh ? '类型' : 'Type',
+      count: zh ? '数量' : 'Count',
+      nodeCategory: 'node',
+      pressureCategory: zh ? '压力点' : 'Stressors',
+      routeSelection: zh ? '路线选择' : 'Selected Route',
+      routeArrow: zh ? '到' : 'to',
+      backgroundCrowdCount: zh ? '背景人流数量' : 'Background Crowd',
+      simulationMetric: zh ? '指标' : 'Metric',
+      minimum: zh ? '最低值' : 'Minimum',
+      maximum: zh ? '最高值' : 'Maximum',
+      value: zh ? '数值' : 'Value',
+      travelTime: zh ? '通行时间' : 'Travel Time',
+      minOnsitePeople: zh ? '最低在场人数' : 'Minimum Occupancy',
+      maxOnsitePeople: zh ? '最高在场人数' : 'Maximum Occupancy',
+      crowdDensity: zh ? '人群密度' : 'Crowd Density',
+      environmentNoise: zh ? '环境噪音' : 'Ambient Noise',
+      environmentLighting: zh ? '环境照度' : 'Ambient Lighting',
+      walkingSpeed: zh ? '步行速度' : 'Walking Speed',
+      decisionDelay: zh ? '决策迟滞' : 'Decision Delay',
+      visionRadius: zh ? '视野范围' : 'Vision Radius',
+      noThoughtChain: zh ? '当前模拟没有生成思维链，报告以运行轨迹和压力点作为诊断依据。' : 'No thought chain was generated; this report uses the runtime trace and stressors as diagnostic evidence.',
+      noPressurePoints: zh ? '当前路线未关联明确压力点。' : 'No explicit route stressors are associated with this run.',
+      minBurden: zh ? '最小负担' : 'Minimum Burden',
+      maxBurden: zh ? '最大负担' : 'Maximum Burden',
+      burdenContributionRanking: zh ? '负担贡献度排行榜' : 'Burden Contribution Ranking',
+      highHeatIssueAdvice: zh ? '高热区域问题与建议' : 'High-Heat Issues And Suggestions',
+      pressureInfluence: zh ? '压力点影响' : 'Stressor Influence',
+      noHighHeat: zh ? '未检测到负担值大于等于 80 的高热区域。' : 'No high-heat region at or above burden value 80 was detected.',
+      modelNodeExit: zh ? '出入口' : 'Entry / Exit',
+      modelNodeEscalator: zh ? '扶梯' : 'Escalator',
+      modelNodeStair: zh ? '楼梯' : 'Stair',
+      modelNodeElevator: zh ? '电梯' : 'Elevator',
+      modelNodeBoarding: zh ? '乘车点' : 'Boarding Point',
+      squareMeters: zh ? '平方米' : 'sqm',
+      people: zh ? '人' : 'people',
+      seconds: zh ? '秒' : 's',
+    };
+  }
+
+  function computeReportPolygonArea(polygon = []) {
+    let area = 0;
+    for (let index = 0; index < polygon.length; index += 1) {
+      const current = polygon[index] || [];
+      const next = polygon[(index + 1) % polygon.length] || [];
+      area += Number(current[0] || 0) * Number(next[1] || 0) - Number(next[0] || 0) * Number(current[1] || 0);
+    }
+    return Math.abs(area) * 0.5;
+  }
+
+  function buildReportModelSpaceInfo(locale = getReportLocale()) {
+    const copy = buildReportExportCopy(locale);
+    const prepared = state.prepared || {};
+    const nodes = Array.isArray(prepared.nodes) ? prepared.nodes : [];
+    const pressureObjects = Array.isArray(prepared.pressureObjects) ? prepared.pressureObjects : [];
+    const seats = Array.isArray(prepared.seats) ? prepared.seats : [];
+    const walkableArea = (prepared.walkableAreas || [])
+      .reduce((sum, polygon) => sum + computeReportPolygonArea(polygon), 0);
+    const nodeCounts = {
+      exit: nodes.filter((node) => /^gate_/i.test(String(node.id || ''))).length,
+      escalator: nodes.filter((node) => /^es_/i.test(String(node.id || ''))).length,
+      stair: nodes.filter((node) => /^stair_/i.test(String(node.id || ''))).length,
+      elevator: nodes.filter((node) => /^elev_/i.test(String(node.id || ''))).length,
+      boarding: nodes.filter((node) => /^train_door/i.test(String(node.id || ''))).length,
+    };
+    const pressureCounts = LAYER_CATEGORY_DEFINITIONS.map((definition) => {
+      const count = definition.id === 'seat'
+        ? seats.length
+        : pressureObjects.filter((item) => getLayerCategoryForObject('pressure', item) === definition.id).length;
+      return {
+        category: copy.pressureCategory,
+        label: definition.label,
+        color: definition.color,
+        count,
+      };
+    });
+    return {
+      modelName: state.modelSourceName || getDisplayFileName(),
+      area: walkableArea,
+      rows: [
+        { category: copy.nodeCategory, label: copy.modelNodeExit, count: nodeCounts.exit },
+        { category: copy.nodeCategory, label: copy.modelNodeEscalator, count: nodeCounts.escalator },
+        { category: copy.nodeCategory, label: copy.modelNodeStair, count: nodeCounts.stair },
+        { category: copy.nodeCategory, label: copy.modelNodeElevator, count: nodeCounts.elevator },
+        { category: copy.nodeCategory, label: copy.modelNodeBoarding, count: nodeCounts.boarding },
+        ...pressureCounts,
+      ],
+    };
+  }
+
+  function getReportPlayback() {
+    return getActivePlayback() || state.scenario?.precomputedPlayback || null;
+  }
+
+  function getReportTraceSnapshots() {
+    return getPlaybackTraceSnapshots(getReportPlayback());
+  }
+
+  function getReportMetricRangeFromSnapshots(traceSnapshots, key, fallback = 0) {
+    const values = (Array.isArray(traceSnapshots) ? traceSnapshots : [])
+      .map((snapshot) => Number(snapshot?.[key]))
+      .filter((value) => Number.isFinite(value));
+    if (!values.length) {
+      const safeFallback = Number(fallback || 0);
+      return { min: safeFallback, max: safeFallback };
+    }
+    return { min: Math.min(...values), max: Math.max(...values) };
+  }
+
+  function buildReportSimulationParameterRows(locale = getReportLocale()) {
+    const copy = buildReportExportCopy(locale);
+    const traceSnapshots = getReportTraceSnapshots();
+    const summary = state.scenario?.summary || {};
+    const inspection = getCurrentFocusInspection() || {};
+    const travelTime = Number(summary.averageTravelTime || traceSnapshots[traceSnapshots.length - 1]?.time || inspection.time || 0);
+    const peopleRange = getReportMetricRangeFromSnapshots(traceSnapshots, 'simultaneousCount', Number(summary.simultaneousCount || getBackgroundCrowdCount() || 0));
+    const densityRange = getReportMetricRangeFromSnapshots(traceSnapshots, 'crowdDensity', Number(inspection.crowdDensity || 0));
+    const noiseRange = getReportMetricRangeFromSnapshots(traceSnapshots, 'environmentNoise', Number(inspection.environmentNoise || 0));
+    const lightRange = getReportMetricRangeFromSnapshots(traceSnapshots, 'environmentLighting', Number(inspection.environmentLighting || 0));
+    const speedRange = getReportMetricRangeFromSnapshots(traceSnapshots, 'walkingSpeed', Number(inspection.walkingSpeed || 0));
+    const delayRange = getReportMetricRangeFromSnapshots(traceSnapshots, 'decisionDelay', Number(inspection.decisionDelay || 0));
+    const visionRange = getReportMetricRangeFromSnapshots(traceSnapshots, 'visionRadius', Number(inspection.visionRadius || 0));
+    return [
+      { label: copy.travelTime, min: formatReportDuration(travelTime, locale), max: formatReportDuration(travelTime, locale) },
+      { label: copy.minOnsitePeople, min: `${formatReportNumber(peopleRange.min, 0)} ${copy.people}`, max: `${formatReportNumber(peopleRange.max, 0)} ${copy.people}` },
+      { label: copy.crowdDensity, min: `${formatReportNumber(densityRange.min, 2)} p/m²`, max: `${formatReportNumber(densityRange.max, 2)} p/m²` },
+      { label: copy.environmentNoise, min: `${formatReportNumber(noiseRange.min, 1)} dB`, max: `${formatReportNumber(noiseRange.max, 1)} dB` },
+      { label: copy.environmentLighting, min: `${formatReportNumber(lightRange.min, 0)} lux`, max: `${formatReportNumber(lightRange.max, 0)} lux` },
+      { label: copy.walkingSpeed, min: `${formatReportNumber(speedRange.min, 2)} m/s`, max: `${formatReportNumber(speedRange.max, 2)} m/s` },
+      { label: copy.decisionDelay, min: `${formatReportNumber(delayRange.min, 2)} ${copy.seconds}`, max: `${formatReportNumber(delayRange.max, 2)} ${copy.seconds}` },
+      { label: copy.visionRadius, min: `${formatReportNumber(visionRange.min, 1)} m`, max: `${formatReportNumber(visionRange.max, 1)} m` },
+    ];
+  }
+
+  function buildReportThoughtChainItems(locale = getReportLocale()) {
+    const playback = getReportPlayback();
+    const plan = playback?.llmDecisionPlan || state.scenario?.llmDecisionPlan || {};
+    const timeline = Array.isArray(plan.timeline) ? plan.timeline : [];
+    const items = timeline
+      .map((item) => (
+        locale === 'en'
+          ? item.thoughtEn || item.textEn || item.labelEn || item.titleEn || item.summaryEn
+          : item.thoughtZh || item.textZh || item.labelZh || item.titleZh || item.summaryZh
+      ))
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+    if (items.length) {
+      return items.slice(0, 8);
+    }
+    return getVisualizationDetailTimelineSteps({
+      route: { startLabel: getReportStartLabel(locale), targetLabel: getReportTargetLabel(locale) },
+      activeView: { label: getDimensionBurdenLabel(getSafeViewMode(state.viewMode), locale) },
+      peakDimension: null,
+      summary: { averageTravelTime: Number(state.scenario?.summary?.averageTravelTime || 0) },
+      risk: { level: '--' },
+      findings: [],
+    }).slice(0, 5);
+  }
+
+  function buildReportBaseSvg(transform) {
+    const viewBox = `${transform.viewBox.x} ${transform.viewBox.y} ${transform.viewBox.width} ${transform.viewBox.height}`;
+    const walkable = (state.prepared?.walkableAreas || [])
+      .map((polygon) => `<polygon class="walkable-shape" points="${polygonToPoints(polygon, transform)}"></polygon>`)
+      .join('');
+    const obstacles = (state.prepared?.obstacles || [])
+      .map((polygon) => `<polygon class="obstacle-shape" points="${polygonToPoints(polygon, transform)}"></polygon>`)
+      .join('');
+    return `<svg viewBox="${viewBox}" preserveAspectRatio="xMidYMid meet">${walkable}${obstacles}</svg>`;
+  }
+
+  function buildReportRoutePathMarkup(transform, options = {}) {
+    const traceSnapshots = getReportTraceSnapshots();
+    if (!traceSnapshots.length) {
+      return '';
+    }
+    const maxPoints = Math.max(2, Number(options.maxPoints || 220));
+    const stride = Math.max(1, Math.ceil(traceSnapshots.length / maxPoints));
+    const points = traceSnapshots
+      .filter((snapshot, index) => index % stride === 0 || index === traceSnapshots.length - 1)
+      .map((snapshot) => worldToDisplayPoint(snapshot, transform))
+      .map((point) => `${Number(point.x).toFixed(2)},${Number(point.y).toFixed(2)}`)
+      .join(' ');
+    return `<polyline class="report-route-path" points="${points}"></polyline>`;
+  }
+
+  function getReportTimelineExplicitPoint(item) {
+    const candidates = [
+      item?.position,
+      item?.worldPosition,
+      item?.point,
+      item?.triggerPoint,
+      item?.trigger_position,
+      item,
+    ];
+    for (const candidate of candidates) {
+      if (!candidate) {
+        continue;
+      }
+      const x = Number(candidate.x ?? candidate.worldX ?? candidate.positionX);
+      const y = Number(candidate.y ?? candidate.worldY ?? candidate.positionY);
+      if (Number.isFinite(x) && Number.isFinite(y)) {
+        return { x, y };
+      }
+    }
+    return null;
+  }
+
+  function findReportTraceSnapshotByProgress(traceSnapshots, progress) {
+    if (!traceSnapshots.length) {
+      return null;
+    }
+    const safeProgress = clamp(Number(progress), 0, 1);
+    const index = clamp(Math.round(safeProgress * (traceSnapshots.length - 1)), 0, traceSnapshots.length - 1);
+    return traceSnapshots[index] || null;
+  }
+
+  function findReportTraceSnapshotByTime(traceSnapshots, timeSeconds) {
+    const safeTime = Number(timeSeconds);
+    if (!traceSnapshots.length || !Number.isFinite(safeTime)) {
+      return null;
+    }
+    let best = traceSnapshots[0];
+    let bestDistance = Number.POSITIVE_INFINITY;
+    traceSnapshots.forEach((snapshot) => {
+      const snapshotTime = Number(snapshot?.time ?? snapshot?.timeSeconds ?? snapshot?.elapsedTime ?? snapshot?.t);
+      if (!Number.isFinite(snapshotTime)) {
+        return;
+      }
+      const distance = Math.abs(snapshotTime - safeTime);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = snapshot;
+      }
+    });
+    return best || null;
+  }
+
+  function getReportPlaybackEvents(playback = getReportPlayback()) {
+    return [
+      playback?.events,
+      playback?.runtimeEvents,
+      playback?.decisionEvents,
+      playback?.focusEvents,
+      playback?.meta?.events,
+      playback?.meta?.runtimeEvents,
+    ].flatMap((items) => (Array.isArray(items) ? items : []));
+  }
+
+  function resolveReportDecisionPoint(item, traceSnapshots) {
+    const explicitPoint = getReportTimelineExplicitPoint(item);
+    if (explicitPoint) {
+      return explicitPoint;
+    }
+    const nodeId = String(item?.nodeId || item?.node_id || '').trim();
+    if (nodeId && state.prepared?.nodeById?.[nodeId]) {
+      return state.prepared.nodeById[nodeId];
+    }
+    const triggerEventId = String(item?.triggerEventId || item?.trigger_event_id || '').trim();
+    if (triggerEventId) {
+      const matchedEvent = getReportPlaybackEvents().find((event) => {
+        const eventId = String(event?.id || event?.eventId || event?.event_id || event?.triggerEventId || '').trim();
+        return eventId && eventId === triggerEventId;
+      });
+      const eventPoint = getReportTimelineExplicitPoint(matchedEvent);
+      if (eventPoint) {
+        return eventPoint;
+      }
+      const eventSnapshotIndex = Number(matchedEvent?.snapshotIndex ?? matchedEvent?.traceIndex);
+      if (Number.isFinite(eventSnapshotIndex) && traceSnapshots[eventSnapshotIndex]) {
+        return traceSnapshots[eventSnapshotIndex];
+      }
+      const eventByTime = findReportTraceSnapshotByTime(traceSnapshots, matchedEvent?.timeSeconds ?? matchedEvent?.time);
+      if (eventByTime) {
+        return eventByTime;
+      }
+      if (Number.isFinite(Number(matchedEvent?.progress))) {
+        return findReportTraceSnapshotByProgress(traceSnapshots, Number(matchedEvent.progress));
+      }
+    }
+    const timedPoint = findReportTraceSnapshotByTime(traceSnapshots, item?.timeSeconds ?? item?.time);
+    if (timedPoint) {
+      return timedPoint;
+    }
+    if (Number.isFinite(Number(item?.progress ?? item?.routeProgress))) {
+      return findReportTraceSnapshotByProgress(traceSnapshots, Number(item.progress ?? item.routeProgress));
+    }
+    const sampleOrder = parseTimelineSampleOrder(item?.nodeId || item?.node_id || '');
+    if (sampleOrder !== null) {
+      const progress = timelineSampleOrderToProgress(sampleOrder, item?.order);
+      return findReportTraceSnapshotByProgress(traceSnapshots, progress);
+    }
+    return traceSnapshots[0] || null;
+  }
+
+  function timelineSampleOrderToProgress(sampleOrder, fallbackOrder) {
+    const safeOrder = Math.max(1, Number(sampleOrder || fallbackOrder || 1));
+    return clamp((safeOrder - 1) / Math.max(1, 4), 0, 1);
+  }
+
+  function buildReportDecisionPointMarkup(transform) {
+    const playback = getReportPlayback();
+    const timeline = Array.isArray(playback?.llmDecisionPlan?.timeline) ? playback.llmDecisionPlan.timeline : [];
+    const traceSnapshots = getReportTraceSnapshots();
+    if (!timeline.length || !traceSnapshots.length) {
+      return '';
+    }
+    return timeline.slice(0, 12).map((item) => {
+      const decisionPoint = resolveReportDecisionPoint(item, traceSnapshots);
+      if (!decisionPoint) {
+        return '';
+      }
+      const point = worldToDisplayPoint(decisionPoint, transform);
+      const ringRadius = worldRadiusForPixels(7.2, transform);
+      const dotRadius = worldRadiusForPixels(4.2, transform);
+      return `<circle class="report-decision-ring" cx="${point.x}" cy="${point.y}" r="${ringRadius}"></circle><circle class="report-decision-dot" cx="${point.x}" cy="${point.y}" r="${dotRadius}"></circle>`;
+    }).join('');
+  }
+
+  function reportDistanceToTrace(point, traceSnapshots = getReportTraceSnapshots()) {
+    if (!point || !traceSnapshots.length) {
+      return Number.POSITIVE_INFINITY;
+    }
+    let best = Number.POSITIVE_INFINITY;
+    for (let index = 1; index < traceSnapshots.length; index += 1) {
+      const start = traceSnapshots[index - 1];
+      const end = traceSnapshots[index];
+      const dx = Number(end.x || 0) - Number(start.x || 0);
+      const dy = Number(end.y || 0) - Number(start.y || 0);
+      const lengthSq = dx * dx + dy * dy || 1;
+      const ratio = clamp(((Number(point.x || 0) - Number(start.x || 0)) * dx + (Number(point.y || 0) - Number(start.y || 0)) * dy) / lengthSq, 0, 1);
+      const px = Number(start.x || 0) + dx * ratio;
+      const py = Number(start.y || 0) + dy * ratio;
+      best = Math.min(best, Math.hypot(Number(point.x || 0) - px, Number(point.y || 0) - py));
+    }
+    return best;
+  }
+
+  function getReportPressureContributionLog() {
+    const playback = getReportPlayback();
+    return [
+      playback?.pressureContributionLog,
+      playback?.heat?.pressureContributionLog,
+      state.scenario?.precomputedPlayback?.pressureContributionLog,
+      state.scenario?.precomputedPlayback?.heat?.pressureContributionLog,
+    ].find((items) => Array.isArray(items)) || [];
+  }
+
+  function buildReportPressurePointIndex(locale = getReportLocale()) {
+    const contributionLog = getReportPressureContributionLog();
+    const activePressureObjects = Array.isArray(state.prepared?.activePressureObjects)
+      ? state.prepared.activePressureObjects
+      : [];
+    const pressureById = new Map(activePressureObjects.map((item) => [item.id, item]));
+    const aggregate = new Map();
+    contributionLog.forEach((entry) => {
+      const id = String(entry?.pressurePointId || entry?.id || '').trim();
+      const source = pressureById.get(id);
+      if (!id || !source) {
+        return;
+      }
+      const previous = aggregate.get(id) || {
+        source,
+        contribution: 0,
+        count: 0,
+        burdenTypes: new Set(),
+        missedSignage: false,
+      };
+      previous.contribution += Math.max(0, Number(entry.contribution || entry.score || 0));
+      previous.count += 1;
+      if (entry.burdenType) {
+        previous.burdenTypes.add(entry.burdenType);
+      }
+      previous.missedSignage = previous.missedSignage || Boolean(entry.missedSignage);
+      aggregate.set(id, previous);
+    });
+    const items = Array.from(aggregate.values())
+      .sort((left, right) => Number(right.contribution || 0) - Number(left.contribution || 0))
+      .slice(0, 32)
+      .map((item, index) => {
+        const source = item.source;
+        const categoryId = getLayerCategoryForObject('pressure', source) || source.category || 'unknown';
+        return {
+          id: source.id,
+          pressureNumber: index + 1,
+          reportPressureNumber: index + 1,
+          name: source.name || source.label || source.id,
+          description: source.feature || source.category || '--',
+          categoryId,
+          categoryLabel: getCategoryDefinition(categoryId)?.label || categoryId,
+          color: getCategoryColor(categoryId),
+          x: Number(source.x || 0),
+          y: Number(source.y || 0),
+          range: Math.max(4, Number(source.range || 0), Number(source.decibel || 0) ? 8 : 0, Number(source.lux || 0) ? 6 : 0),
+          contribution: item.contribution,
+          burdenTypes: Array.from(item.burdenTypes),
+          missedSignage: item.missedSignage,
+          locale,
+        };
+      });
+    return {
+      items,
+      byId: new Map(items.map((item) => [item.id, item])),
+    };
+  }
+
+  function buildReportRoutePressurePoints(locale = getReportLocale()) {
+    const indexed = buildReportPressurePointIndex(locale);
+    return indexed.items;
+  }
+
+  function buildReportNumberedPressurePointMarkup(transform, pressurePoints = []) {
+    return pressurePoints.map((item) => {
+      const point = worldToDisplayPoint(item, transform);
+      const radius = worldRadiusForPixels(7.2, transform);
+      const number = item.reportPressureNumber || item.pressureNumber || '';
+      return `<g class="report-pressure-marker"><circle class="report-pressure-dot" cx="${point.x}" cy="${point.y}" r="${radius}" fill="${escapeHtml(item.color)}"><title>${escapeHtml(item.name)}</title></circle><text x="${point.x}" y="${point.y}">${escapeHtml(String(number))}</text></g>`;
+    }).join('');
+  }
+
+  function buildReportThoughtMapSnapshot(reportData, locale = getReportLocale()) {
+    const transform = computeTransformForViewportSize(860, 400);
+    return {
+      baseSvg: buildReportBaseSvg(transform),
+      overlaySvg: `<svg viewBox="${transform.viewBox.x} ${transform.viewBox.y} ${transform.viewBox.width} ${transform.viewBox.height}" preserveAspectRatio="xMidYMid meet">${buildReportRoutePathMarkup(transform)}${buildReportDecisionPointMarkup(transform)}${buildReportNumberedPressurePointMarkup(transform, reportData?.routePressurePoints || [])}</svg>`,
+    };
+  }
+
+  function getReportHeatCells(viewMode) {
+    const playback = getReportPlayback();
+    const heatState = playback?.heat || state.scenario?.heat || null;
+    return getFinalHeatCells(heatState, getReportTraceSnapshots(), getSafeViewMode(viewMode), getTraceRevealRadiusMeters(getSafeViewMode(viewMode)));
+  }
+
+  function getReportHeatCellColor(viewMode, metric, minMetric, maxMetric) {
+    const style = HEATMAP_VIEW_STYLES[getSafeViewMode(viewMode)] || HEATMAP_VIEW_STYLES.default;
+    const ratio = maxMetric > minMetric ? clamp((Number(metric || 0) - minMetric) / (maxMetric - minMetric), 0, 1) : clamp(Number(metric || 0) / 100, 0, 1);
+    return rgbToCss(samplePaletteRgb(ratio, style.colorStops || DEFAULT_HEAT_COLOR_STOPS));
+  }
+
+  function getReportHeatCellKey(cell) {
+    return `${Number(cell?.x || 0).toFixed(2)}:${Number(cell?.y || 0).toFixed(2)}`;
+  }
+
+  function clusterReportHighHeatCells(cells, options = {}) {
+    const sourceCells = Array.isArray(cells) ? cells.filter((cell) => Number.isFinite(Number(cell?.x)) && Number.isFinite(Number(cell?.y))) : [];
+    if (!sourceCells.length) {
+      return [];
+    }
+    const cellSize = Math.max(0.2, Number(state.prepared?.grid?.cellSize || 1.15));
+    const linkDistance = Math.max(cellSize * 1.85, Number(options.linkDistance || 0));
+    const linkDistanceSquared = linkDistance * linkDistance;
+    const bucketSize = Math.max(linkDistance, cellSize);
+    const buckets = new Map();
+    const getBucketKey = (x, y) => `${Math.floor(x / bucketSize)}:${Math.floor(y / bucketSize)}`;
+    sourceCells.forEach((cell, index) => {
+      const key = getBucketKey(Number(cell.x || 0), Number(cell.y || 0));
+      if (!buckets.has(key)) {
+        buckets.set(key, []);
+      }
+      buckets.get(key).push(index);
+    });
+    const visited = new Set();
+    const regions = [];
+    sourceCells.forEach((cell, startIndex) => {
+      if (visited.has(startIndex)) {
+        return;
+      }
+      const queue = [startIndex];
+      const regionCells = [];
+      visited.add(startIndex);
+      while (queue.length) {
+        const currentIndex = queue.shift();
+        const current = sourceCells[currentIndex];
+        regionCells.push(current);
+        const bucketX = Math.floor(Number(current.x || 0) / bucketSize);
+        const bucketY = Math.floor(Number(current.y || 0) / bucketSize);
+        for (let dx = -1; dx <= 1; dx += 1) {
+          for (let dy = -1; dy <= 1; dy += 1) {
+            const neighborIndexes = buckets.get(`${bucketX + dx}:${bucketY + dy}`) || [];
+            neighborIndexes.forEach((neighborIndex) => {
+              if (visited.has(neighborIndex)) {
+                return;
+              }
+              const neighbor = sourceCells[neighborIndex];
+              const distanceSquared = (Number(neighbor.x || 0) - Number(current.x || 0)) ** 2
+                + (Number(neighbor.y || 0) - Number(current.y || 0)) ** 2;
+              if (distanceSquared <= linkDistanceSquared) {
+                visited.add(neighborIndex);
+                queue.push(neighborIndex);
+              }
+            });
+          }
+        }
+      }
+      let weightedX = 0;
+      let weightedY = 0;
+      let weightSum = 0;
+      let peakCell = regionCells[0];
+      regionCells.forEach((regionCell) => {
+        const metric = Math.max(0.001, Number(regionCell.metric || 0));
+        weightedX += Number(regionCell.x || 0) * metric;
+        weightedY += Number(regionCell.y || 0) * metric;
+        weightSum += metric;
+        if (Number(regionCell.metric || 0) > Number(peakCell.metric || 0)) {
+          peakCell = regionCell;
+        }
+      });
+      const averageMetric = regionCells.reduce((sum, regionCell) => sum + Number(regionCell.metric || 0), 0) / Math.max(1, regionCells.length);
+      regions.push({
+        cells: regionCells,
+        area: regionCells.length,
+        peakCell,
+        labelPoint: {
+          x: weightSum > 0 ? weightedX / weightSum : Number(peakCell.x || 0),
+          y: weightSum > 0 ? weightedY / weightSum : Number(peakCell.y || 0),
+        },
+        averageMetric,
+        peakMetric: Number(peakCell.metric || 0),
+      });
+    });
+    return regions
+      .sort((left, right) => Number(right.area || 0) - Number(left.area || 0) || Number(right.peakMetric || 0) - Number(left.peakMetric || 0))
+      .map((region, index) => ({ ...region, index: index + 1 }));
+  }
+
+  function getReportHighHeatRegions(viewMode, options = {}) {
+    const cells = getReportHeatCells(viewMode)
+      .filter((cell) => Number(cell.metric || 0) > 0);
+    if (!cells.length) {
+      return [];
+    }
+    const metricValues = getSortedNumericValues(cells.map((cell) => Number(cell.metric || 0)));
+    const threshold = sampleQuantile(metricValues, 1 - REPORT_HIGH_HEAT_TOP_PERCENT);
+    const highCells = cells.filter((cell) => Number(cell.metric || 0) >= threshold);
+    return clusterReportHighHeatCells(highCells, options).slice(0, Number(options.maxRegions || REPORT_DETAIL_HIGH_REGION_LIMIT));
+  }
+
+  function getReportVitalitySurgeRegions(options = {}) {
+    const segments = buildVitalityRibbonSegments(getReportTraceSnapshots())
+      .filter((segment) => (
+        Number.isFinite(Number(segment?.previous?.x))
+        && Number.isFinite(Number(segment?.previous?.y))
+        && Number.isFinite(Number(segment?.current?.x))
+        && Number.isFinite(Number(segment?.current?.y))
+      ));
+    if (segments.length < 2) {
+      return [];
+    }
+    const candidates = [];
+    for (let index = 1; index < segments.length; index += 1) {
+      const previousSegment = segments[index - 1];
+      const currentSegment = segments[index];
+      const previousWidth = Math.max(0, Number(previousSegment.growthRateNormalized || 0));
+      const currentWidth = Math.max(0, Number(currentSegment.growthRateNormalized || 0));
+      const widthSurge = Math.max(0, currentWidth - previousWidth);
+      if (widthSurge > 0.015) {
+        const previous = currentSegment.previous;
+        const current = currentSegment.current;
+        candidates.push({
+          cells: [previous, current],
+          area: 1,
+          peakCell: current,
+          labelPoint: {
+            x: (Number(previous.x || 0) + Number(current.x || 0)) * 0.5,
+            y: (Number(previous.y || 0) + Number(current.y || 0)) * 0.5,
+          },
+          averageMetric: widthSurge,
+          peakMetric: widthSurge,
+        });
+      }
+    }
+    if (!candidates.length) {
+      segments
+        .filter((segment) => Number(segment.growthRateNormalized || 0) > 0)
+        .forEach((segment) => {
+          const previous = segment.previous;
+          const current = segment.current;
+          candidates.push({
+            cells: [previous, current],
+            area: 1,
+            peakCell: current,
+            labelPoint: {
+              x: (Number(previous.x || 0) + Number(current.x || 0)) * 0.5,
+              y: (Number(previous.y || 0) + Number(current.y || 0)) * 0.5,
+            },
+            averageMetric: Number(segment.growthRateNormalized || 0),
+            peakMetric: Number(segment.growthRateNormalized || 0),
+          });
+        });
+    }
+    const minSpacing = Math.max(2, Number(state.prepared?.grid?.cellSize || 1.15) * 4);
+    const selected = [];
+    candidates
+      .sort((left, right) => Number(right.peakMetric || 0) - Number(left.peakMetric || 0))
+      .forEach((candidate) => {
+        if (selected.length >= Number(options.maxRegions || REPORT_DETAIL_HIGH_REGION_LIMIT)) {
+          return;
+        }
+        const tooClose = selected.some((item) => (
+          Math.hypot(Number(item.labelPoint.x || 0) - Number(candidate.labelPoint.x || 0), Number(item.labelPoint.y || 0) - Number(candidate.labelPoint.y || 0)) < minSpacing
+        ));
+        if (!tooClose) {
+          selected.push(candidate);
+        }
+      });
+    return selected.map((region, index) => ({ ...region, index: index + 1, vitalitySurge: true }));
+  }
+
+  function getReportRegionCells(regions = []) {
+    return regions.flatMap((region) => Array.isArray(region.cells) ? region.cells : []);
+  }
+
+  function pointInsideReportRegion(point, regionCells = [], cellSize = 1.15) {
+    if (!point || !regionCells.length) {
+      return false;
+    }
+    const radius = Math.max(cellSize * 1.65, 1.2);
+    const px = Number(point.x || 0);
+    const py = Number(point.y || 0);
+    return regionCells.some((cell) => (
+      Math.hypot(px - Number(cell.x || 0), py - Number(cell.y || 0)) <= radius
+    ));
+  }
+
+  function aggregateReportRegionPressureContributions(region, pressurePoints = [], viewMode = COMPOSITE_BURDEN_VIEW) {
+    const regionCells = Array.isArray(region?.cells) ? region.cells : [];
+    if (!regionCells.length || !Array.isArray(pressurePoints) || !pressurePoints.length) {
+      return [];
+    }
+    const cellSize = Math.max(0.2, Number(state.prepared?.grid?.cellSize || 1.15));
+    const pressureById = new Map(pressurePoints.map((item) => [String(item.id || '').trim(), item]));
+    const safeViewMode = getSafeViewMode(viewMode);
+    const aggregate = new Map();
+    getReportPressureContributionLog().forEach((entry) => {
+      const id = String(entry?.pressurePointId || entry?.id || '').trim();
+      const pressurePoint = pressureById.get(id);
+      if (!id || !pressurePoint) {
+        return;
+      }
+      const normalizedBurdenType = getSafeViewMode(entry?.burdenType || '');
+      if (safeViewMode !== COMPOSITE_BURDEN_VIEW && normalizedBurdenType !== safeViewMode) {
+        return;
+      }
+      const entryPoint = {
+        x: Number(entry?.x ?? entry?.position?.x ?? entry?.worldPosition?.x),
+        y: Number(entry?.y ?? entry?.position?.y ?? entry?.worldPosition?.y),
+      };
+      if (!Number.isFinite(entryPoint.x) || !Number.isFinite(entryPoint.y) || !pointInsideReportRegion(entryPoint, regionCells, cellSize)) {
+        return;
+      }
+      const previous = aggregate.get(id) || {
+        ...pressurePoint,
+        regionContribution: 0,
+        regionCount: 0,
+      };
+      previous.regionContribution += Math.max(0, Number(entry.contribution || entry.score || 0));
+      previous.regionCount += 1;
+      aggregate.set(id, previous);
+    });
+    return Array.from(aggregate.values())
+      .sort((left, right) => Number(right.regionContribution || 0) - Number(left.regionContribution || 0));
+  }
+
+  function getReportRegionInfluencingPressurePoints(region, pressurePoints = [], viewMode = COMPOSITE_BURDEN_VIEW) {
+    return aggregateReportRegionPressureContributions(region, pressurePoints, viewMode);
+  }
+
+  function getUniqueReportPressurePoints(pressureGroups = []) {
+    const unique = new Map();
+    pressureGroups.flatMap((group) => Array.isArray(group?.points) ? group.points : []).forEach((point) => {
+      if (point?.id && !unique.has(point.id)) {
+        unique.set(point.id, point);
+      }
+    });
+    return Array.from(unique.values()).sort((left, right) => (
+      Number(right.regionContribution || right.contribution || 0) - Number(left.regionContribution || left.contribution || 0)
+    ));
+  }
+
+  function buildCompositeRegionContributionRankings(region, locale = getReportLocale()) {
+    const regionCells = Array.isArray(region?.cells) ? region.cells : [];
+    if (!regionCells.length) {
+      return [];
+    }
+    const regionKeys = new Set(regionCells.map(getReportHeatCellKey));
+    const cellBurdenFallbacks = regionCells
+      .map((cell) => cell?.burdenScores)
+      .filter(Boolean);
+    return FIVE_DIMENSION_ORDER.map((viewMode) => {
+      const dimensionCells = getReportHeatCells(viewMode).filter((cell) => regionKeys.has(getReportHeatCellKey(cell)));
+      const values = dimensionCells
+        .map((cell) => Number(cell.metric || 0))
+        .filter((value) => Number.isFinite(value));
+      if (!values.length && cellBurdenFallbacks.length) {
+        cellBurdenFallbacks.forEach((scores) => {
+          const value = Number(getBurdenMetricFromScores(scores, viewMode));
+          if (Number.isFinite(value)) {
+            values.push(value);
+          }
+        });
+      }
+      const score = values.length
+        ? values.reduce((sum, value) => sum + value, 0) / values.length
+        : 0;
+      return {
+        id: viewMode,
+        burdenLabel: getDimensionBurdenLabel(viewMode, locale),
+        burdenScore: score,
+      };
+    }).sort((left, right) => Number(right.burdenScore || 0) - Number(left.burdenScore || 0));
+  }
+
+  function getReportIssuePoint(item) {
+    const explicitPoint = getReportTimelineExplicitPoint(item);
+    if (explicitPoint) {
+      return explicitPoint;
+    }
+    const targetIds = [
+      item?.mapTargetId,
+      item?.targetId,
+      item?.id,
+      ...(Array.isArray(item?.mapTargetIds) ? item.mapTargetIds : []),
+    ].filter(Boolean);
+    for (const targetId of targetIds) {
+      const node = state.prepared?.nodeById?.[targetId];
+      if (node) {
+        return node;
+      }
+      const pressure = (state.prepared?.activePressureObjects || []).find((object) => object?.id === targetId);
+      if (pressure) {
+        return pressure;
+      }
+    }
+    return null;
+  }
+
+  function getReportRegionDescriptor(region, locale = getReportLocale()) {
+    const point = region?.labelPoint || region?.peakCell || null;
+    if (!point) {
+      return locale === 'en' ? 'this route segment' : '该路线段';
+    }
+    const progressValues = (Array.isArray(region?.cells) ? region.cells : [])
+      .map((cell) => Number(cell?.progress))
+      .filter((value) => Number.isFinite(value));
+    if (progressValues.length) {
+      const averageProgress = progressValues.reduce((sum, value) => sum + value, 0) / progressValues.length;
+      if (locale === 'en') {
+        if (averageProgress < 0.33) return 'the early route segment';
+        if (averageProgress < 0.67) return 'the middle route segment';
+        return 'the late route segment';
+      }
+      if (averageProgress < 0.33) return '路线前段';
+      if (averageProgress < 0.67) return '路线中段';
+      return '路线后段';
+    }
+    const x = Number(point.x || 0).toFixed(1);
+    const y = Number(point.y || 0).toFixed(1);
+    return locale === 'en' ? `around (${x}, ${y})` : `坐标(${x}, ${y})附近`;
+  }
+
+  function getReportRegionIntensity(region, locale = getReportLocale()) {
+    const peak = Number(region?.peakMetric || 0);
+    const average = Number(region?.averageMetric || 0);
+    const value = Math.max(peak, average);
+    if (!Number.isFinite(value) || value <= 0) {
+      return locale === 'en' ? 'elevated' : '偏高';
+    }
+    if (value >= 80) return locale === 'en' ? 'very high' : '很高';
+    if (value >= 60) return locale === 'en' ? 'high' : '较高';
+    return locale === 'en' ? 'noticeable' : '明显';
+  }
+
+  function buildEvidenceBasedRegionIssueAdvice(region, viewMode, locale = getReportLocale(), regionPressurePoints = []) {
+    const zh = locale !== 'en';
+    const index = region?.index || 1;
+    const dominantPressure = Array.isArray(regionPressurePoints) && regionPressurePoints.length ? regionPressurePoints[0] : null;
+    const pressureName = dominantPressure?.name || '';
+    const regionDescriptor = getReportRegionDescriptor(region, locale);
+    const regionIntensity = getReportRegionIntensity(region, locale);
+    const sourceText = pressureName || (zh ? '该区域的通行状态' : 'the local movement state');
+    if (viewMode === 'sensory') {
+      return {
+        index,
+        title: zh
+          ? `高热区${index}在${regionDescriptor}出现${regionIntensity}感知负担，主要与${sourceText}有关。`
+          : `Hot zone ${index} shows ${regionIntensity} perception burden in ${regionDescriptor}, mainly associated with ${sourceText}.`,
+        advice: zh
+          ? `优先复核${pressureName || '该区域'}的亮度、噪音、朝向和信息密度，降低突兀刺激并保留必要识别信息。`
+          : `Review ${pressureName || 'this area'} for brightness, noise, orientation, and information density; reduce abrupt stimulus while keeping essential cues readable.`,
+        peakMetric: Number(region?.peakMetric || 0),
+      };
+    }
+    if (viewMode === 'cognitive') {
+      return {
+        index,
+        title: zh
+          ? `高热区${index}在${regionDescriptor}需要反复确认方向，${sourceText}提高了决策负担。`
+          : `Hot zone ${index} requires repeated route confirmation in ${regionDescriptor}; ${sourceText} raises decision burden.`,
+        advice: zh
+          ? `在该段补强与目的地直接相关的连续导向，削弱干扰性标识层级，避免代理人在同一点重复比较路线。`
+          : `Strengthen destination-relevant continuous guidance here and reduce competing sign hierarchy so the agent does not repeatedly compare route options at the same point.`,
+        peakMetric: Number(region?.peakMetric || 0),
+      };
+    }
+    if (viewMode === 'psychological') {
+      return {
+        index,
+        title: zh
+          ? `高热区${index}在${regionDescriptor}形成${regionIntensity}心理压力，触发源集中在${sourceText}。`
+          : `Hot zone ${index} forms ${regionIntensity} psychological stress in ${regionDescriptor}, with the strongest trigger around ${sourceText}.`,
+        advice: zh
+          ? `降低该点的不确定感：减少突发刺激，补足可连续确认的导向信息，并让下一步行动选择更清晰。`
+          : `Lower uncertainty here by reducing abrupt stressors, adding continuous confirmation cues, and making the next action choice clearer.`,
+        peakMetric: Number(region?.peakMetric || 0),
+      };
+    }
+    if (viewMode === 'locomotor') {
+      return {
+        index,
+        title: zh
+          ? `高热区${index}在${regionDescriptor}出现移动阻力，${sourceText}附近的通过效率下降。`
+          : `Hot zone ${index} shows movement friction in ${regionDescriptor}; passage efficiency drops around ${sourceText}.`,
+        advice: zh
+          ? `优先检查该段净宽、排队外溢和转向空间，必要时调整设施位置或分流路线。`
+          : `Check clear width, queue spillover, and turning space here; adjust facility position or split flows where needed.`,
+        peakMetric: Number(region?.peakMetric || 0),
+      };
+    }
+    if (viewMode === 'vitality') {
+      return {
+        index,
+        title: zh
+          ? `高热区${index}在${regionDescriptor}疲劳带突然变宽，单位距离疲劳增长加快。`
+          : `Hot zone ${index} has a sudden widening of the fatigue ribbon in ${regionDescriptor}, meaning fatigue rises faster per metre.`,
+        advice: zh
+          ? `复核这段的绕行、坡度/垂直交通、拥挤和休息点间距；若${pressureName ? `受${pressureName}影响，` : ''}建议缩短连续步行或补充短暂停留点。`
+          : `Review detours, level changes, crowding, and rest spacing here; ${pressureName ? `because ${pressureName} contributes, ` : ''}shorten continuous walking or add a short recovery point.`,
+        peakMetric: Number(region?.peakMetric || 0),
+      };
+    }
+    return {
+      index,
+      title: zh
+        ? `高热区${index}在${regionDescriptor}负担${regionIntensity}。`
+        : `Hot zone ${index} has ${regionIntensity} burden in ${regionDescriptor}.`,
+      advice: zh
+        ? '结合该区域的压力点排序优先处理贡献最高的设施或环境因素。'
+        : 'Use the stressor ranking for this region to prioritize the highest-contributing facility or environmental factor.',
+      peakMetric: Number(region?.peakMetric || 0),
+    };
+  }
+
+  function buildSingleBurdenRegionIssueAdvice(region, viewMode, locale = getReportLocale(), regionPressurePoints = []) {
+    const evidenceAdvice = buildEvidenceBasedRegionIssueAdvice(region, viewMode, locale, regionPressurePoints);
+    if (viewMode === 'vitality' && region?.vitalitySurge) {
+      return evidenceAdvice;
+    }
+    const issueItems = getVisualizationDetailIssuePanelState(viewMode).items || [];
+    let matchedIssue = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    issueItems.forEach((item) => {
+      const point = getReportIssuePoint(item);
+      if (!point || !region?.labelPoint) {
+        return;
+      }
+      const distance = Math.hypot(Number(point.x || 0) - Number(region.labelPoint.x || 0), Number(point.y || 0) - Number(region.labelPoint.y || 0));
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        matchedIssue = item;
+      }
+    });
+    const fallbackIssue = issueItems[Math.max(0, Number(region?.index || 1) - 1)] || issueItems[0] || null;
+    const issue = matchedIssue || fallbackIssue;
+    const title = evidenceAdvice.title || issue?.title || issue?.summary || issue?.name || issue?.label || getDimensionBurdenLabel(viewMode, locale);
+    const advice = evidenceAdvice.advice || issue?.advice || issue?.suggestion || getSuggestionByCategory(issue?.category || issue?.categoryId || viewMode);
+    return {
+      index: region?.index || 1,
+      title,
+      advice,
+      peakMetric: Number(region?.peakMetric || 0),
+    };
+  }
+
+  function parseReportColorToRgb(color, fallbackRgb = [218, 68, 64]) {
+    const value = String(color || '').trim();
+    const hex = /^#?([0-9a-f]{6})$/i.exec(value);
+    if (hex) {
+      const raw = hex[1];
+      return [
+        parseInt(raw.slice(0, 2), 16),
+        parseInt(raw.slice(2, 4), 16),
+        parseInt(raw.slice(4, 6), 16),
+      ];
+    }
+    const rgb = /rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i.exec(value);
+    if (rgb) {
+      return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])].map((component, index) => (
+        Number.isFinite(component) ? clamp(Math.round(component), 0, 255) : fallbackRgb[index]
+      ));
+    }
+    return fallbackRgb;
+  }
+
+  function createReportHeatRasterDataUrl(viewMode, cells, transform, options = {}) {
+    if (typeof document === 'undefined' || !transform || !Array.isArray(cells) || !cells.length) {
+      return '';
+    }
+    const safeViewMode = getSafeViewMode(viewMode);
+    const traceSnapshots = getReportTraceSnapshots();
+    const heatmapStyle = HEATMAP_VIEW_STYLES[safeViewMode] || HEATMAP_VIEW_STYLES.default;
+    const rasterCells = cells;
+    if (!rasterCells.length) {
+      return '';
+    }
+    const localMetricValues = getReportHeatCells(safeViewMode)
+      .map((cell) => Number(cell.metric || 0))
+      .filter((value) => Number.isFinite(value));
+    const localMetricMin = localMetricValues.length ? Math.min(...localMetricValues) : 0;
+    const localMetricMax = localMetricValues.length ? Math.max(...localMetricValues) : 0;
+    const highRgb = parseReportColorToRgb(options.highColor, samplePaletteRgb(1, heatmapStyle.colorStops || DEFAULT_HEAT_COLOR_STOPS));
+    const rasterStyle = options.highOnly
+      ? {
+          ...heatmapStyle,
+          colorStops: [
+            { stop: 0, rgb: highRgb },
+            { stop: 1, rgb: highRgb },
+          ],
+        }
+      : heatmapStyle;
+    const heatDisplayProfile = options.highOnly ? null : buildHeatDisplayProfile(localMetricValues, heatmapStyle);
+    const width = Math.max(1, Math.round(transform.width || 0));
+    const height = Math.max(1, Math.round(transform.height || 0));
+    const heatSurface = document.createElement('canvas');
+    const dpr = Math.max(1, Number(window.devicePixelRatio || 1));
+    heatSurface.width = Math.max(1, Math.round(width * dpr));
+    heatSurface.height = Math.max(1, Math.round(height * dpr));
+    const ctx = heatSurface.getContext('2d');
+    if (!ctx) {
+      return '';
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    const sourceSurface = safeViewMode === 'vitality' && !options.highOnly
+      ? createVitalityRibbonRaster(traceSnapshots, transform, localMetricMin, localMetricMax, dpr)
+      : createHeatFieldRasterLegacy(rasterCells, localMetricMin, localMetricMax, rasterStyle, transform, safeViewMode);
+    if (!sourceSurface) {
+      return '';
+    }
+    const corridorMask = safeViewMode !== 'vitality' && !options.highOnly
+      ? createHeatRevealMaskRaster(traceSnapshots, transform, getTraceRevealRadiusMeters(safeViewMode), dpr)
+      : null;
+    ctx.save();
+    clipHeatmapToWalkableArea(ctx, transform);
+    paintHeatSurface(ctx, sourceSurface, width, height, corridorMask);
+    clearHeatmapObstacles(ctx, transform);
+    ctx.restore();
+    return heatSurface.toDataURL('image/png');
+  }
+
+  function buildReportHeatMapSvg(viewMode, options = {}) {
+    const transform = computeTransformForViewportSize(options.width || 520, options.height || 300);
+    const highRegions = options.highOnly
+      ? (Array.isArray(options.highRegions) ? options.highRegions : getReportHighHeatRegions(viewMode))
+      : [];
+    const cells = options.highOnly ? getReportRegionCells(highRegions) : getReportHeatCells(viewMode);
+    const rasterDataUrl = options.highOnly && getSafeViewMode(viewMode) === 'vitality'
+      ? ''
+      : createReportHeatRasterDataUrl(viewMode, cells, transform, options);
+    const heatMarkup = rasterDataUrl
+      ? `<img class="report-heat-raster" src="${escapeHtml(rasterDataUrl)}" alt="" />`
+      : '';
+    const highLabels = options.highOnly
+      ? buildReportHighHeatLabels(viewMode, transform, { ...options, highRegions })
+      : '';
+    const routeMarkup = options.showRoutePath === false ? '' : buildReportRoutePathMarkup(transform);
+    const overlaySvg = `<svg viewBox="${transform.viewBox.x} ${transform.viewBox.y} ${transform.viewBox.width} ${transform.viewBox.height}" preserveAspectRatio="xMidYMid meet">${highLabels}${routeMarkup}${buildReportNumberedPressurePointMarkup(transform, options.pressurePoints || [])}</svg>`;
+    return `${heatMarkup}${overlaySvg}`;
+  }
+
+  function buildReportHighHeatLabels(viewMode, transform, options = {}) {
+    const regions = Array.isArray(options.highRegions) ? options.highRegions : getReportHighHeatRegions(viewMode);
+    return regions.slice(0, 8).map((region) => {
+      const point = worldToDisplayPoint(region.labelPoint || region.peakCell, transform);
+      const circle = region.vitalitySurge ? `<circle cx="${point.x}" cy="${point.y}" r="${worldRadiusForPixels(18, transform)}"></circle>` : '';
+      return `<g class="report-high-label${region.vitalitySurge ? ' report-high-label--vitality' : ''}">${circle}<text x="${point.x}" y="${point.y}">${region.index}</text></g>`;
+    }).join('');
+  }
+
+  function buildReportHeatmapCards(locale = getReportLocale()) {
+    const copy = buildReportExportCopy(locale);
+    return BURDEN_VIEW_ORDER.map((viewMode) => {
+      const style = HEATMAP_VIEW_STYLES[getSafeViewMode(viewMode)] || HEATMAP_VIEW_STYLES.default;
+      const range = getViewMetricRange(viewMode);
+      const legend = style.legend || HEATMAP_VIEW_STYLES.default.legend;
+      return {
+        id: viewMode,
+        title: getDimensionBurdenLabel(viewMode, locale),
+        description: getVisualizationViewDescription(viewMode),
+        min: Number(range.minMetric || range.min || 0),
+        max: Number(range.maxMetric || range.max || 0),
+        minLabel: `${copy.minBurden}: ${formatReportMetric(range.minMetric || range.min || 0)}`,
+        maxLabel: `${copy.maxBurden}: ${formatReportMetric(range.maxMetric || range.max || 0)}`,
+        legendLow: locale === 'en' ? legend.lowEn : legend.lowZh,
+        legendHigh: locale === 'en' ? legend.highEn : legend.highZh,
+        legendNote: locale === 'en' ? legend.widthNoteEn : legend.widthNoteZh,
+        legendGradient: buildHeatLegendGradient(style),
+        mapSvg: buildReportHeatMapSvg(viewMode, { showRoutePath: false }),
+      };
+    });
+  }
+
+  function buildReportDetailBurdenCards(locale = getReportLocale()) {
+    const copy = buildReportExportCopy(locale);
+    const pressurePoints = buildReportRoutePressurePoints(locale);
+    return BURDEN_VIEW_ORDER.map((viewMode) => {
+      const isCompositeSummary = viewMode === COMPOSITE_BURDEN_VIEW;
+      const style = HEATMAP_VIEW_STYLES[getSafeViewMode(viewMode)] || HEATMAP_VIEW_STYLES.default;
+      const topColor = rgbToCss(samplePaletteRgb(1, style.colorStops || DEFAULT_HEAT_COLOR_STOPS));
+      const highRegions = viewMode === 'vitality' ? getReportVitalitySurgeRegions() : getReportHighHeatRegions(viewMode);
+      const regionPressurePoints = highRegions.map((region) => ({
+        index: region.index,
+        points: getReportRegionInfluencingPressurePoints(region, pressurePoints, viewMode),
+      }));
+      const mapPressurePoints = getUniqueReportPressurePoints(regionPressurePoints);
+      const regionRankings = isCompositeSummary
+        ? highRegions.map((region) => ({
+            index: region.index,
+            ranking: buildCompositeRegionContributionRankings(region, locale),
+            peakMetric: Number(region.peakMetric || 0),
+          }))
+        : [];
+      const regionIssues = isCompositeSummary
+        ? []
+        : highRegions.map((region) => buildSingleBurdenRegionIssueAdvice(
+            region,
+            viewMode,
+            locale,
+            regionPressurePoints.find((group) => Number(group.index) === Number(region.index))?.points || []
+          ));
+      const issues = isCompositeSummary
+        ? []
+        : (regionIssues.length
+          ? regionIssues.map((item) => ({
+              index: item.index,
+              text: item.title,
+              advice: item.advice,
+            }))
+          : [{ index: null, text: copy.noHighHeat, advice: '' }]);
+      return {
+        id: viewMode,
+        title: getDimensionBurdenLabel(viewMode, locale),
+        mapSvg: buildReportHeatMapSvg(viewMode, {
+          highOnly: true,
+          width: 860,
+          height: 400,
+          highRegions,
+          highColor: viewMode === COMPOSITE_BURDEN_VIEW ? 'rgba(218, 68, 64, 0.72)' : topColor,
+          pressurePoints: mapPressurePoints,
+        }),
+        ranking: buildDimensionSummaryEntries(
+          state.scenario?.focusAgent?.profile?.capacityScores || state.focusProfile?.capacityScores || DEFAULT_CAPACITY_SCORES,
+          state.scenario?.summary?.averageBurdens || {},
+          locale
+        ).sort((left, right) => Number(right.burdenScore || 0) - Number(left.burdenScore || 0)),
+        highRegions,
+        regionRankings: isCompositeSummary ? regionRankings : [],
+        regionIssues: isCompositeSummary ? [] : regionIssues,
+        regionPressurePoints: regionPressurePoints,
+        missedSignageItems: viewMode === 'sensory' ? pressurePoints.filter((item) => item.missedSignage) : [],
+        issues,
+        pressurePoints: mapPressurePoints,
+      };
+    });
+  }
+
+  function buildRouteReportInputSnapshot({ locale, dimensionSummary }) {
+    return {
+      routeText: `${getReportStartLabel(locale)} ${buildReportExportCopy(locale).routeArrow} ${getReportTargetLabel(locale)}`,
+      backgroundCrowd: getBackgroundCrowdCount(),
+      dimensionSummary,
+    };
+  }
+
+  function buildRouteReportExecutiveSummary(reportData, locale = getReportLocale()) {
+    return buildRouteReportFindings(reportData.summary, reportData.hotspots, reportData.risk, locale);
+  }
+
+  function buildRouteReportBurdenSimulation(locale = getReportLocale()) {
+    return buildReportSimulationParameterRows(locale);
+  }
+
+  function buildRouteReportPressureCategoryAnalysis(routePressurePoints = []) {
+    const grouped = new Map();
+    routePressurePoints.forEach((item) => {
+      const key = item.categoryId || 'unknown';
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          categoryId: key,
+          categoryLabel: item.categoryLabel || key,
+          color: item.color || '#7ea4c1',
+          items: [],
+        });
+      }
+      grouped.get(key).items.push(item);
+    });
+    return Array.from(grouped.values());
+  }
+
+  function buildSharedRouteAnalysisLlmInput({ reportData }) {
+    const detailBurdenCards = (reportData?.detailBurdenCards || []).map((card) => ({
+      id: card.id,
+      title: card.title,
+      regions: (card.regionRankings || card.regionIssues || []).slice(0, 3).map((region) => ({
+        index: region.index,
+        ranking: Array.isArray(region.ranking) ? region.ranking.slice(0, 5) : [],
+        title: region.title || region.text || '',
+        advice: region.advice || '',
+      })),
+      pressurePoints: (card.regionPressurePoints || []).map((group) => ({
+        index: group.index,
+        points: (group.points || []).slice(0, 5).map((point) => ({
+          number: point.reportPressureNumber || point.pressureNumber,
+          name: point.name,
+          category: point.categoryLabel || point.categoryId,
+          contribution: Number(point.regionContribution || point.contribution || 0),
+        })),
+      })),
+    }));
+    return {
+      requestedFrontReport: {
+        purpose: 'Generate the single front summary page after the report cover.',
+        requiredSections: [
+          'route judgement',
+          'core route problems',
+          'key modification content',
+          'spatial model changes',
+          'priority modification areas and facilities',
+          'expected impact',
+        ],
+        constraints: [
+          'Use specific route, burden, hot-zone, and numbered pressure-point evidence.',
+          'Only refer to stressors by the supplied global pressure-point numbers.',
+          'Use labels such as Composite hot zone 1, Decision hot zone 1, or Perception hot zone 2. Do not use ambiguous Zone labels.',
+          'Explain what should be changed in the spatial model, where it is located, and what burden it is expected to reduce.',
+          'Avoid vague advice such as optimize layout, improve guidance, or review facilities unless paired with a concrete object and action.',
+          'Write evidence-dense professional diagnosis, not generic score restatement.',
+          'Do not invent new route geometry, formulas, heatmap values, nodes, or pressure points.',
+        ],
+      },
+      requestedReportAdjustment: {
+        purpose: 'Generate intelligent model adjustment recommendations for the exported report only.',
+        requiredSections: ['route score interpretation', 'spatial model changes', 'priority modification areas', 'priority facilities'],
+        constraints: [
+          'Base every recommendation on the supplied simulation evidence.',
+          'Mention pressure-point numbers when recommending facilities.',
+          'Only use global pressure-point numbers from globalPressurePointRanking.',
+          'Use hot-zone labels from hotZoneEvidence and never invent new zone names.',
+          'Avoid repeating the same generic wording for every facility.',
+          'Do not invent new route geometry, formulas, or heatmap values.',
+        ],
+      },
+      route: reportData?.route,
+      summary: reportData?.summary,
+      routeScoreSummary: reportData?.routeScoreSummary || null,
+      inputSnapshot: reportData?.inputSnapshot || null,
+      modelSpaceInfo: reportData?.modelSpaceInfo || null,
+      dimensionSummary: reportData?.dimensionSummary || [],
+      detailBurdenCards,
+      routePressurePoints: (reportData?.routePressurePoints || []).slice(0, 12).map((point) => ({
+        number: point.reportPressureNumber || point.pressureNumber,
+        name: point.name,
+        category: point.categoryLabel || point.categoryId,
+        description: point.description,
+        contribution: Number(point.contribution || 0),
+        color: point.color,
+        burdenTypes: point.burdenTypes || [],
+      })),
+      globalPressurePointRanking: (reportData?.routePressurePoints || []).slice(0, 16).map((point) => ({
+        number: point.reportPressureNumber || point.pressureNumber,
+        name: point.name,
+        category: point.categoryLabel || point.categoryId,
+        color: point.color,
+        contribution: Number(point.contribution || 0),
+        burdenTypes: point.burdenTypes || [],
+      })),
+      hotZoneEvidence: (reportData?.detailBurdenCards || []).map((card) => ({
+        burdenId: card.id,
+        burdenTitle: card.title,
+        regions: (card.highRegions || []).slice(0, 3).map((region) => ({
+          index: region.index,
+          label: `${card.title} hot zone ${region.index}`,
+          burdenRanking: (card.regionRankings || []).find((item) => Number(item.index) === Number(region.index))?.ranking || [],
+          issue: (card.regionIssues || []).find((item) => Number(item.index) === Number(region.index)) || null,
+          regionPressurePoints: (card.regionPressurePoints || [])
+            .find((group) => Number(group.index) === Number(region.index))?.points
+            ?.slice(0, 6)
+            .map((point) => ({
+              number: point.reportPressureNumber || point.pressureNumber,
+              name: point.name,
+              category: point.categoryLabel || point.categoryId,
+              contribution: Number(point.regionContribution || point.contribution || 0),
+              burdenTypes: point.burdenTypes || [],
+            })) || [],
+        })),
+      })),
+      pressureCategorySummary: reportData?.pressureCategorySummary || [],
+    };
+  }
+
+  function buildRouteAnalysisLlmOutput({ provider, sections }) {
+    return { provider, sections: Array.isArray(sections) ? sections : [] };
+  }
+
+  function getRouteAnalysisProviderState(locale = getReportLocale()) {
+    return {
+      label: locale === 'en' ? 'Local report export' : '本地报告导出',
+      status: locale === 'en' ? 'Report generated from current simulation state' : '报告基于当前模拟状态生成',
+    };
+  }
+
+  function buildRouteAnalysisLlmSections({ reportData, locale = getReportLocale() }) {
+    return [
+      {
+        title: reportT('llmAnalysisTitle', null, locale),
+        body: reportData?.findings?.join(' ') || reportT('llmAnalysisPlaceholder', null, locale),
+      },
+    ];
+  }
+
+  function buildReportRouteScoreSummary(dimensionSummary = [], locale = getReportLocale()) {
+    const scores = (Array.isArray(dimensionSummary) ? dimensionSummary : [])
+      .map((item) => ({
+        id: item.id,
+        label: item.burdenLabel || getDimensionBurdenLabel(item.id, locale),
+        burdenScore: clamp(Number(item.burdenScore || 0), 0, 100),
+      }));
+    const overallBurdenScore = scores.length
+      ? scores.reduce((sum, item) => sum + item.burdenScore, 0) / scores.length
+      : 0;
+    const routeFriendlyScore = clamp(100 - overallBurdenScore, 0, 100);
+    const level = overallBurdenScore >= 75
+      ? (locale === 'en' ? 'High burden' : '高负担')
+      : overallBurdenScore >= 55
+        ? (locale === 'en' ? 'Medium-high burden' : '中高负担')
+        : overallBurdenScore >= 35
+          ? (locale === 'en' ? 'Medium burden' : '中等负担')
+          : (locale === 'en' ? 'Low burden' : '低负担');
+    return {
+      overallBurdenScore: Number(overallBurdenScore.toFixed(1)),
+      routeFriendlyScore: Number(routeFriendlyScore.toFixed(1)),
+      level,
+      dimensions: scores.map((item) => ({
+        ...item,
+        burdenScore: Number(item.burdenScore.toFixed(1)),
+      })),
+    };
+  }
+
+  function getReportBurdenLevel(score = 0, locale = getReportLocale()) {
+    const value = clamp(Number(score || 0), 0, 100);
+    const level = REPORT_BURDEN_LEVEL_STOPS.find((item) => value <= item.max) || REPORT_BURDEN_LEVEL_STOPS[REPORT_BURDEN_LEVEL_STOPS.length - 1];
+    return {
+      ...level,
+      label: locale === 'en' ? level.en : level.zh,
+    };
+  }
+
+  function buildSharedRouteAnalysisSnapshot(locale = getReportLocale()) {
+    const localLocale = locale === 'en' ? 'en' : 'zh-CN';
+    const copy = buildReportExportCopy(locale);
+    const summary = state.scenario?.summary || {};
+    const hotspots = getReportHotspots().map((item, index) => ({
+      ...item,
+      rank: index + 1,
+      categoryLabel: tForLocale(locale, `categories.${item.category || 'unknown'}`),
+      advice: getSuggestionByCategoryText(item.category, locale),
+      pressure: Number(item.pressure || item.score || 0),
+    }));
+    const risk = getRouteReportRiskSummary(summary, hotspots, locale);
+    const focusCapacityScores = state.scenario?.focusAgent?.profile?.capacityScores || state.focusProfile?.capacityScores || DEFAULT_CAPACITY_SCORES;
+    const dimensionSummary = buildDimensionSummaryEntries(focusCapacityScores, summary.averageBurdens, locale);
+    const routeScoreSummary = buildReportRouteScoreSummary(dimensionSummary, locale);
+    const routePressurePoints = buildReportRoutePressurePoints(locale);
+    const pressureCategoryAnalysis = buildRouteReportPressureCategoryAnalysis(routePressurePoints);
+    const pressureCategorySummary = pressureCategoryAnalysis;
+    const sharedReportData = {
+      locale,
+      copy,
+      route: { startLabel: getReportStartLabel(locale), targetLabel: getReportTargetLabel(locale) },
+      summary: {
+        simultaneousCount: Number(summary.simultaneousCount || 0),
+        activePressureCount: Number(summary.activePressureCount || 0),
+        averageTravelTime: Number(summary.averageTravelTime || 0),
+        averageFatigue: Number(summary.averageFatigue || 0),
+        averageHeat: Number(summary.averageHeat || 0),
+        averageBurdens: summary.averageBurdens || {},
+      },
+      hotspots,
+      risk,
+      dimensionSummary,
+      routeScoreSummary,
+      pressureCategorySummary,
+    };
+    const llmInput = buildSharedRouteAnalysisLlmInput({ reportData: sharedReportData });
+    const defaultLlmAnalysis = buildRouteAnalysisLlmOutput({
+      provider: getRouteAnalysisProviderState(localLocale),
+      sections: buildRouteAnalysisLlmSections({ reportData: sharedReportData, locale }),
+    });
+    let llmAnalysis = defaultLlmAnalysis;
+    return {
+      executiveSummary: buildRouteReportExecutiveSummary(sharedReportData, locale),
+      inputSnapshot: buildRouteReportInputSnapshot({ locale, dimensionSummary }),
+      burdenSimulation: buildRouteReportBurdenSimulation(locale),
+      pressureCategoryAnalysis,
+      pressureCategorySummary,
+      llmInput,
+      llmAnalysis,
+      placeholderTitle: reportT('llmAnalysisTitle', null, locale),
+      placeholder: reportT('llmAnalysisPlaceholder', null, locale),
+      placeholderSub: reportT('llmAnalysisPlaceholderSub', null, locale),
+    };
+  }
+
   function buildRouteReportData(locale = getReportLocale()) {
     if (!state.prepared || !state.scenario?.heatActive || !state.routeSelection.startPoint || !state.routeSelection.targetRegionId) {
       throw new Error(reportT('emptyPreview', null, locale));
     }
-    const copy = getReportCopy(locale);
+    const copy = buildReportExportCopy(locale);
+    const sharedSnapshot = buildSharedRouteAnalysisSnapshot(locale);
     const summary = state.scenario.summary || {};
     const hotspots = getReportHotspots().map((item, index) => ({
       ...item,
@@ -7418,9 +11487,28 @@
       summary.averageBurdens,
       locale === 'en' ? 'en' : 'zh-CN'
     );
+    const routeScoreSummary = buildReportRouteScoreSummary(dimensionSummary, locale);
     const peakDimension = dimensionSummary.slice().sort((left, right) => right.burdenScore - left.burdenScore)[0] || null;
     const activeViewLabel = locale === 'en' ? 'Active View' : '当前视图';
-    return {
+    const capacityScores = state.focusProfile?.capacityScores || state.scenario?.focusAgent?.profile?.capacityScores || DEFAULT_CAPACITY_SCORES;
+    const agentFigureUrl = getSettingsAgentPreviewFigureImageUrl(capacityScores);
+    const agentRadarSvg = buildAgentRadarSvg({ capacityScores }, locale, {
+      getLabel: getDimensionDisplayName,
+      showHitTargets: false,
+      handleRadius: 5,
+      activeHandleRadius: 5,
+      layout: {
+        radius: 126,
+        labelRadius: 186,
+      },
+    });
+    const agentAttributes = buildDimensionSummaryEntries(capacityScores, summary.averageBurdens, locale)
+      .map((item) => ({
+        ...item,
+        description: getDimensionAgentSettingDescription(item.id, item.capacityScore, locale),
+      }));
+    const routePressurePoints = buildReportRoutePressurePoints(locale);
+    const reportData = {
       locale,
       copy,
       activeViewLabel,
@@ -7453,12 +11541,31 @@
         averageBurdens: summary.averageBurdens || {},
       },
       dimensionSummary,
+      routeScoreSummary,
       peakDimension,
       hotspots,
       risk,
       findings: buildRouteReportFindings(summary, hotspots, risk, locale),
       recommendations: buildRouteReportRecommendations(summary, hotspots, locale),
+      sharedSnapshot,
+      modelSpaceInfo: buildReportModelSpaceInfo(locale),
+      inputSnapshot: sharedSnapshot.inputSnapshot,
+      simulationParameterRows: buildReportSimulationParameterRows(locale),
+      thoughtChainItems: buildReportThoughtChainItems(locale),
+      routePressurePoints,
+      pressureCategoryAnalysis: buildRouteReportPressureCategoryAnalysis(routePressurePoints),
+      pressureCategorySummary: buildRouteReportPressureCategoryAnalysis(routePressurePoints),
+      heatmapCards: buildReportHeatmapCards(locale),
+      detailBurdenCards: buildReportDetailBurdenCards(locale),
+      agentFigureUrl,
+      agentRadarSvg,
+      agentAttributes,
+      llmInput: sharedSnapshot.llmInput,
+      llmAnalysis: state.reportModal?.llmAnalysis || sharedSnapshot.llmAnalysis,
     };
+    reportData.llmInput = buildSharedRouteAnalysisLlmInput({ reportData });
+    reportData.thoughtMapSnapshot = buildReportThoughtMapSnapshot(reportData, locale);
+    return reportData;
   }
 
   function buildRouteReportSummaryMarkup(reportData) {
@@ -7514,21 +11621,800 @@
     `;
   }
 
+  function buildReportModelRowsMarkup(reportData) {
+    const copy = reportData.copy;
+    return (reportData.modelSpaceInfo?.rows || []).map((row) => `
+      <tr>
+        <td>${escapeHtml(row.category)}</td>
+        <td>${row.color ? `<span class="report-swatch" style="background:${escapeHtml(row.color)}"></span>` : ''}${escapeHtml(row.label)}</td>
+        <td>${escapeHtml(formatReportNumber(row.count, 0))}</td>
+      </tr>
+    `).join('') || `<tr><td colspan="3">${escapeHtml(copy.noDimensionData)}</td></tr>`;
+  }
+
+  function buildReportSimulationRowsMarkup(reportData) {
+    return (reportData.simulationParameterRows || []).map((row) => `
+      <tr>
+        <td>${escapeHtml(row.label)}</td>
+        <td>${escapeHtml(row.min)}</td>
+        <td>${escapeHtml(row.max)}</td>
+      </tr>
+    `).join('');
+  }
+
+  function buildReportAgentAttributesMarkup(reportData) {
+    return (reportData.agentAttributes || []).map((item) => `
+      <div class="report-attribute-card">
+        <div class="report-attribute-score">${escapeHtml(formatReportNumber(item.capacityScore, 0))}</div>
+        <div class="report-attribute-content">
+          <strong>${escapeHtml(item.capacityLabel)}</strong>
+          <p>${escapeHtml(item.description || item.capacityScoreLabel || '')}</p>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function buildReportThoughtFlowMarkup(reportData) {
+    const copy = reportData.copy;
+    const items = Array.isArray(reportData.thoughtChainItems) ? reportData.thoughtChainItems : [];
+    if (!items.length) {
+      return `<div class="report-empty">${escapeHtml(copy.noThoughtChain)}</div>`;
+    }
+    return items.map((item, index) => `
+      <span class="report-thought-step">${escapeHtml(item)}</span>${index < items.length - 1 ? '<span class="report-thought-arrow">→</span>' : ''}
+    `).join('');
+  }
+
+  function buildReportNumberedPressureGroupsMarkup(reportData) {
+    const copy = reportData.copy;
+    const groups = Array.isArray(reportData.pressureCategoryAnalysis) ? reportData.pressureCategoryAnalysis : [];
+    if (!groups.length) {
+      return `<div class="report-empty">${escapeHtml(copy.noPressurePoints)}</div>`;
+    }
+    return groups.map((group) => `
+      <div class="report-pressure-group">
+        <div class="report-pressure-group-title"><span class="report-swatch" style="background:${escapeHtml(group.color)}"></span>${escapeHtml(group.categoryLabel)}</div>
+        <table class="report-pressure-table">
+          <tbody>
+            ${group.items.map((item) => `
+              <tr>
+                <td class="report-pressure-table__name">${buildReportPressurePointReferenceMarkup(item)}</td>
+                <td class="report-pressure-table__desc">${escapeHtml(item.description || '--')}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `).join('');
+  }
+
+  function buildReportMethodNoteMarkup(reportData) {
+    const locale = reportData.locale === 'en' ? 'en' : 'zh-CN';
+    const methodLabel = locale === 'en' ? 'Method note' : '方法说明';
+    const body = locale === 'en'
+      ? 'This report is generated from the current route simulation. The system samples the agent state along the actual walking trajectory and combines environmental stressors, crowd density, walking speed, fatigue change, and decision latency to calculate burden heatmaps. High-heat regions use the top 20% burden values in the current heatmap, clustered spatially, with the three largest regions shown. Stressor influence rankings come from effective contribution records generated during the focus-agent simulation.'
+      : '本报告基于当前路线模拟结果生成。系统沿代理人实际轨迹采样通行状态，并结合环境压力点、人群密度、步行速度、疲劳变化与决策迟滞计算各类负担热力。高热区取当前热力图负担值最高的20%区域，并按空间连续性聚类后展示面积最大的三个区域。压力点影响排序来自模拟过程中对目标代理人产生有效贡献的压力点记录。';
+    return `
+      <div class="report-method-note">
+        <p><strong>${escapeHtml(methodLabel)}:</strong> ${escapeHtml(body)}</p>
+      </div>
+    `;
+  }
+
+  function buildReportHeatmapCardsMarkup(reportData) {
+    return (reportData.heatmapCards || []).map((card) => `
+      <article class="report-heat-card">
+        <div class="report-heat-stage" style="aspect-ratio:520 / 300;">
+          <div class="report-map-layer report-map-layer--base">${buildReportBaseSvg(computeTransformForViewportSize(520, 300))}</div>
+          <div class="report-map-layer report-map-layer--heat">${card.mapSvg}</div>
+          <div class="report-heat-header">${escapeHtml(card.title)}</div>
+          <div class="report-heat-legend">
+            <div class="report-heat-legend-gradient" style="background:${escapeHtml(card.legendGradient)}"></div>
+            <div class="report-heat-legend-labels"><span>${escapeHtml(card.legendLow || '')}</span><span>${escapeHtml(card.legendHigh || '')}</span></div>
+            ${card.legendNote ? `<div class="report-heat-legend-note">${escapeHtml(card.legendNote)}</div>` : ''}
+          </div>
+        </div>
+        <div class="report-heat-stats">
+          <span>${escapeHtml(card.maxLabel)}</span>
+          <span>${escapeHtml(card.minLabel)}</span>
+        </div>
+        <div class="report-heat-meta"><p>${escapeHtml(card.description || '')}</p></div>
+      </article>
+    `).join('');
+  }
+
+  function buildReportDetailCardsMarkup(reportData) {
+    const copy = reportData.copy;
+    return (reportData.detailBurdenCards || []).map((card) => {
+      const showIssueAdvice = card.id !== COMPOSITE_BURDEN_VIEW;
+      const locale = reportData.locale === 'en' ? 'en' : 'zh-CN';
+      const regionLabel = locale === 'en' ? 'Hot zone' : '高热区';
+      const topIssueLabel = locale === 'en' ? 'Top issue and advice' : 'Top1问题与建议';
+      const pressureLabel = copy.influenceRankingTitle || (locale === 'en' ? 'Influencing stressors ranked by contribution' : '对应影响压力点按贡献值排序');
+      const missedSignageLabel = locale === 'en' ? 'Visible signs missed on this route' : '这条路线上进入视野范围但漏看的标识';
+      const phenomenonLabel = locale === 'en' ? 'Pattern' : '现象';
+      const causeLabel = locale === 'en' ? 'Main cause' : '主要原因';
+      const adviceLabel = locale === 'en' ? 'Suggestion' : '建议';
+      const expectedLabel = locale === 'en' ? 'Expected effect' : '预计影响';
+      const getRegionPressurePoints = (index) => (
+        (card.regionPressurePoints || []).find((group) => Number(group.index) === Number(index))?.points || []
+      );
+      const buildPressureRankingMarkup = (points = [], includeMissedSignage = false) => {
+        const missedItems = includeMissedSignage
+          ? (card.missedSignageItems || []).filter((item) => item?.missedSignage)
+          : [];
+        const ranking = points.slice(0, 8);
+        const rankingMarkup = ranking.length
+          ? ranking.map((item) => `
+              <li>
+                <span class="report-pressure-number report-pressure-number--filled" style="background:${escapeHtml(item.color)}">${escapeHtml(String(item.reportPressureNumber || item.pressureNumber || ''))}</span>
+                <span>${escapeHtml(item.name)}</span>
+              </li>
+            `).join('')
+          : `<li class="report-detail-muted">${escapeHtml(copy.noPressurePoints)}</li>`;
+        const missedMarkup = missedItems.length
+          ? `<p>${escapeHtml(missedSignageLabel)}: ${buildReportPressurePointReferenceListMarkup(missedItems, 8)}</p>`
+          : '';
+        return `
+          <div class="report-detail-region-pressure-ranking">
+            <strong>${escapeHtml(pressureLabel)}</strong>
+            <ol>${rankingMarkup}</ol>
+            ${missedMarkup}
+          </div>
+        `;
+      };
+      const buildRegionPressureRanking = (index, includeMissedSignage = false) => {
+        const points = getRegionPressurePoints(index);
+        return buildPressureRankingMarkup(points, includeMissedSignage);
+      };
+      const buildCompositeRegionRows = () => {
+        const regions = card.regionRankings || [];
+        if (!regions.length) {
+          return `
+            <div class="report-detail-region-row">
+              <div class="report-detail-region-advice">
+                <strong>${escapeHtml(copy.burdenContributionRanking)}</strong>
+                <p>${card.ranking.slice(0, 5).map((item, index) => `${index + 1}. ${escapeHtml(item.burdenLabel)} ${escapeHtml(formatReportMetric(item.burdenScore))}`).join('<br />')}</p>
+              </div>
+              ${buildPressureRankingMarkup(card.pressurePoints || [])}
+            </div>
+          `;
+        }
+        return regions.map((region) => `
+          <div class="report-detail-region-row">
+            <div class="report-detail-region-advice">
+              <strong>${escapeHtml(regionLabel)} ${escapeHtml(String(region.index))} · ${escapeHtml(copy.burdenContributionRanking)}</strong>
+              <p>${region.ranking.slice(0, 5).map((item, index) => `${index + 1}. ${escapeHtml(item.burdenLabel)} ${escapeHtml(formatReportMetric(item.burdenScore))}`).join('<br />')}</p>
+            </div>
+            ${buildRegionPressureRanking(region.index)}
+          </div>
+        `).join('');
+      };
+      const buildSingleRegionRows = () => {
+        const issues = card.regionIssues || [];
+        if (!issues.length) {
+          return (card.issues || [{ index: null, text: copy.noHighHeat, advice: '' }]).map((item) => `
+            <div class="report-detail-region-row">
+              <div class="report-detail-region-advice">
+                <strong>${item.index ? `${escapeHtml(String(item.index))}. ` : ''}${escapeHtml(item.text || copy.noHighHeat)}</strong>
+                ${item.advice ? `<p>${escapeHtml(item.advice)}</p>` : ''}
+              </div>
+              ${buildPressureRankingMarkup(card.pressurePoints || [], card.id === 'sensory')}
+            </div>
+          `).join('');
+        }
+        const firstIssueIndex = Number(issues[0]?.index || 0);
+        return issues.map((item) => {
+          const regionPoints = getRegionPressurePoints(item.index);
+          return `
+            <div class="report-detail-region-row">
+              <div class="report-detail-region-advice">
+                <strong>${escapeHtml(regionLabel)} ${escapeHtml(String(item.index))} · ${escapeHtml(topIssueLabel)}</strong>
+                <p>
+                  <strong>${escapeHtml(phenomenonLabel)}:</strong> ${escapeHtml(item.title)}<br />
+                  <strong>${escapeHtml(causeLabel)}:</strong> ${regionPoints.length ? buildReportPressurePointReferenceListMarkup(regionPoints, 4) : escapeHtml(card.title)}<br />
+                  <strong>${escapeHtml(adviceLabel)}:</strong> ${escapeHtml(item.advice || '')}<br />
+                  <strong>${escapeHtml(expectedLabel)}:</strong> ${escapeHtml(locale === 'en' ? `Reduce local ${card.title} and make this route segment easier to pass.` : `降低该区域${card.title}，提升这一段路线的通过稳定性。`)}
+                </p>
+              </div>
+              ${buildRegionPressureRanking(item.index, card.id === 'sensory' && Number(item.index) === firstIssueIndex)}
+            </div>
+          `;
+        }).join('');
+      };
+      const detailRows = showIssueAdvice ? buildSingleRegionRows() : buildCompositeRegionRows();
+      return `
+        <article class="report-detail-card">
+          <div class="report-detail-map" style="aspect-ratio:860 / 400;">
+            <div class="report-map-layer report-map-layer--base">${buildReportBaseSvg(computeTransformForViewportSize(860, 400))}</div>
+            <div class="report-map-layer report-map-layer--heat">${card.mapSvg}</div>
+          </div>
+          <div class="report-detail-text">
+            <div class="report-detail-card__title">${escapeHtml(card.title)}</div>
+            <div class="report-detail-region-rows">${detailRows}</div>
+          </div>
+        </article>
+      `;
+    }).join('');
+  }
+
+  function getLocalizedReportAnalysisSections(reportData) {
+    const localized = localizeRouteAnalysisOutput(reportData?.llmAnalysis, reportData?.locale || getReportLocale());
+    return Array.isArray(localized?.sections) ? localized.sections : [];
+  }
+
+  function getReportAdjustmentSectionBullets(sections = [], keywords = [], fallback = []) {
+    const normalizedKeywords = keywords.map((item) => String(item || '').toLowerCase());
+    const section = sections.find((item) => {
+      const haystack = `${item.title || ''} ${item.titleZh || ''} ${item.titleEn || ''}`.toLowerCase();
+      return normalizedKeywords.some((keyword) => haystack.includes(keyword));
+    });
+    const bullets = Array.isArray(section?.bullets) ? section.bullets : [];
+    return bullets.length ? bullets : fallback;
+  }
+
+  function buildReportPressureNumberBadge(point) {
+    if (!point) {
+      return '';
+    }
+    const number = point.reportPressureNumber || point.pressureNumber || '';
+    return `<span class="report-pressure-number report-pressure-number--filled" style="background:${escapeHtml(point.color || '#c9d1d8')}">${escapeHtml(String(number))}</span>`;
+  }
+
+  function buildReportPressurePointReferenceMarkup(point) {
+    if (!point) {
+      return '';
+    }
+    return `<span class="report-pressure-ref">${buildReportPressureNumberBadge(point)}<span>${escapeHtml(point.name || point.label || point.id || '')}</span></span>`;
+  }
+
+  function buildReportPressurePointReferenceListMarkup(points = [], limit = 4) {
+    const items = (Array.isArray(points) ? points : []).slice(0, limit);
+    if (!items.length) {
+      return '';
+    }
+    return items.map((point) => buildReportPressurePointReferenceMarkup(point)).join(' ');
+  }
+
+  function buildReportFrontMarkupList(items = []) {
+    return `<ol>${items.map((item) => `<li>${typeof item === 'string' ? escapeHtml(item) : item?.html || ''}</li>`).join('')}</ol>`;
+  }
+
+  function getReportHotZoneLabel(card, regionIndex, locale = getReportLocale()) {
+    const safeIndex = formatReportNumber(regionIndex || 1, 0);
+    if (locale === 'en') {
+      return `${card?.title || getDimensionBurdenLabel(card?.id || COMPOSITE_BURDEN_VIEW, 'en')} hot zone ${safeIndex}`;
+    }
+    return `${card?.title || getDimensionBurdenLabel(card?.id || COMPOSITE_BURDEN_VIEW, 'zh-CN')}高热区${safeIndex}`;
+  }
+
+  function getTopRegionPressurePoints(card, regionIndex, limit = 4) {
+    const points = (card?.regionPressurePoints || [])
+      .find((group) => Number(group.index) === Number(regionIndex))?.points || [];
+    return points.slice(0, limit);
+  }
+
+  function buildReportPressurePointActionText(point, burdenLabel, locale = getReportLocale()) {
+    const zh = locale !== 'en';
+    const raw = `${point?.name || ''} ${point?.description || ''} ${point?.categoryLabel || ''} ${point?.categoryId || ''}`.toLowerCase();
+    if (/ambassador|service|服务/.test(raw)) {
+      return zh
+        ? `将其从主行走线和决策停顿点旁移开，改为布置在不遮挡导向视线的侧向咨询位置，优先降低${burdenLabel || '感知与决策负担'}。`
+        : `Move it away from the main walking line and decision pause point, placing it as a side consultation cue that does not compete with wayfinding, mainly reducing ${burdenLabel || 'perception and decision burden'}.`;
+    }
+    if (/hanging|direction|sign|guide|map|标识|导向|地图/.test(raw)) {
+      return zh
+        ? `合并重复方向信息，突出与本路线目的地直接相关的导向层级，并减少与下一步选择无关的标识干扰。`
+        : `Merge repeated direction information, emphasize cues directly relevant to this route destination, and reduce signs that compete with the next movement choice.`;
+    }
+    if (/noise|sound|broadcast|噪音|广播|声音/.test(raw)) {
+      return zh
+        ? `降低覆盖到路线高热段的声压或调整声源朝向，避免在识别导向和转向时叠加感知压力。`
+        : `Reduce sound pressure over the route hot segment or redirect the source so sensory stress does not compound wayfinding and turning.`;
+    }
+    if (/advert|ad|lcd|screen|广告|屏/.test(raw)) {
+      return zh
+        ? `降低动态/高亮展示强度，调整朝向，避免在决策点附近抢占导向信息注意力。`
+        : `Lower dynamic or bright display intensity and adjust orientation so it does not compete with wayfinding near decision points.`;
+    }
+    return zh
+      ? `按贡献排序优先复核位置、朝向、强度和影响范围，减少其对应高热区的${burdenLabel || '局部负担'}。`
+      : `Review position, orientation, intensity, and influence range by contribution priority to reduce ${burdenLabel || 'local burden'} in the corresponding hot zone.`;
+  }
+
+  function buildReportFacilityAdjustmentListMarkup(items = [], pressurePoints = []) {
+    const fallbackPoints = Array.isArray(pressurePoints) ? pressurePoints : [];
+    return `<ol>${items.map((item, index) => {
+      const point = fallbackPoints[index] || null;
+      return `<li>${buildReportPressureNumberBadge(point)}<span>${escapeHtml(item)}</span></li>`;
+    }).join('')}</ol>`;
+  }
+
+  function buildReportRouteScoreSummaryMarkup(routeScoreSummary, copy, locale = getReportLocale()) {
+    const summary = routeScoreSummary || buildReportRouteScoreSummary([], locale);
+    const dimensionText = (summary.dimensions || [])
+      .map((item) => `${escapeHtml(item.label)} ${escapeHtml(formatReportMetric(item.burdenScore))}`)
+      .join(' / ');
+    return `
+      <div class="report-adjustment-score">
+        <strong>${escapeHtml(copy.routeScoreTitle)}</strong>
+        <p>${escapeHtml(copy.overallBurdenScore)}: ${escapeHtml(formatReportMetric(summary.overallBurdenScore))} · ${escapeHtml(copy.routeFriendlyScore)}: ${escapeHtml(formatReportMetric(summary.routeFriendlyScore))} · ${escapeHtml(summary.level || '')}</p>
+        <p>${escapeHtml(copy.fiveDimensionScore)}: ${dimensionText}</p>
+      </div>
+    `;
+  }
+
+  function buildFallbackFacilityAdjustmentText(point, locale = getReportLocale()) {
+    const zh = locale !== 'en';
+    const raw = `${point?.name || ''} ${point?.description || ''} ${point?.categoryLabel || ''} ${point?.categoryId || ''}`.toLowerCase();
+    if (/sign|guide|direction|map|标识|导向|地图/.test(raw)) {
+      return zh
+        ? `${point.name}: 优先复核可视角度、文字层级和与目的地的连续性，减少代理人在该点反复确认方向。`
+        : `${point.name}: review sight angle, text hierarchy, and continuity to the destination so the agent does not repeatedly confirm direction here.`;
+    }
+    if (/advert|ad|lcd|screen|广告|屏/.test(raw)) {
+      return zh
+        ? `${point.name}: 降低动态刺激强度或调整朝向，避免在决策点附近抢占导向信息注意力。`
+        : `${point.name}: reduce dynamic stimulus intensity or adjust orientation so it does not compete with wayfinding near decision points.`;
+    }
+    if (/noise|sound|broadcast|噪音|广播|声音/.test(raw)) {
+      return zh
+        ? `${point.name}: 控制声压或播放范围，优先降低其覆盖到高热区时造成的感知与心理压力。`
+        : `${point.name}: control sound pressure or coverage, especially where it overlaps hot zones and raises perception or psychological stress.`;
+    }
+    if (/light|lighting|lux|照明|光照|灯/.test(raw)) {
+      return zh
+        ? `${point.name}: 调整照度和眩光方向，使导向阅读更稳定，并减少局部感知负担。`
+        : `${point.name}: adjust illuminance and glare direction to stabilize sign reading and reduce local perception burden.`;
+    }
+    if (/service|ambassador|服务/.test(raw)) {
+      return zh
+        ? `${point.name}: 优化服务点可见性和咨询动线，让代理人在不确定路段能更快获得确认。`
+        : `${point.name}: improve service visibility and approach path so the agent can confirm choices faster in uncertain segments.`;
+    }
+    return zh
+      ? `${point.name}: 按贡献排序优先复核位置、朝向和影响范围，降低其对应高热区的负担。`
+      : `${point.name}: based on its contribution rank, review position, orientation, and influence range to reduce the affected hot zone.`;
+  }
+
+  function getReportLlmSummaryText(reportData) {
+    const locale = reportData?.locale === 'en' ? 'en' : 'zh-CN';
+    const localized = localizeRouteAnalysisOutput(reportData?.llmAnalysis, locale);
+    const summary = locale === 'en'
+      ? (localized?.summaryEn || localized?.summary || localized?.placeholderEn || localized?.placeholder)
+      : (localized?.summaryZh || localized?.summary || localized?.placeholderZh || localized?.placeholder);
+    return String(summary || '').trim();
+  }
+
+  function getReportLlmProviderBadge(reportData, copy) {
+    const provider = reportData?.llmAnalysis?.provider || {};
+    const connected = provider.connected === true && Boolean(reportData?.llmAnalysis);
+    const label = provider.label || (connected ? 'LLM' : copy.frontEvidenceBadge);
+    return connected ? `${copy.frontLlmBadge} · ${label}` : copy.frontEvidenceBadge;
+  }
+
+  function getCompositeReportRegions(reportData) {
+    const cards = Array.isArray(reportData?.detailBurdenCards) ? reportData.detailBurdenCards : [];
+    const composite = cards.find((card) => card.id === COMPOSITE_BURDEN_VIEW) || null;
+    return Array.isArray(composite?.regionRankings) ? composite.regionRankings.slice(0, REPORT_DETAIL_HIGH_REGION_LIMIT) : [];
+  }
+
+  function getDominantReportBurden(reportData) {
+    const peak = reportData?.peakDimension;
+    if (peak?.burdenLabel) {
+      return peak;
+    }
+    return (Array.isArray(reportData?.dimensionSummary) ? reportData.dimensionSummary : [])
+      .slice()
+      .sort((left, right) => Number(right?.burdenScore || 0) - Number(left?.burdenScore || 0))[0] || null;
+  }
+
+  function getReportFrontSectionBullets(reportData, keywords = [], fallback = [], limit = 4) {
+    const sections = getLocalizedReportAnalysisSections(reportData);
+    return getReportAdjustmentSectionBullets(sections, keywords, fallback)
+      .map((item) => String(item || '').trim())
+      .filter(Boolean)
+      .slice(0, limit);
+  }
+
+  function buildReportFrontProblemFallback(reportData) {
+    const locale = reportData?.locale === 'en' ? 'en' : 'zh-CN';
+    const zh = locale !== 'en';
+    const regions = getCompositeReportRegions(reportData);
+    const dominant = getDominantReportBurden(reportData);
+    const pressurePoints = Array.isArray(reportData?.routePressurePoints) ? reportData.routePressurePoints : [];
+    const problems = regions.map((region) => {
+      const topBurden = region.ranking?.[0]?.burdenLabel || dominant?.burdenLabel || '';
+      const topPoint = pressurePoints[0] || null;
+      return zh
+        ? `高热区${region.index}以${topBurden || '综合负担'}为主，${topPoint ? `与${topPoint.reportPressureNumber || topPoint.pressureNumber}号${topPoint.name}的影响叠加有关` : '需要结合后续热力图核对局部成因'}。`
+        : `Hot zone ${region.index} is dominated by ${topBurden || 'composite burden'}${topPoint ? ` and is linked to stressor ${topPoint.reportPressureNumber || topPoint.pressureNumber} ${topPoint.name}` : '; review the following heatmaps for local causes'}.`;
+    });
+    if (problems.length) {
+      return problems.slice(0, 3);
+    }
+    return [zh
+      ? `当前路线总体负担为${formatReportMetric(reportData.routeScoreSummary?.overallBurdenScore || 0)}，主导维度为${dominant?.burdenLabel || '综合负担'}。`
+      : `Overall burden is ${formatReportMetric(reportData.routeScoreSummary?.overallBurdenScore || 0)}, with ${dominant?.burdenLabel || 'composite burden'} as the dominant dimension.`];
+  }
+
+  function buildReportFrontPriorityActionFallback(reportData) {
+    const locale = reportData?.locale === 'en' ? 'en' : 'zh-CN';
+    const zh = locale !== 'en';
+    const pressurePoints = Array.isArray(reportData?.routePressurePoints) ? reportData.routePressurePoints.slice(0, 3) : [];
+    if (pressurePoints.length) {
+      return pressurePoints.map((point) => {
+        const number = point.reportPressureNumber || point.pressureNumber || '';
+        return zh
+          ? `优先处理${number}号${point.name}：结合其贡献维度调整位置、朝向或强度，减少附近高热区负担。`
+          : `Prioritize stressor ${number} ${point.name}: adjust its position, orientation, or intensity according to its contribution dimension.`;
+      });
+    }
+    return [zh
+      ? '优先复核综合热力图前三个高热区，先处理负担峰值最高且与路线转折或等待有关的位置。'
+      : 'Prioritize the top three composite hot zones, starting from locations tied to turns, waiting, or route uncertainty.'];
+  }
+
+  function buildReportFrontSpatialFallback(reportData) {
+    const locale = reportData?.locale === 'en' ? 'en' : 'zh-CN';
+    const zh = locale !== 'en';
+    const copy = reportData.copy || buildReportExportCopy(locale);
+    const routeText = reportData.inputSnapshot?.routeText || `${reportData.route?.startLabel || ''} ${copy.routeArrow} ${reportData.route?.targetLabel || ''}`;
+    const dominant = getDominantReportBurden(reportData);
+    return [zh
+      ? `围绕 ${routeText} 的高热段调整空间组织，优先处理${dominant?.burdenLabel || '主导负担'}突出的转折、等待和垂直交通衔接位置。`
+      : `Adjust the spatial organization along ${routeText}, prioritizing turns, waiting points, and vertical-circulation links where ${dominant?.burdenLabel || 'the dominant burden'} is high.`];
+  }
+
+  function buildReportFrontAreaFallback(reportData) {
+    const locale = reportData?.locale === 'en' ? 'en' : 'zh-CN';
+    const zh = locale !== 'en';
+    const regions = getCompositeReportRegions(reportData);
+    return regions.length
+      ? regions.map((region) => {
+        const burden = region.ranking?.[0]?.burdenLabel || '';
+        return zh
+          ? `区域${region.index}: 以${burden || '综合负担'}为主要问题，建议作为第一轮模型修改和复测的定位区域。`
+          : `Area ${region.index}: dominated by ${burden || 'composite burden'}; use it as a first-round model-edit and retest area.`;
+      }).slice(0, 3)
+      : buildReportFrontSpatialFallback(reportData);
+  }
+
+  function buildReportFrontImpactFallback(reportData) {
+    const locale = reportData?.locale === 'en' ? 'en' : 'zh-CN';
+    const zh = locale !== 'en';
+    const dominant = getDominantReportBurden(reportData);
+    return [zh
+      ? `预计优先降低${dominant?.burdenLabel || '主导负担'}，并减少高热区内的停顿、回看和路径犹豫。`
+      : `Expected to first reduce ${dominant?.burdenLabel || 'the dominant burden'} and reduce stopping, looking back, and hesitation in hot zones.`];
+  }
+
+  function buildReportFrontMetricCards(reportData, copy) {
+    const routeScore = reportData.routeScoreSummary || buildReportRouteScoreSummary(reportData.dimensionSummary, reportData.locale);
+    const dominant = getDominantReportBurden(reportData);
+    const burdenLevel = getReportBurdenLevel(routeScore.overallBurdenScore, reportData.locale);
+    const metrics = [
+      { label: copy.frontOverallScore, value: formatReportMetric(routeScore.overallBurdenScore || 0), note: burdenLevel.label, color: burdenLevel.color },
+      { label: copy.frontFriendlyScore, value: formatReportMetric(routeScore.routeFriendlyScore || 0), note: copy.routeFriendlyScore, color: burdenLevel.color },
+      { label: copy.frontDominantBurden, value: dominant?.burdenLabel || '--', note: `${formatReportMetric(dominant?.burdenScore || 0)}` },
+    ];
+    return metrics.map((item) => `
+      <div class="report-front-metric" style="--metric-color:${escapeHtml(item.color || '#17262f')}">
+        <span>${escapeHtml(item.label)}</span>
+        <strong>${escapeHtml(item.value)}</strong>
+        <small>${escapeHtml(item.note)}</small>
+      </div>
+    `).join('');
+  }
+
+  function buildReportFrontScoreBars(reportData) {
+    return (reportData.routeScoreSummary?.dimensions || []).map((item) => {
+      const value = clamp(Number(item.burdenScore || 0), 0, 100);
+      const level = getReportBurdenLevel(value, reportData.locale);
+      return `
+        <div class="report-front-score-row">
+          <span>${escapeHtml(item.label)}</span>
+          <div class="report-front-score-track"><i style="width:${escapeHtml(String(value))}%; background:${escapeHtml(level.color)}"></i></div>
+          <b style="color:${escapeHtml(level.color)}">${escapeHtml(formatReportMetric(value))}</b>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function buildReportFrontBulletList(items = []) {
+    return `<ol>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ol>`;
+  }
+
+  function buildReportCoverPageMarkup(reportData) {
+    const copy = reportData.copy || buildReportExportCopy(reportData.locale);
+    return `
+      <section class="report-page report-page--cover">
+        <div class="report-cover-white"></div>
+        <div class="report-cover-teal"></div>
+        <div class="report-cover-frame"></div>
+        <div class="report-cover-bar report-cover-bar--navy"></div>
+        <div class="report-cover-bar report-cover-bar--teal"></div>
+        <div class="report-cover-title-block">
+          <h1>${escapeHtml(copy.coverTitle)}</h1>
+          <p>${escapeHtml(copy.coverSubtitle)}</p>
+        </div>
+        <div class="report-cover-meta">
+          <div><strong>${escapeHtml(copy.coverProjectFile)}</strong> ${escapeHtml(reportData.projectName)}</div>
+          <div><strong>${escapeHtml(copy.coverExportTime)}</strong> ${escapeHtml(reportData.generatedAt)}</div>
+          <div><strong>${escapeHtml(copy.coverRoute)}</strong> ${escapeHtml(reportData.inputSnapshot.routeText)}</div>
+          <div><strong>${escapeHtml(copy.coverBackgroundCrowd)}</strong> ${escapeHtml(formatReportNumber(reportData.inputSnapshot.backgroundCrowd, 0))} ${escapeHtml(copy.people)}</div>
+        </div>
+      </section>
+    `;
+  }
+
+  function buildReportFrontMapMarkup(reportData) {
+    const transform = computeTransformForViewportSize(860, 330);
+    const detailCards = Array.isArray(reportData.detailBurdenCards) ? reportData.detailBurdenCards : [];
+    const compositeCard = detailCards.find((card) => card.id === COMPOSITE_BURDEN_VIEW) || null;
+    const highRegions = Array.isArray(compositeCard?.highRegions) ? compositeCard.highRegions : getReportHighHeatRegions(COMPOSITE_BURDEN_VIEW);
+    const pressurePoints = Array.isArray(reportData.routePressurePoints) ? reportData.routePressurePoints.slice(0, 12) : [];
+    const heatMap = buildReportHeatMapSvg(COMPOSITE_BURDEN_VIEW, {
+      highOnly: true,
+      width: 860,
+      height: 330,
+      highRegions,
+      highColor: 'rgba(218, 68, 64, 0.66)',
+      pressurePoints,
+    });
+    return `
+      <div class="report-map-layer report-map-layer--base">${buildReportBaseSvg(transform)}</div>
+      <div class="report-map-layer report-map-layer--heat">${heatMap}</div>
+    `;
+  }
+
+  function buildReportFrontHotZoneProblemItems(reportData) {
+    const locale = reportData.locale === 'en' ? 'en' : 'zh-CN';
+    const zh = locale !== 'en';
+    const compositeCard = (reportData.detailBurdenCards || []).find((card) => card.id === COMPOSITE_BURDEN_VIEW) || null;
+    const regions = Array.isArray(compositeCard?.regionRankings) ? compositeCard.regionRankings.slice(0, 3) : [];
+    if (!regions.length) {
+      return buildReportFrontProblemFallback(reportData).map((text) => ({ html: escapeHtml(text) }));
+    }
+    return regions.map((region) => {
+      const label = getReportHotZoneLabel(compositeCard, region.index, locale);
+      const burden = region.ranking?.[0]?.burdenLabel || reportData.peakDimension?.burdenLabel || '';
+      const pressurePoints = getTopRegionPressurePoints(compositeCard, region.index, 3);
+      const pressureMarkup = buildReportPressurePointReferenceListMarkup(pressurePoints, 3);
+      const text = zh
+        ? `${label}以${burden || '综合负担'}为主，主要由`
+        : `${label} is dominated by ${burden || 'composite burden'}, mainly driven by `;
+      const tail = zh
+        ? (pressureMarkup ? `叠加影响。` : `路线转折、等待或导向不确定叠加影响。`)
+        : (pressureMarkup ? `.` : `route turning, waiting, or wayfinding uncertainty.`);
+      return {
+        html: `${escapeHtml(text)}${pressureMarkup || ''}${escapeHtml(tail)}`,
+      };
+    });
+  }
+
+  function buildReportFrontModificationItems(reportData) {
+    const locale = reportData.locale === 'en' ? 'en' : 'zh-CN';
+    const zh = locale !== 'en';
+    const compositeCard = (reportData.detailBurdenCards || []).find((card) => card.id === COMPOSITE_BURDEN_VIEW) || null;
+    const regions = Array.isArray(compositeCard?.regionRankings) ? compositeCard.regionRankings.slice(0, 3) : [];
+    const items = regions.map((region) => {
+      const label = getReportHotZoneLabel(compositeCard, region.index, locale);
+      const burden = region.ranking?.[0]?.burdenLabel || reportData.peakDimension?.burdenLabel || '';
+      const point = getTopRegionPressurePoints(compositeCard, region.index, 1)[0] || null;
+      const pressureMarkup = buildReportPressurePointReferenceMarkup(point);
+      const action = buildReportPressurePointActionText(point, burden, locale);
+      const prefix = zh
+        ? `优先处理${label}${pressureMarkup ? '中的' : ''}`
+        : `Prioritize ${label}${pressureMarkup ? ' through ' : ': '}`;
+      const connector = zh ? `，${action}` : `${action}`;
+      return {
+        html: `${escapeHtml(prefix)}${pressureMarkup}${escapeHtml(connector)}`,
+      };
+    });
+    if (items.length) {
+      return items.slice(0, 4);
+    }
+    const fallbackPoints = Array.isArray(reportData.routePressurePoints) ? reportData.routePressurePoints.slice(0, 3) : [];
+    return fallbackPoints.map((point) => ({
+      html: `${buildReportPressurePointReferenceMarkup(point)}${escapeHtml(buildReportPressurePointActionText(point, reportData.peakDimension?.burdenLabel, locale))}`,
+    }));
+  }
+
+  function buildReportExecutiveFrontPageMarkup(reportData) {
+    const copy = reportData.copy || buildReportExportCopy(reportData.locale);
+    const summaryFallback = reportData.findings?.[0] || buildReportFrontProblemFallback(reportData)[0] || '';
+    const summary = getReportLlmSummaryText(reportData) || summaryFallback;
+    const problems = buildReportFrontHotZoneProblemItems(reportData);
+    const modifications = buildReportFrontModificationItems(reportData);
+    const routeScore = reportData.routeScoreSummary || buildReportRouteScoreSummary(reportData.dimensionSummary, reportData.locale);
+    const burdenLevel = getReportBurdenLevel(routeScore.overallBurdenScore, reportData.locale);
+    const dominant = getDominantReportBurden(reportData);
+    return `
+      <section class="report-page report-page--front report-page--front-summary">
+        <header class="report-front-header">
+          <div>
+            <h1>${escapeHtml(copy.frontExecutiveTitle)}</h1>
+          </div>
+          <div class="report-front-meta">
+            <span>${escapeHtml(copy.projectFile)}: ${escapeHtml(reportData.projectName)}</span>
+            <span>${escapeHtml(copy.exportedAt)}: ${escapeHtml(reportData.generatedAt)}</span>
+          </div>
+        </header>
+        <div class="report-front-summary-grid">
+          <div class="report-front-friendliness" style="--score-color:${escapeHtml(burdenLevel.color)}">
+            <h2>${escapeHtml(copy.frontFriendlyScore)}</h2>
+            <div class="report-front-big-score">
+              <strong>${escapeHtml(formatReportMetric(routeScore.routeFriendlyScore || 0))}</strong>
+              <span>${escapeHtml(burdenLevel.label)}</span>
+            </div>
+            <p>${escapeHtml(copy.frontDominantBurden)}: ${escapeHtml(dominant?.burdenLabel || '--')}</p>
+          </div>
+          <div class="report-front-right-panel">
+            <section class="report-front-score-panel">
+              <h3>${escapeHtml(copy.fiveDimensionScore)}</h3>
+              ${buildReportFrontScoreBars(reportData)}
+            </section>
+            <section class="report-front-judgement">
+              <h2>${escapeHtml(copy.frontRouteJudgement)}</h2>
+              <p>${escapeHtml(summary)}</p>
+            </section>
+          </div>
+        </div>
+        <section class="report-front-map-panel">
+          <h2>${escapeHtml(copy.frontRouteMapTitle)}</h2>
+          <div class="report-front-map-stage">${buildReportFrontMapMarkup(reportData)}</div>
+        </section>
+        <div class="report-front-priority-grid">
+          <section>
+            <h2>${escapeHtml(copy.frontCoreProblems)}</h2>
+            ${buildReportFrontMarkupList(problems)}
+          </section>
+          <section>
+            <h2>${escapeHtml(copy.frontPriorityActions)}</h2>
+            ${buildReportFrontMarkupList(modifications)}
+          </section>
+        </div>
+      </section>
+    `;
+  }
+
+  function buildReportAdjustmentFrontPageMarkup(reportData) {
+    const copy = reportData.copy || buildReportExportCopy(reportData.locale);
+    const locale = reportData.locale === 'en' ? 'en' : 'zh-CN';
+    const detailCards = Array.isArray(reportData.detailBurdenCards) ? reportData.detailBurdenCards : [];
+    const compositeCard = detailCards.find((card) => card.id === COMPOSITE_BURDEN_VIEW) || detailCards[0] || null;
+    const baseSvg = buildReportBaseSvg(computeTransformForViewportSize(860, 400));
+    const spatialItems = getReportFrontSectionBullets(reportData, ['space', 'spatial', 'model', '空间', '模型'], buildReportFrontSpatialFallback(reportData), 3);
+    const areaItems = getReportFrontSectionBullets(reportData, ['area', 'region', 'hot', 'zone', '区域', '高热'], buildReportFrontAreaFallback(reportData), 3);
+    const facilityFallback = (Array.isArray(reportData.routePressurePoints) ? reportData.routePressurePoints.slice(0, 4) : [])
+      .map((point) => buildFallbackFacilityAdjustmentText(point, locale));
+    const facilityItems = getReportFrontSectionBullets(reportData, ['facility', 'stressor', 'pressure', '设施', '压力点'], facilityFallback, 4);
+    const impactItems = getReportFrontSectionBullets(reportData, ['impact', 'effect', 'expected', '预计', '改善', '影响'], buildReportFrontImpactFallback(reportData), 3);
+    const pressurePoints = Array.isArray(reportData.routePressurePoints) ? reportData.routePressurePoints.slice(0, 4) : [];
+    return `
+      <section class="report-page report-page--front report-page--front-adjustment">
+        <header class="report-front-header">
+          <div>
+            <p class="report-front-kicker">${escapeHtml(getReportLlmProviderBadge(reportData, copy))}</p>
+            <h1>${escapeHtml(copy.frontAdjustmentTitle)}</h1>
+          </div>
+          <div class="report-front-meta">
+            <span>${escapeHtml(copy.backgroundCrowdCount)}: ${escapeHtml(formatReportNumber(reportData.inputSnapshot.backgroundCrowd, 0))} ${escapeHtml(copy.people)}</span>
+            <span>${escapeHtml(copy.frontEvidenceSource)}: ${escapeHtml(copy.pageThreeHeatTitle)} / ${escapeHtml(copy.detailAnalysisTitle)}</span>
+          </div>
+        </header>
+        <div class="report-front-adjustment-layout">
+          <div class="report-front-adjustment-map">
+            <div class="report-map-layer report-map-layer--base">${baseSvg}</div>
+            <div class="report-map-layer report-map-layer--heat">${compositeCard?.mapSvg || ''}</div>
+          </div>
+          <div class="report-front-adjustment-summary">
+            <section>
+              <h2>${escapeHtml(copy.frontSpatialChanges)}</h2>
+              ${buildReportFrontBulletList(spatialItems)}
+            </section>
+            <section>
+              <h2>${escapeHtml(copy.frontExpectedImpact)}</h2>
+              ${buildReportFrontBulletList(impactItems)}
+            </section>
+          </div>
+        </div>
+        <div class="report-front-priority-grid">
+          <section>
+            <h2>${escapeHtml(copy.frontPriorityAreas)}</h2>
+            ${buildReportFrontBulletList(areaItems)}
+          </section>
+          <section>
+            <h2>${escapeHtml(copy.frontPriorityFacilities)}</h2>
+            ${buildReportFacilityAdjustmentListMarkup(facilityItems, pressurePoints)}
+          </section>
+        </div>
+      </section>
+    `;
+  }
+
+  function buildReportLlmAdjustmentMarkup(reportData) {
+    const copy = reportData.copy || buildReportExportCopy(reportData.locale);
+    const locale = reportData.locale === 'en' ? 'en' : 'zh-CN';
+    const zh = locale !== 'en';
+    const detailCards = Array.isArray(reportData.detailBurdenCards) ? reportData.detailBurdenCards : [];
+    const compositeCard = detailCards.find((card) => card.id === COMPOSITE_BURDEN_VIEW) || null;
+    const compositeRegions = Array.isArray(compositeCard?.regionRankings) ? compositeCard.regionRankings : [];
+    const topRegion = compositeRegions[0] || null;
+    const topBurden = topRegion?.ranking?.[0]?.burdenLabel || reportData.peakDimension?.burdenLabel || '';
+    const routeText = reportData.inputSnapshot?.routeText || `${reportData.route?.startLabel || ''} ${copy.routeArrow || 'to'} ${reportData.route?.targetLabel || ''}`;
+    const pressurePoints = Array.isArray(reportData.routePressurePoints) ? reportData.routePressurePoints.slice(0, 5) : [];
+    const areaItems = compositeRegions.slice(0, 3).map((region) => {
+      const burden = region.ranking?.[0]?.burdenLabel || topBurden || copy.burdenContributionRanking;
+      return zh
+        ? `高热区${region.index}: 优先降低${burden}，预计可减少该段停顿、绕行或犹豫。`
+        : `Hot zone ${region.index}: prioritize reducing ${burden}; expected to reduce stopping, detours, or hesitation in this segment.`;
+    });
+    if (!areaItems.length) {
+      areaItems.push(zh
+        ? `当前路线 ${routeText} 未形成明确独立高热区，可将本次结果作为后续方案对比基线。`
+        : `The current route ${routeText} has no clear isolated high-heat zones, so use this run as a comparison baseline.`);
+    }
+    const facilityItems = pressurePoints.length
+      ? pressurePoints.map((point) => buildFallbackFacilityAdjustmentText(point, locale))
+      : [zh ? '本次模拟没有记录到明确产生贡献的压力点，建议先重新运行热力图以生成贡献日志。' : 'No effective stressor contribution was recorded; rerun the heatmap to generate contribution logs first.'];
+    const spaceAdvice = zh
+      ? `围绕 ${routeText} 的主要高热段调整空间组织。优先处理${topBurden || '最高负担维度'}突出的瓶颈、转折和等待区域，再评估过道宽度、垂直交通衔接与休息点间距。`
+      : `Adjust spatial organization along ${routeText}. Prioritize bottlenecks, turns, and waiting areas where ${topBurden || 'the dominant burden'} is high, then review corridor width, vertical-circulation links, and rest spacing.`;
+    const llmSections = getLocalizedReportAnalysisSections(reportData);
+    const scoreFallback = [
+      zh
+        ? `总体负担评分为 ${formatReportMetric(reportData.routeScoreSummary?.overallBurdenScore || 0)}，路线友好度为 ${formatReportMetric(reportData.routeScoreSummary?.routeFriendlyScore || 0)}。`
+        : `Overall burden score is ${formatReportMetric(reportData.routeScoreSummary?.overallBurdenScore || 0)}, and route friendliness is ${formatReportMetric(reportData.routeScoreSummary?.routeFriendlyScore || 0)}.`,
+    ];
+    const scoreItems = getReportAdjustmentSectionBullets(llmSections, ['score', '评分', 'overall', '总体'], scoreFallback);
+    const spaceItems = getReportAdjustmentSectionBullets(llmSections, ['space', 'spatial', 'model', '空间', '模型'], [spaceAdvice]);
+    const areaLlmItems = getReportAdjustmentSectionBullets(llmSections, ['area', 'region', 'hot', '区域', '高热'], areaItems);
+    const facilityLlmItems = getReportAdjustmentSectionBullets(llmSections, ['facility', 'stressor', 'pressure', '设施', '压力点'], facilityItems);
+    return `
+      <section class="report-section report-llm-adjustment">
+        <h2 class="report-section-title">${escapeHtml(copy.llmAdjustmentTitle)}</h2>
+        ${buildReportRouteScoreSummaryMarkup(reportData.routeScoreSummary, copy, locale)}
+        <div class="report-adjustment-grid">
+          <div class="report-adjustment-block">
+            <strong>${escapeHtml(copy.routeScoreTitle)}</strong>
+            <ol>${scoreItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
+          </div>
+          <div class="report-adjustment-block">
+            <strong>${escapeHtml(copy.llmAdjustmentSpaceTitle)}</strong>
+            <ol>${spaceItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
+          </div>
+          <div class="report-adjustment-block">
+            <strong>${escapeHtml(copy.llmAdjustmentAreaTitle)}</strong>
+            <ol>${areaLlmItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
+          </div>
+          <div class="report-adjustment-block">
+            <strong>${escapeHtml(copy.llmAdjustmentFacilityTitle)}</strong>
+            ${buildReportFacilityAdjustmentListMarkup(facilityLlmItems, pressurePoints)}
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
   function buildRouteReportDocument(reportData) {
-    const copy = reportData.copy || getReportCopy(reportData.locale);
-    const hotspotRows = reportData.hotspots.length
-      ? reportData.hotspots.map((item) => `
-          <tr>
-            <td>${escapeHtml(String(item.rank))}</td>
-            <td>${escapeHtml(item.name || item.id)}</td>
-            <td>${escapeHtml(item.categoryLabel)}</td>
-            <td>${escapeHtml(formatReportMetric(item.pressure))}</td>
-            <td>${escapeHtml(item.advice)}</td>
-          </tr>
-        `).join('')
-      : `<tr><td colspan="5">${escapeHtml(copy.noHotspots)}</td></tr>`;
-    const recommendationRows = reportData.recommendations.map((item) => `<li>${escapeHtml(item)}</li>`).join('');
-    const findingRows = reportData.findings.map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+    const copy = reportData.copy || buildReportExportCopy(reportData.locale);
+    const modelRows = buildReportModelRowsMarkup(reportData);
+    const simulationRows = buildReportSimulationRowsMarkup(reportData);
+    const agentAttributes = buildReportAgentAttributesMarkup(reportData);
+    const thoughtFlow = buildReportThoughtFlowMarkup(reportData);
+    const pressureGroups = buildReportNumberedPressureGroupsMarkup(reportData);
+    const routePressurePointCount = (reportData.routePressurePoints || []).length;
+    const heatmapCards = buildReportHeatmapCardsMarkup(reportData);
+    const detailCards = buildReportDetailCardsMarkup(reportData);
+    const methodNote = buildReportMethodNoteMarkup(reportData);
+    const adjustmentMarkup = buildReportLlmAdjustmentMarkup(reportData);
+    const coverPage = buildReportCoverPageMarkup(reportData);
+    const frontSummaryPage = buildReportExecutiveFrontPageMarkup(reportData);
+    const agentFigure = reportData.agentFigureUrl
+      ? `<img src="${escapeHtml(reportData.agentFigureUrl)}" alt="${escapeHtml(copy.agentProfile)}" />`
+      : `<div class="report-empty">${escapeHtml(copy.agentProfile)}</div>`;
     return `<!DOCTYPE html>
 <html lang="${escapeHtml(reportData.locale === 'en' ? 'en' : 'zh-CN')}">
   <head>
@@ -7536,233 +12422,249 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${escapeHtml(reportData.title)} - ${escapeHtml(reportData.projectName)}</title>
     <style>
-      :root {
-        color-scheme: light;
-        --ink: #17262f;
-        --muted: #62717c;
-        --line: #d6dee4;
-        --panel: #f4f8fb;
-        --accent: #1f7a8c;
-        --accent-soft: rgba(31, 122, 140, 0.12);
-      }
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        background: #ecf1f4;
-        color: var(--ink);
-        font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-      }
-      .sheet {
-        width: min(1080px, calc(100vw - 48px));
-        margin: 24px auto;
-        padding: 28px;
-        background: #ffffff;
-        border: 1px solid var(--line);
-        border-radius: 24px;
-        box-shadow: 0 24px 48px rgba(19, 32, 40, 0.08);
-      }
-      .hero {
-        display: flex;
-        justify-content: space-between;
-        gap: 20px;
-        padding-bottom: 20px;
-        border-bottom: 1px solid var(--line);
-      }
-      .hero h1 {
-        margin: 0 0 8px;
-        font-size: 28px;
-      }
-      .hero p {
-        margin: 4px 0;
-        color: var(--muted);
-        line-height: 1.6;
-      }
-      .risk-badge {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 34px;
-        padding: 0 14px;
-        border-radius: 999px;
-        background: var(--accent-soft);
-        color: var(--accent);
-        font-weight: 800;
-      }
-      .risk-badge.medium { background: rgba(255, 191, 71, 0.18); color: #986700; }
-      .risk-badge.high { background: rgba(224, 62, 48, 0.14); color: #b73022; }
-      .section { margin-top: 24px; }
-      .section h2 {
-        margin: 0 0 14px;
-        font-size: 18px;
-      }
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px;
-      }
-      .card {
-        padding: 14px 16px;
-        border-radius: 16px;
-        border: 1px solid var(--line);
-        background: var(--panel);
-      }
-      .card .label {
-        display: block;
-        margin-bottom: 6px;
-        color: var(--muted);
-        font-size: 12px;
-      }
-      .card strong {
-        font-size: 18px;
-      }
-      ul {
-        margin: 0;
-        padding-left: 20px;
-        line-height: 1.75;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        border: 1px solid var(--line);
-        border-radius: 18px;
-        overflow: hidden;
-      }
-      th, td {
-        padding: 12px 14px;
-        border-bottom: 1px solid var(--line);
-        text-align: left;
-        vertical-align: top;
-        font-size: 14px;
-        line-height: 1.6;
-      }
-      thead th {
-        background: #edf4f7;
-        color: var(--ink);
-      }
-      tbody tr:nth-child(even) td {
-        background: #fbfdfe;
-      }
-      .meta-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
-      }
-      .meta-block {
-        padding: 14px 16px;
-        border: 1px solid var(--line);
-        border-radius: 16px;
-      }
-      .footer-note {
-        margin-top: 20px;
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.7;
-      }
-      @media print {
-        body { background: #ffffff; }
-        .sheet {
-          width: auto;
-          margin: 0;
-          border: 0;
-          box-shadow: none;
-          border-radius: 0;
-        }
-      }
+      :root { color-scheme: light; --ink:#17262f; --muted:#62717c; --line:#cad2d8; --panel:#f4f6f8; --panel-soft:#f7f8fa; --panel-strong:#eef2f5; --outline:#4e5961; }
+      * { box-sizing:border-box; }
+      @page { margin:12mm; }
+      body { margin:0; background:#d9e0e5; color:var(--ink); font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+      .report-document { width:min(1120px, calc(100vw - 48px)); margin:0 auto; padding:18px 20px 36px; display:grid; gap:14px; background:#fff; }
+      .report-page { width:100%; min-height:auto; margin:0; padding:0; background:transparent; display:flex; flex-direction:column; gap:10mm; overflow:visible; }
+      .report-page--cover { position:relative; min-height:270mm; overflow:hidden; background:#fff; border:1px solid #d1d8de; padding:0; gap:0; }
+      .report-cover-white { position:absolute; inset:0; background:#fff; }
+      .report-cover-teal { position:absolute; left:0; right:0; top:86mm; height:148mm; background:#91c9d2; }
+      .report-cover-frame { position:absolute; left:25mm; top:62mm; width:52mm; height:158mm; border:6mm solid #1f5b91; background:transparent; }
+      .report-cover-bar { position:absolute; top:62mm; width:10mm; height:34mm; }
+      .report-cover-bar--navy { left:84mm; background:#1f5b91; }
+      .report-cover-bar--teal { left:100mm; background:#91c9d2; }
+      .report-cover-title-block { position:absolute; left:76mm; top:103mm; display:grid; gap:8mm; }
+      .report-cover-title-block h1 { margin:0; color:#fff; font-size:34px; line-height:1.1; font-weight:800; letter-spacing:0; }
+      .report-cover-title-block p { margin:0; color:#1f5b91; font-size:25px; line-height:1.1; font-weight:800; letter-spacing:0; }
+      .report-cover-meta { position:absolute; left:94mm; top:163mm; display:grid; gap:10mm; color:#1f5b91; font-size:17px; line-height:1.25; font-weight:700; }
+      .report-cover-meta strong { font-weight:800; }
+      .report-page--front { min-height:270mm; padding:9mm; border:1px solid #d1d8de; background:#ffffff; gap:5.2mm; }
+      .report-front-header { display:grid; grid-template-columns:minmax(0,1fr) minmax(260px,0.65fr); gap:8mm; align-items:start; padding-bottom:3mm; border-bottom:1px solid #cfd7dd; }
+      .report-front-kicker { margin:0 0 2mm; color:#60707b; font-size:10px; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; }
+      .report-front-header h1 { margin:0; color:#17262f; font-size:26px; line-height:1.08; letter-spacing:0; }
+      .report-front-meta { display:grid; gap:1.4mm; color:#5d6d78; font-size:10.5px; line-height:1.45; text-align:right; }
+      .report-front-summary-grid { display:grid; grid-template-columns:minmax(0,0.74fr) minmax(0,1.26fr); gap:7mm; align-items:stretch; }
+      .report-front-friendliness { display:grid; align-content:start; gap:4mm; padding:5mm 5.5mm; background:#f6f8fa; border-left:3mm solid var(--score-color); min-height:62mm; }
+      .report-front-friendliness h2 { margin:0; color:#17262f; font-size:15px; line-height:1.2; }
+      .report-front-big-score { display:flex; align-items:flex-end; gap:3mm; }
+      .report-front-big-score strong { color:var(--score-color); font-size:52px; line-height:0.95; font-weight:850; letter-spacing:0; }
+      .report-front-big-score span { color:var(--score-color); font-size:12px; font-weight:800; padding-bottom:1.3mm; }
+      .report-front-friendliness p { margin:0; color:#17262f; font-size:12px; line-height:1.4; font-weight:700; }
+      .report-front-right-panel { display:grid; grid-template-rows:auto 1fr; gap:3.5mm; min-width:0; }
+      .report-front-judgement { display:grid; align-content:start; gap:2.5mm; padding:0; background:transparent; color:#17262f; min-height:0; }
+      .report-front-badge { justify-self:start; padding:1.4mm 2.6mm; border:1px solid rgba(255,255,255,0.34); border-radius:999px; color:#dbe6eb; font-size:9.5px; font-weight:700; }
+      .report-front-judgement h2, .report-front-priority-grid h2, .report-front-adjustment-summary h2 { margin:0; font-size:14px; line-height:1.25; }
+      .report-front-judgement p { margin:0; color:#17262f; font-size:12px; line-height:1.5; font-weight:600; }
+      .report-front-score-grid { display:grid; grid-template-columns:1fr; gap:3mm; }
+      .report-front-metric { display:grid; gap:1mm; padding:4mm; background:#eef2f5; border-left:2.4mm solid var(--metric-color); }
+      .report-front-metric span { color:#60707b; font-size:9.6px; font-weight:800; }
+      .report-front-metric strong { color:var(--metric-color); font-size:24px; line-height:1.05; }
+      .report-front-metric small { color:#60707b; font-size:9.5px; line-height:1.35; }
+      .report-front-score-panel { display:grid; gap:2.1mm; padding:3.2mm; border:1px solid #cfd7dd; background:#fff; }
+      .report-front-score-panel h3 { margin:0; font-size:12px; }
+      .report-front-score-row { display:grid; grid-template-columns:28mm minmax(0,1fr) 16mm; gap:3mm; align-items:center; font-size:9.5px; }
+      .report-front-score-track { height:2.4mm; background:#dbe2e7; overflow:hidden; }
+      .report-front-score-track i { display:block; height:100%; }
+      .report-front-score-row b { text-align:right; font-size:9.5px; }
+      .report-front-map-panel { display:grid; gap:2.2mm; }
+      .report-front-map-panel h2 { margin:0; font-size:14px; line-height:1.2; }
+      .report-front-map-stage { position:relative; overflow:hidden; border:1px solid #111; background:#fff; aspect-ratio:860 / 330; }
+      .report-front-priority-grid { display:grid; grid-template-columns:1fr 1fr; gap:5mm; }
+      .report-front-priority-grid section, .report-front-adjustment-summary section { display:grid; align-content:start; gap:2.6mm; padding:4mm; background:#fff; border:1px solid #cfd7dd; }
+      .report-front-priority-grid ol, .report-front-adjustment-summary ol { margin:0; padding-left:5mm; display:grid; gap:2mm; }
+      .report-front-priority-grid li, .report-front-adjustment-summary li { font-size:10.2px; line-height:1.52; color:#17262f; }
+      .report-front-footnote { margin-top:auto; padding-top:3mm; border-top:1px solid #d7dee3; color:#60707b; font-size:9.6px; }
+      .report-front-adjustment-layout { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(280px,0.85fr); gap:5mm; align-items:stretch; }
+      .report-front-adjustment-map { position:relative; overflow:hidden; min-height:100mm; border:1px solid #111; background:#fff; }
+      .report-front-adjustment-summary { display:grid; gap:4mm; }
+      .report-header { display:flex; justify-content:space-between; gap:8mm; padding-bottom:3.2mm; border-bottom:1px solid var(--line); }
+      .report-title { margin:0; font-size:21px; line-height:1.1; }
+      .report-meta { margin:0; display:grid; gap:1.4mm; color:var(--muted); font-size:11px; }
+      .report-section { display:grid; gap:3.5mm; }
+      .report-section-title { margin:0; font-size:15px; font-weight:800; letter-spacing:0.01em; }
+      .report-method-note { padding:1.8mm 2.2mm; background:var(--panel-soft); border-left:2px solid var(--outline); }
+      .report-method-note p { margin:0; font-size:9.4px; line-height:1.5; color:var(--muted); }
+      .report-table { width:100%; border-collapse:collapse; border:1px solid var(--line); }
+      .report-table th, .report-table td { padding:6px 8px; border:1px solid var(--line); font-size:10.2px; line-height:1.45; vertical-align:top; text-align:left; }
+      .report-table thead th { background:var(--panel-strong); font-weight:700; }
+      .report-model-meta, .report-input-lines { display:grid; gap:1.3mm; font-size:11px; }
+      .report-model-meta strong, .report-input-lines strong { font-weight:700; }
+      .report-agent-layout, .report-agent-composition { position:relative; display:grid; grid-template-columns:36% minmax(0,1fr); gap:6mm; min-height:148mm; }
+      .report-agent-left { display:grid; grid-template-rows:39% 61%; gap:3.5mm; min-height:0; }
+      .report-agent-block { min-height:0; display:grid; align-items:center; }
+      .radar-shell { width:100%; height:100%; display:grid; place-items:center; }
+      .radar-shell svg { width:100%; height:100%; }
+      .report-figure-wrap { width:100%; height:100%; display:grid; place-items:center; }
+      .report-figure-wrap img { max-width:100%; max-height:72mm; object-fit:contain; filter:drop-shadow(0 0.24mm 0 #111) drop-shadow(0 -0.24mm 0 #111) drop-shadow(0.24mm 0 0 #111) drop-shadow(-0.24mm 0 0 #111); }
+      .report-attribute-column { display:grid; grid-template-rows:repeat(5, minmax(0, 1fr)); gap:3.2mm; min-height:0; }
+      .report-attribute-card { display:grid; grid-template-columns:12mm minmax(0,1fr); gap:2.8mm; align-items:start; padding:1mm 0; min-height:0; }
+      .report-attribute-score { display:grid; place-items:center; min-height:10mm; border-radius:999px; background:#fff; border:1px solid #b9c3ca; font-size:10px; font-weight:600; }
+      .report-attribute-content strong { display:block; margin-bottom:1mm; font-size:10.2px; }
+      .report-attribute-content p { margin:0; color:var(--muted); font-size:9.2px; line-height:1.45; }
+      .report-thought-flow { display:flex; flex-wrap:wrap; gap:1.4mm; align-items:center; font-size:10px; line-height:1.5; }
+      .report-thought-note { color:var(--muted); font-size:9.4px; line-height:1.45; }
+      .report-thought-step { color:var(--ink); }
+      .report-thought-arrow { color:var(--muted); font-size:11px; margin:0 0.5mm; }
+      .report-empty { color:var(--muted); font-size:10.2px; }
+      .report-map-stage { position:relative; overflow:hidden; background:#fff; }
+      .report-map-stage--thought { border:1px solid #d5dadd; }
+      .report-map-layer { position:absolute; inset:0; width:100%; height:100%; }
+      .report-map-layer svg { position:absolute; inset:0; width:100%; height:100%; }
+      .walkable-shape { fill:#f2f2f2; stroke:#6a7278; stroke-width:0.5; }
+      .obstacle-shape { fill:#cdd2d6; stroke:#6a7278; stroke-width:0.58; }
+      .agent-radar-grid { fill:none; stroke:#6e7880; stroke-width:0.95; }
+      .agent-radar-axis { stroke:#6e7880; stroke-width:0.95; }
+      .agent-radar-ring-label { fill:#6e7880; font-size:8px; }
+      .agent-radar-label { fill:#17262f; font-size:10px; font-weight:600; }
+      .agent-radar-score { fill:#17262f; font-size:10px; font-weight:400; }
+      .agent-radar-shape { fill:#ccd3d8; fill-opacity:0.94; stroke:#111; stroke-width:1.7; }
+      .agent-radar-hit { fill:transparent; stroke:none; }
+      .agent-radar-handle { fill:var(--radar-handle-fill); stroke:#111; stroke-width:0.55; }
+      .report-route-path { fill:none; stroke:#111; stroke-width:0.58; stroke-dasharray:2.2 1.8; stroke-linecap:round; stroke-linejoin:round; }
+      .report-decision-ring { fill:none; stroke:#111; stroke-width:0.58; }
+      .report-decision-dot { fill:#111; stroke:#111; stroke-width:0.18; }
+      .report-pressure-dot { stroke:#111; stroke-width:0.2; }
+      .report-pressure-marker text { fill:#111; font-size:1.12px; text-anchor:middle; dominant-baseline:central; font-weight:900; stroke:none; }
+      .report-pressure-number { display:inline-grid; place-items:center; min-width:14px; height:14px; margin-right:4px; border-radius:999px; border:1px solid #111; font-size:8px; font-weight:800; }
+      .report-pressure-number--filled { width:14px; min-width:14px; color:#111; font-size:9px; font-weight:900; line-height:1; }
+      .report-pressure-ref { display:inline-flex; align-items:center; gap:1mm; margin:0 1mm 0.8mm 0; vertical-align:middle; font-weight:800; white-space:nowrap; }
+      .report-pressure-ref .report-pressure-number { margin-right:0; }
+      .report-heat-raster { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+      .report-swatch { display:inline-block; width:10px; height:10px; border-radius:999px; margin-right:6px; vertical-align:middle; border:1px solid #5f6970; }
+      .report-pressure-groups { display:grid; grid-template-columns:1fr 1fr; gap:3.2mm 6mm; }
+      .report-pressure-group { display:grid; gap:1.5mm; }
+      .report-pressure-group-title { font-size:10.4px; font-weight:700; }
+      .report-pressure-table { width:100%; border-collapse:collapse; table-layout:fixed; }
+      .report-pressure-table td { padding:1.1mm 0.8mm; vertical-align:top; font-size:9px; line-height:1.38; border:none; }
+      .report-pressure-table__name { width:32%; font-weight:700; }
+      .report-pressure-table__desc { width:68%; color:var(--muted); }
+      .report-heat-grid { display:grid; grid-template-columns:1fr 1fr; gap:5mm; }
+      .report-heat-card { border:1px solid #111; padding:2.2mm; display:grid; gap:1.6mm; align-content:start; }
+      .report-heat-stage { position:relative; overflow:hidden; background:#eef1f4; }
+      .report-heat-header { position:absolute; left:6px; top:6px; font-size:10px; font-weight:700; color:#17262f; background:rgba(255,255,255,0.78); padding:1px 4px 1px 0; }
+      .report-heat-legend { position:absolute; left:6px; top:22px; width:112px; font-size:8px; color:#17262f; text-shadow:0 0 1px rgba(255,255,255,0.9); }
+      .report-heat-legend-gradient { height:7px; border-radius:999px; margin-bottom:2px; }
+      .report-heat-legend-labels { display:flex; justify-content:space-between; color:#4f5960; }
+      .report-heat-legend-note { margin-top:2px; line-height:1.25; color:#4f5960; }
+      .report-heat-meta p { margin:0; color:var(--muted); font-size:8.7px; line-height:1.35; }
+      .report-heat-stats { display:grid; gap:0.4mm; font-size:8.9px; font-weight:700; justify-items:start; }
+      .report-detail-stack { display:grid; gap:5mm; }
+      .report-detail-card { display:grid; grid-template-columns:1fr; gap:3mm; align-items:start; }
+      .report-detail-card__title { font-size:12px; font-weight:700; }
+      .report-detail-map { position:relative; overflow:hidden; border:1px solid #111; background:#fff; }
+      .report-detail-text { display:grid; grid-template-columns:1fr; gap:2mm; }
+      .report-detail-card__title { grid-column:1 / -1; }
+      .report-detail-ranking { font-size:10px; line-height:1.45; color:#17262f; }
+      .report-detail-region-rows { display:grid; gap:2.2mm; }
+      .report-detail-region-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,0.82fr); gap:4mm; align-items:start; padding-bottom:2mm; border-bottom:1px solid #d8dee2; }
+      .report-detail-region-row:last-child { border-bottom:0; padding-bottom:0; }
+      .report-detail-region-advice { display:grid; gap:0.8mm; font-size:9px; line-height:1.42; color:#17262f; }
+      .report-detail-region-advice p { margin:0; }
+      .report-detail-region-pressure-ranking { display:grid; gap:1mm; font-size:9px; color:#17262f; line-height:1.38; }
+      .report-detail-region-pressure-ranking ol { list-style:none; margin:0; padding:0; display:grid; gap:0.8mm; }
+      .report-detail-region-pressure-ranking li { display:flex; align-items:center; min-width:0; }
+      .report-detail-region-pressure-ranking p { margin:0; color:#56616a; }
+      .report-detail-muted { color:#56616a; }
+      .report-detail-pressure-summary { display:grid; gap:1.2mm; font-size:9px; color:#17262f; line-height:1.4; }
+      .report-detail-pressure-summary p { margin:0; color:#56616a; }
+      .report-detail-issues { display:grid; gap:1.6mm; }
+      .report-detail-issue { display:grid; gap:0.6mm; }
+      .report-detail-issue-index { font-size:9.2px; font-weight:700; }
+      .report-detail-issue-advice { font-size:9px; line-height:1.4; color:#17262f; }
+      .report-detail-pressure-inline { display:flex; flex-wrap:wrap; gap:2mm; font-size:8.8px; color:#56616a; }
+      .report-high-label circle { fill:none; stroke:#111; stroke-width:0.42; }
+      .report-high-label text { fill:#111; font-size:2px; text-anchor:middle; dominant-baseline:central; font-weight:900; }
+      .report-high-label--vitality circle { stroke:#d63838; stroke-width:0.5; }
+      .report-adjustment-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:4mm; }
+      .report-adjustment-score { display:grid; gap:1mm; padding:2.2mm; background:var(--panel-soft); border:1px solid var(--line); }
+      .report-adjustment-score strong { font-size:10px; }
+      .report-adjustment-score p { margin:0; color:#17262f; font-size:9px; line-height:1.45; }
+      .report-adjustment-block { display:grid; gap:1.2mm; align-content:start; padding:2.2mm; background:var(--panel-soft); border:1px solid var(--line); }
+      .report-adjustment-block strong { font-size:10px; }
+      .report-adjustment-block p, .report-adjustment-block li { margin:0; color:#17262f; font-size:9px; line-height:1.45; }
+      .report-adjustment-block ol { margin:0; padding-left:4mm; display:grid; gap:1mm; }
+      @media print { body { background:#fff; } .report-document { width:auto; margin:0; padding:0; } .report-page { margin:0 0 10mm; padding:0; box-shadow:none; } }
     </style>
   </head>
   <body>
-    <div class="sheet">
-      <section class="hero">
-        <div>
-          <h1>${escapeHtml(reportData.title)}</h1>
-          <p>${escapeHtml(copy.projectFile)}: ${escapeHtml(reportData.projectName)}</p>
-          <p>${escapeHtml(copy.exportedAt)}: ${escapeHtml(reportData.generatedAt)}</p>
-        </div>
-        <div>
-          <div class="risk-badge ${escapeHtml(reportData.risk.className)}">${escapeHtml(reportData.risk.level)}</div>
-          <p>${escapeHtml(reportData.risk.summary)}</p>
-        </div>
-      </section>
-
-      <section class="section">
-        <h2>1. ${escapeHtml(copy.routeAgentSnapshot)}</h2>
-        <div class="meta-grid">
-          <div class="meta-block">
-            <p><strong>${escapeHtml(copy.start)}:</strong> ${escapeHtml(reportData.route.startLabel)}</p>
-            <p><strong>${escapeHtml(copy.target)}:</strong> ${escapeHtml(reportData.route.targetLabel)}</p>
-            <p><strong>${escapeHtml(copy.backgroundCrowd)}:</strong> ${escapeHtml(formatReportNumber(reportData.crowd.backgroundCount, 0))} ${escapeHtml(copy.peopleUnit)}</p>
-        </div>
-        <div class="meta-block">
-          <p><strong>${escapeHtml(copy.agentProfile)}:</strong> ${escapeHtml(reportData.agent.capacitySummary)}</p>
-          <p><strong>${escapeHtml(reportData.activeViewLabel)}:</strong> ${escapeHtml(reportData.activeView.label)}</p>
-        </div>
-      </div>
-      </section>
-
-      <section class="section">
-        <h2>2. ${escapeHtml(copy.snapshot)}</h2>
-        <div class="grid">
-          <div class="card">
-            <span class="label">${escapeHtml(copy.simultaneousCount)}</span>
-            <strong>${escapeHtml(formatReportNumber(reportData.summary.simultaneousCount, 0))} ${escapeHtml(copy.peopleUnit)}</strong>
+    <main class="report-document">
+      ${coverPage}
+      ${frontSummaryPage}
+      <section class="report-page report-page--1">
+        <header class="report-header">
+          <div>
+            <h1 class="report-title">${escapeHtml(reportData.title)}</h1>
+            <div class="report-meta">
+              <div>${escapeHtml(copy.projectFile)}: ${escapeHtml(reportData.projectName)}</div>
+              <div>${escapeHtml(copy.exportedAt)}: ${escapeHtml(reportData.generatedAt)}</div>
+            </div>
           </div>
-          <div class="card">
-            <span class="label">${escapeHtml(copy.activePressureCount)}</span>
-            <strong>${escapeHtml(formatReportNumber(reportData.summary.activePressureCount, 0))}</strong>
+        </header>
+        <section class="report-section">
+          <h2 class="report-section-title">${escapeHtml(copy.pageOneTitle)}</h2>
+          <div class="report-model-meta">
+            <div><strong>${escapeHtml(copy.importedModel)}:</strong> ${escapeHtml(reportData.modelSpaceInfo.modelName)}</div>
+            <div><strong>${escapeHtml(copy.modelArea)}:</strong> ${escapeHtml(formatReportNumber(reportData.modelSpaceInfo.area, 2))} ${escapeHtml(copy.squareMeters)}</div>
           </div>
-          <div class="card">
-            <span class="label">${escapeHtml(copy.averageTravelTime)}</span>
-            <strong>${escapeHtml(formatReportDuration(reportData.summary.averageTravelTime, reportData.locale))}</strong>
+          <table class="report-table">
+            <thead><tr><th>${escapeHtml(copy.category)}</th><th>${escapeHtml(copy.type)}</th><th>${escapeHtml(copy.count)}</th></tr></thead>
+            <tbody>${modelRows}</tbody>
+          </table>
+        </section>
+        <section class="report-section">
+          <h2 class="report-section-title">${escapeHtml(copy.pageOneInputTitle)}</h2>
+          <div class="report-input-lines">
+            <div><strong>${escapeHtml(copy.routeSelection)}:</strong> ${escapeHtml(reportData.inputSnapshot.routeText)}</div>
+            <div><strong>${escapeHtml(copy.backgroundCrowdCount)}:</strong> ${escapeHtml(formatReportNumber(reportData.inputSnapshot.backgroundCrowd, 0))} ${escapeHtml(copy.people)}</div>
           </div>
-          <div class="card">
-            <span class="label">${escapeHtml(copy.averageFatigue)}</span>
-            <strong>${escapeHtml(formatReportMetric(reportData.summary.averageFatigue))}</strong>
+          <div class="report-agent-layout report-agent-composition">
+            <div class="report-agent-left">
+              <div class="report-agent-block"><div class="radar-shell">${reportData.agentRadarSvg}</div></div>
+              <div class="report-agent-block"><div class="report-figure-wrap">${agentFigure}</div></div>
+            </div>
+            <div class="report-attribute-column">${agentAttributes}</div>
           </div>
-          <div class="card">
-            <span class="label">${escapeHtml(copy.averageHeat)}</span>
-            <strong>${escapeHtml(formatReportMetric(reportData.summary.averageHeat))}</strong>
+        </section>
+      </section>
+      <section class="report-page report-page--2">
+        <section class="report-section">
+          <h2 class="report-section-title">${escapeHtml(copy.pageTwoSimulationTitle)}</h2>
+          <table class="report-table">
+            <thead><tr><th>${escapeHtml(copy.simulationMetric)}</th><th>${escapeHtml(copy.minimum)}</th><th>${escapeHtml(copy.maximum)}</th></tr></thead>
+            <tbody>${simulationRows}</tbody>
+          </table>
+        </section>
+        <section class="report-section">
+          <h2 class="report-section-title">${escapeHtml(copy.pageTwoThoughtTitle)}</h2>
+          <div class="report-thought-note">${escapeHtml(copy.thoughtMapNote)}</div>
+          <div class="report-thought-flow">${thoughtFlow}</div>
+          <div class="report-map-stage report-map-stage--thought" style="aspect-ratio:860 / 400;">
+            <div class="report-map-layer report-map-layer--base">${reportData.thoughtMapSnapshot.baseSvg}</div>
+            <div class="report-map-layer report-map-layer--overlay">${reportData.thoughtMapSnapshot.overlaySvg}</div>
           </div>
-          <div class="card">
-            <span class="label">${escapeHtml(copy.modelSource)}</span>
-            <strong>${escapeHtml(reportData.modelSource)}</strong>
-          </div>
-        </div>
+        </section>
+        <section class="report-section">
+          <h2 class="report-section-title">${escapeHtml(copy.pageTwoPressureTitle)} · ${escapeHtml(formatReportNumber(routePressurePointCount, 0))}</h2>
+          <div class="report-pressure-groups">${pressureGroups}</div>
+        </section>
       </section>
-
-      <section class="section">
-        <h2>3. ${escapeHtml(copy.dimensionSnapshot)}</h2>
-        ${buildDimensionReportMarkup(reportData)}
-        ${reportData.peakDimension ? `<p class="footer-note">${escapeHtml(copy.peakBurden)}: ${escapeHtml(reportData.peakDimension.burdenLabel)} (${escapeHtml(formatReportMetric(reportData.peakDimension.burdenScore))})</p>` : ''}
+      <section class="report-page report-page--3">
+        <section class="report-section">
+          <h2 class="report-section-title">${escapeHtml(copy.pageThreeHeatTitle)}</h2>
+          <div class="report-heat-grid">${heatmapCards}</div>
+        </section>
       </section>
-
-      <section class="section">
-        <h2>4. ${escapeHtml(copy.findings)}</h2>
-        <ul>${findingRows}</ul>
+      <section class="report-page report-page--detail">
+        <section class="report-section">
+          <h2 class="report-section-title">${escapeHtml(copy.detailAnalysisTitle)}</h2>
+          ${methodNote}
+          <div class="report-detail-stack">${detailCards}</div>
+        </section>
+        ${adjustmentMarkup}
       </section>
-
-      <section class="section">
-        <h2>5. ${escapeHtml(copy.hotspots)}</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>${escapeHtml(copy.hotspotLocation)}</th>
-              <th>${escapeHtml(copy.category)}</th>
-              <th>${escapeHtml(copy.cognitiveLoad)}</th>
-              <th>${escapeHtml(copy.improvement)}</th>
-            </tr>
-          </thead>
-          <tbody>${hotspotRows}</tbody>
-        </table>
-      </section>
-
-      <section class="section">
-        <h2>6. ${escapeHtml(copy.recommendations)}</h2>
-        <ul>${recommendationRows}</ul>
-      </section>
-
-      <p class="footer-note">${escapeHtml(copy.footer)}</p>
-    </div>
+    </main>
   </body>
 </html>`;
   }
@@ -7985,21 +12887,22 @@
     if (!stageElements) {
       return;
     }
-    renderBaseLayer();
-    renderBackgroundCrowdCanvas();
-    renderOverlayLayer();
-    syncVisualizationBaseLayer(stageElements.base);
-    syncVisualizationSvgLayer(elements.overlayLayer, stageElements.overlay);
-    if (!state.prepared) {
-      clearVisualizationStageCanvas(stageElements.background);
-      clearVisualizationStageCanvas(stageElements.heat);
-      updateVisualizationMetricRangeElements(viewMode, stageElements.min, stageElements.max);
-      return;
-    }
+    const isDetailStage = stageElements.overlay === elements.visualizationDetailOverlay;
     const previousViewMode = getSafeViewMode(state.viewMode);
     const previousHeatmapDisplayMode = state.heatmapDisplayMode;
     const previousHeatmapRevealLocked = state.heatmapRevealLocked;
     const previousHeatmapRevealFrozenTime = state.heatmapRevealFrozenTime;
+    const stageFrame = stageElements.overlay?.parentElement || stageElements.base?.parentElement || null;
+    const stageTransform = computeTransformForContainer(stageFrame);
+    state.viewMode = getSafeViewMode(viewMode);
+    renderBaseLayer(stageElements.base, stageElements.overlay, stageTransform, { syncState: false });
+    if (!state.prepared) {
+      clearVisualizationStageCanvas(stageElements.background);
+      clearVisualizationStageCanvas(stageElements.heat);
+      updateVisualizationMetricRangeElements(viewMode, stageElements.min, stageElements.max);
+      state.viewMode = previousViewMode;
+      return;
+    }
     if (state.scenario?.heatActive) {
       const playback = getActivePlayback() || state.scenario?.precomputedPlayback || null;
       state.heatmapDisplayMode = 'final';
@@ -8011,71 +12914,67 @@
         ?? 0
       );
     }
-    state.viewMode = getSafeViewMode(viewMode);
-    renderHeatmap();
-    renderBackgroundCrowdCanvas();
-    renderOverlayLayer();
-    blitVisualizationCanvas(elements.backgroundCrowdCanvas, stageElements.background);
-    blitVisualizationCanvas(state.scenario?.heatActive ? elements.heatmapLayer : null, stageElements.heat);
-    syncVisualizationSvgLayer(elements.overlayLayer, stageElements.overlay);
-    updateVisualizationMetricRangeElements(state.viewMode, stageElements.min, stageElements.max);
-    state.viewMode = previousViewMode;
+    renderHeatmap({
+      targetCanvas: stageElements.heat,
+      transform: stageTransform,
+      useSharedCache: false,
+    });
     state.heatmapDisplayMode = previousHeatmapDisplayMode;
     state.heatmapRevealLocked = previousHeatmapRevealLocked;
     state.heatmapRevealFrozenTime = previousHeatmapRevealFrozenTime;
+    renderBackgroundCrowdCanvas({
+      targetCanvas: stageElements.background,
+      transform: stageTransform,
+    });
+    renderOverlayLayer({
+      target: stageElements.overlay,
+      transform: stageTransform,
+      isVisualizationDetail: isDetailStage,
+      showAllNodes: isDetailStage,
+      activeLayerCategories: isDetailStage ? getVisualizationDetailActiveLayerCategories() : null,
+    });
+    updateVisualizationMetricRangeElements(state.viewMode, stageElements.min, stageElements.max);
+    state.viewMode = previousViewMode;
+  }
+
+  function scheduleVisualizationDetailStageRender(viewMode) {
+    if (state.visualizationDetailStageRenderScheduled) {
+      return;
+    }
+    state.visualizationDetailStageRenderScheduled = true;
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        state.visualizationDetailStageRenderScheduled = false;
+        const activeView = state.visualizationDetailView ? getSafeViewMode(state.visualizationDetailView) : null;
+        const safeViewMode = getSafeViewMode(viewMode);
+        if (!activeView || activeView !== safeViewMode || state.uiScreen !== 'workspace') {
+          return;
+        }
+        state.visualizationDetailStageDeferredView = null;
+        renderVisualizationStage(activeView, {
+          base: elements.visualizationDetailBase,
+          background: elements.visualizationDetailBackground,
+          heat: elements.visualizationDetailHeat,
+          overlay: elements.visualizationDetailOverlay,
+          min: null,
+          max: null,
+        });
+        renderVisualizationDetailStageHeader(activeView);
+      });
+    });
   }
 
   function renderVisualizationHeatmapCards() {
     if (!elements.visualizationCards?.length) {
       return;
     }
-    renderBaseLayer();
-    renderBackgroundCrowdCanvas();
-    renderOverlayLayer();
-    elements.visualizationCards.forEach((card) => {
-      syncVisualizationBaseLayer(card.base);
-      syncVisualizationSvgLayer(elements.overlayLayer, card.overlay);
-      if (!state.prepared) {
-        clearVisualizationStageCanvas(card.background);
-        clearVisualizationStageCanvas(card.heat);
-      }
-    });
-    if (!state.prepared) {
-      return;
-    }
-    const previousViewMode = getSafeViewMode(state.viewMode);
-    const previousHeatmapDisplayMode = state.heatmapDisplayMode;
-    const previousHeatmapRevealLocked = state.heatmapRevealLocked;
-    const previousHeatmapRevealFrozenTime = state.heatmapRevealFrozenTime;
-    if (state.scenario?.heatActive) {
-      const playback = getActivePlayback() || state.scenario?.precomputedPlayback || null;
-      state.heatmapDisplayMode = 'final';
-      state.heatmapRevealLocked = true;
-      state.heatmapRevealFrozenTime = Number(
-        playback?.endTime
-        ?? playback?.time
-        ?? state.scenario?.time
-        ?? 0
-      );
-    }
     VISUALIZATION_CARD_ORDER.forEach((viewMode) => {
       const card = elements.visualizationCards.find((item) => item.id === viewMode);
       if (!card) {
         return;
       }
-      state.viewMode = viewMode;
-      renderHeatmap();
-      renderBackgroundCrowdCanvas();
-      renderOverlayLayer();
-      blitVisualizationCanvas(elements.backgroundCrowdCanvas, card.background);
-      blitVisualizationCanvas(state.scenario?.heatActive ? elements.heatmapLayer : null, card.heat);
-      syncVisualizationSvgLayer(elements.overlayLayer, card.overlay);
-      updateVisualizationMetricRangeElements(viewMode, card.min, card.max);
+      renderVisualizationStage(viewMode, card);
     });
-    state.viewMode = previousViewMode;
-    state.heatmapDisplayMode = previousHeatmapDisplayMode;
-    state.heatmapRevealLocked = previousHeatmapRevealLocked;
-    state.heatmapRevealFrozenTime = previousHeatmapRevealFrozenTime;
     restoreVisualizationWorkspaceLayers();
   }
 
@@ -8091,7 +12990,7 @@
       { id: 'people', icon: 'people', label: t('label.simultaneousCount'), value: summary ? `${formatNumber(summary.simultaneousCount, 0)} ${t('units.agents')}` : '--' },
       { id: 'time', icon: 'time', label: t('label.travelTime'), value: summary ? formatDuration(summary.travelTime) : '--' },
       { id: 'crowd', icon: 'crowd', label: t('visualization.congestion'), value: inspection ? getCongestionLabel(inspection.crowdDensity, state.locale) : '--' },
-      { id: 'progress', icon: 'progress', label: t('label.progress'), value: inspection ? formatPercent((inspection.progress || 0) * 100) : '--' },
+      { id: 'progress', icon: 'progress', label: t('label.progress'), value: summary ? formatPercent((summary.progress || 0) * 100) : '--' },
       { id: 'noise', icon: 'noise', label: t('label.environmentNoise'), value: inspection ? `${formatMetricValue(inspection.environmentNoise || 0)} ${t('units.decibel')}` : '--' },
       { id: 'light', icon: 'light', label: t('label.environmentLighting'), value: inspection ? `${formatMetricValue(inspection.environmentLighting || 0)} ${t('units.lux')}` : '--' },
       { id: 'queue', icon: 'queue', label: t('label.queueCount'), value: inspection ? formatMetricValue(inspection.queueCount || 0, 0) : '--' },
@@ -8117,35 +13016,45 @@
     const detailBurdenValues = FIVE_DIMENSION_ORDER
       .map((id) => Number(inspection.burdenScores?.[id] || 0))
       .filter((value) => Number.isFinite(value));
-    const entries = isDetailTarget
-      ? [
-        { label: t('visualization.minBurden'), value: formatMetricValue(detailBurdenValues.length ? Math.min(...detailBurdenValues) : 0) },
-        { label: t('visualization.maxBurden'), value: formatMetricValue(detailBurdenValues.length ? Math.max(...detailBurdenValues) : 0) },
-        { label: t('visualization.currentBurden'), value: formatMetricValue(inspection.burdenScores?.[COMPOSITE_BURDEN_VIEW] || 0) },
-        { label: t('label.fatigue'), value: formatMetricValue(inspection.fatigue || 0) },
-        { label: t('label.walkingSpeed'), value: `${formatNumber(inspection.walkingSpeed || 0, 2)} ${t('units.perSecond')}` },
-        { label: t('label.decisionDelay'), value: `${formatNumber(inspection.decisionDelay || 0, 2)} ${t('units.seconds')}` },
-        { label: t('label.visionRadius'), value: formatMeters(inspection.visionRadius || 0) },
-        { label: t('visualization.speedFactor'), value: `${formatNumber(((inspection.fiveDimensions?.burdens?.locomotor?.speedFactor) || 0) * 100, 0)}%` },
-        { label: t('visualization.motionState'), value: formatMovementBehaviorLabel(inspection.fiveDimensions?.burdens?.locomotor?.behavior, state.locale) },
-        { label: t('visualization.mainResistance'), value: formatMovementCauseLabel(inspection.fiveDimensions?.burdens?.locomotor?.mainCause, state.locale) },
-      ]
-      : [
-        { label: t('visualization.currentBurden'), value: formatMetricValue(inspection.burdenScores?.[COMPOSITE_BURDEN_VIEW] || 0) },
-        { label: t('label.visionRadius'), value: formatMeters(inspection.visionRadius || 0) },
-        { label: t('label.walkingSpeed'), value: `${formatNumber(inspection.walkingSpeed || 0, 2)} ${t('units.perSecond')}` },
-        { label: t('label.decisionDelay'), value: `${formatNumber(inspection.decisionDelay || 0, 2)} ${t('units.seconds')}` },
-        { label: t('visualization.motionState'), value: formatMovementBehaviorLabel(inspection.fiveDimensions?.burdens?.locomotor?.behavior, state.locale) },
-        { label: t('visualization.mainResistance'), value: formatMovementCauseLabel(inspection.fiveDimensions?.burdens?.locomotor?.mainCause, state.locale) },
-        { label: t('visualization.speedFactor'), value: `${formatNumber(((inspection.fiveDimensions?.burdens?.locomotor?.speedFactor) || 0) * 100, 0)}%` },
-        { label: t('label.fatigue'), value: formatMetricValue(inspection.fatigue || 0) },
-      ];
-    target.innerHTML = entries.map((item) => `
-      <div class="visualization-status-card">
-        <div class="visualization-status-card__label">${escapeHtml(item.label)}</div>
-        <div class="visualization-status-card__value">${escapeHtml(item.value)}</div>
-      </div>
-    `).join('');
+      const entries = isDetailTarget
+        ? [
+          { id: 'minBurden', label: t('visualization.minBurden'), value: formatMetricValue(detailBurdenValues.length ? Math.min(...detailBurdenValues) : 0), nowrapLabel: true },
+          { id: 'maxBurden', label: t('visualization.maxBurden'), value: formatMetricValue(detailBurdenValues.length ? Math.max(...detailBurdenValues) : 0), nowrapLabel: true },
+          { id: 'currentBurden', label: t('visualization.currentBurden'), value: formatMetricValue(inspection.burdenScores?.[COMPOSITE_BURDEN_VIEW] || 0), nowrapLabel: true },
+          { id: 'fatigue', label: t('label.fatigue'), value: formatMetricValue(inspection.fatigue || 0), nowrapLabel: true },
+          { id: 'walkingSpeed', label: t('label.walkingSpeed'), value: `${formatNumber(inspection.walkingSpeed || 0, 2)} ${t('units.perSecond')}`, multilineLabel: true, labelLines: ['Walking', 'Speed'] },
+          { id: 'decisionDelay', label: t('label.decisionDelay'), value: `${formatNumber(inspection.decisionDelay || 0, 2)} ${t('units.seconds')}`, nowrapLabel: true },
+          { id: 'visionRadius', label: t('label.visionRadius'), value: formatMeters(inspection.visionRadius || 0), nowrapLabel: true },
+          { id: 'restMargin', label: t('label.restMargin'), value: formatRestMarginLabel(inspection), nowrapLabel: true },
+          { id: 'currentState', label: t('label.currentState'), value: formatCurrentStatusLabel(inspection, state.locale), multilineLabel: true, labelLines: ['Current', 'State'] },
+          { id: 'decisionFocus', label: t('label.decisionFocus'), value: formatDecisionFocusLabel(inspection, state.locale), multilineLabel: true, labelLines: ['Decision', 'Focus'] },
+        ]
+        : [
+          { id: 'currentBurden', label: t('visualization.currentBurden'), value: formatMetricValue(inspection.burdenScores?.[COMPOSITE_BURDEN_VIEW] || 0), nowrapLabel: true },
+          { id: 'visionRadius', label: t('label.visionRadius'), value: formatMeters(inspection.visionRadius || 0), nowrapLabel: true },
+          { id: 'walkingSpeed', label: t('label.walkingSpeed'), value: `${formatNumber(inspection.walkingSpeed || 0, 2)} ${t('units.perSecond')}`, multilineLabel: true, labelLines: ['Walking', 'Speed'] },
+          { id: 'decisionDelay', label: t('label.decisionDelay'), value: `${formatNumber(inspection.decisionDelay || 0, 2)} ${t('units.seconds')}`, nowrapLabel: true },
+          { id: 'restMargin', label: t('label.restMargin'), value: formatRestMarginLabel(inspection), nowrapLabel: true },
+          { id: 'currentState', label: t('label.currentState'), value: formatCurrentStatusLabel(inspection, state.locale), multilineLabel: true, labelLines: ['Current', 'State'] },
+          { id: 'decisionFocus', label: t('label.decisionFocus'), value: formatDecisionFocusLabel(inspection, state.locale), multilineLabel: true, labelLines: ['Decision', 'Focus'] },
+          { id: 'fatigue', label: t('label.fatigue'), value: formatMetricValue(inspection.fatigue || 0), nowrapLabel: true },
+        ];
+      target.innerHTML = entries.map((item) => `
+        <div class="visualization-status-card">
+          ${buildVisualizationStatusLabelMarkup(item, state.locale)}
+          ${buildVisualizationStatusValueMarkup(item, state.locale)}
+        </div>
+      `).join('');
+  }
+
+  function getVisualizationAgentProfile() {
+    if (state.focusProfile) {
+      return createFocusProfile(state.focusProfile);
+    }
+    if (state.scenario?.focusAgent?.profile) {
+      return createFocusProfile(state.scenario.focusAgent.profile);
+    }
+    return createFocusProfile(state.agentModal.draft || {});
   }
 
   function renderVisualizationCapabilityRadar(target = elements.visualizationCapabilityRadar) {
@@ -8153,7 +13062,8 @@
       return;
     }
     const isDetailTarget = target === elements.visualizationDetailRadar;
-    const radarMarkup = buildAgentRadarSvg(state.agentModal.draft, state.locale, isDetailTarget ? {
+    const radarProfile = getVisualizationAgentProfile();
+    const radarMarkup = buildAgentRadarSvg(radarProfile, state.locale, isDetailTarget ? {
       getLabel: getDimensionDisplayName,
       layout: {
         radius: 108,
@@ -8198,43 +13108,948 @@
     }).join('');
   }
 
-  function renderVisualizationDetailLayerSelect(target = elements.visualizationDetailLayerSelect) {
-    if (!target) {
+  function getVisualizationDetailLayerOptions() {
+    return LAYER_CATEGORY_DEFINITIONS.map((item) => ({
+      value: item.id,
+      label: item.label,
+    }));
+  }
+
+  function renderVisualizationDetailStageMetrics(target = elements.visualizationDetailStageMetrics) {
+    const summary = state.scenario ? getDynamicSummaryState() : null;
+    const inspection = state.scenario ? getCurrentFocusInspection() : null;
+    if (target) {
+      const metrics = [
+        { id: 'start', icon: 'start', label: t('label.start'), value: formatStartSelection() },
+        { id: 'end', icon: 'end', label: t('label.targetRegion'), value: getTargetRegionLabel() },
+        { id: 'time', icon: 'time', label: t('label.travelTime'), value: summary ? formatDuration(summary.travelTime) : '--' },
+        { id: 'progress', icon: 'progress', label: t('label.progress'), value: summary ? formatPercent((summary.progress || 0) * 100) : '--' },
+        { id: 'people', icon: 'people', label: t('label.simultaneousCount'), value: summary ? `${formatNumber(summary.simultaneousCount, 0)} ${t('units.agents')}` : '--' },
+        { id: 'crowd', icon: 'crowd', label: t('label.crowdDensity'), value: inspection ? `${formatMetricValue(inspection.crowdDensity || 0)} p/m²` : '--' },
+        { id: 'noise', icon: 'noise', label: t('label.environmentNoise'), value: inspection ? `${formatMetricValue(inspection.environmentNoise || 0)} ${t('units.decibel')}` : '--' },
+        { id: 'light', icon: 'light', label: t('label.environmentLighting'), value: inspection ? `${formatMetricValue(inspection.environmentLighting || 0)} ${t('units.lux')}` : '--' },
+      ];
+      target.innerHTML = metrics.map((item) => `
+        <div class="visualization-detail__stage-metric">
+          <div class="visualization-detail__stage-metric-label">${getVisualizationMetricIcon(item.icon)}<span>${escapeHtml(item.label)}</span></div>
+          <div class="visualization-detail__stage-metric-value">${escapeHtml(item.value)}</div>
+        </div>
+      `).join('');
+    }
+  }
+
+  function renderVisualizationDetailStageHeader(viewMode = getSafeViewMode(state.visualizationDetailView || state.viewMode)) {
+    renderVisualizationDetailStageMetrics(elements.visualizationDetailStageMetrics);
+    if (elements.visualizationDetailStageLegend) {
+      const style = HEATMAP_VIEW_STYLES[getSafeViewMode(viewMode)] || HEATMAP_VIEW_STYLES.default;
+      const legend = style.legend || HEATMAP_VIEW_STYLES.default.legend;
+      const low = state.locale === 'en' ? legend.lowEn : legend.lowZh;
+      const high = state.locale === 'en' ? legend.highEn : legend.highZh;
+      const widthNote = state.locale === 'en' ? legend.widthNoteEn : legend.widthNoteZh;
+      const widthMarkup = getSafeViewMode(viewMode) === 'vitality' && widthNote
+        ? `<div class="visualization-detail__legend-note">${escapeHtml(widthNote)}</div>`
+        : '';
+      elements.visualizationDetailStageLegend.innerHTML = `
+        <div class="visualization-detail__legend-card">
+          <div class="visualization-detail__legend-gradient" style="background:${escapeHtml(buildHeatLegendGradient(style))}"></div>
+          <div class="visualization-detail__legend-labels">
+            <span>${escapeHtml(low)}</span>
+            <span>${escapeHtml(high)}</span>
+          </div>
+          ${widthMarkup}
+        </div>
+      `;
+    }
+  }
+
+  function renderVisualizationDetailLayerSelect(
+    target = elements.visualizationDetailLayerSelect,
+    menu = elements.visualizationDetailLayerMenu
+  ) {
+    if (!target || !menu) {
       return;
     }
-    const options = [
-      { value: '', label: t('visualization.detailLayerAll') },
-      ...LAYER_CATEGORY_DEFINITIONS.map((item) => ({
-        value: item.id,
-        label: item.label,
-      })),
-    ];
-    target.innerHTML = options
-      .map((item) => `<option value="${escapeHtml(item.value)}">${escapeHtml(item.label)}</option>`)
+    const options = getVisualizationDetailLayerOptions();
+    const activeValues = getVisualizationDetailActiveLayerCategories();
+    const currentOption = options.find((item) => item.value === activeValues[0]) || options[0];
+    const currentText = currentOption?.label || '';
+    target.innerHTML = `
+      <span class="visualization-detail__layer-select-text">${escapeHtml(currentText)}</span>
+      <span class="visualization-detail__layer-select-icon" aria-hidden="true"></span>
+    `;
+    target.setAttribute('aria-expanded', state.visualizationDetailLayerMenuOpen ? 'true' : 'false');
+    menu.classList.toggle('hidden', !state.visualizationDetailLayerMenuOpen);
+    menu.innerHTML = options
+      .map((item) => `<button class="visualization-detail__layer-option settings-select-option${activeValues.includes(item.value) ? ' is-active' : ''}${state.visualizationDetailLayerHoveredValue === item.value ? ' is-hovered' : ''}" type="button" data-layer-value="${escapeHtml(item.value)}">${escapeHtml(item.label)}</button>`)
       .join('');
-    target.value = state.activeLayerCategory || '';
+  }
+
+  function handleVisualizationDetailLayerTrigger(event) {
+    if (event?.type === 'click' && state.suppressNextDetailLayerTriggerClick) {
+      state.suppressNextDetailLayerTriggerClick = false;
+      return;
+    }
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (event?.type === 'pointerdown') {
+      state.suppressNextDetailLayerTriggerClick = true;
+    }
+    state.visualizationDetailLayerMenuOpen = !state.visualizationDetailLayerMenuOpen;
+    if (!state.visualizationDetailLayerMenuOpen) {
+      state.visualizationDetailLayerHoveredValue = null;
+    }
+    requestRender();
+  }
+
+  function handleVisualizationDetailLayerMenuClick(event) {
+    if (event?.type === 'click' && state.suppressNextDetailLayerMenuClick) {
+      state.suppressNextDetailLayerMenuClick = false;
+      return;
+    }
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    const option = event.target.closest('[data-layer-value]');
+    if (!option) {
+      return;
+    }
+    if (event?.type === 'pointerdown') {
+      state.suppressNextDetailLayerMenuClick = true;
+    }
+    const nextValue = String(option.dataset.layerValue || '').trim();
+    const activeValues = new Set(getVisualizationDetailActiveLayerCategories());
+    if (activeValues.has(nextValue)) {
+      activeValues.delete(nextValue);
+    } else if (nextValue) {
+      activeValues.add(nextValue);
+    }
+    state.visualizationDetailActiveLayerCategories = LAYER_CATEGORY_DEFINITIONS
+      .map((item) => item.id)
+      .filter((id) => activeValues.has(id));
+    closePointPopover();
+    requestRender();
+  }
+
+  function handleVisualizationDetailLayerMenuPointerMove(event) {
+    const option = event.target.closest('[data-layer-value]');
+    const nextHoveredValue = option ? String(option.dataset.layerValue || '').trim() || null : null;
+    if (state.visualizationDetailLayerHoveredValue === nextHoveredValue) {
+      return;
+    }
+    state.visualizationDetailLayerHoveredValue = nextHoveredValue;
+    requestRender();
+  }
+
+  function handleVisualizationDetailLayerMenuPointerLeave() {
+    if (state.visualizationDetailLayerHoveredValue === null) {
+      return;
+    }
+    state.visualizationDetailLayerHoveredValue = null;
+    requestRender();
+  }
+
+  function handleVisualizationDetailDocumentPointerDown(event) {
+    if (!state.visualizationDetailLayerMenuOpen) {
+      return;
+    }
+    const layerControl = event.target.closest('.visualization-detail__layer-control');
+    if (layerControl) {
+      return;
+    }
+    state.visualizationDetailLayerMenuOpen = false;
+    state.visualizationDetailLayerHoveredValue = null;
+    requestRender();
+  }
+
+  function getPlaybackRouteAnalysisResult() {
+    const playback = getActivePlayback() || state.scenario?.precomputedPlayback || null;
+    const analysis = playback?.llmDecisionPlan || playback?.meta?.llmDecisionPlan || state.scenario?.llmDecisionPlan || null;
+    return analysis && String(analysis?.analysisKind || '') === 'decision-plan' ? analysis : null;
+  }
+
+  function parseTimelineSampleOrder(nodeId = '') {
+    const match = /path_sample_(\d+)/i.exec(String(nodeId || '').trim());
+    const order = match ? Number(match[1]) : Number.NaN;
+    return Number.isFinite(order) && order > 0 ? Math.round(order) : null;
+  }
+
+  function getLocalizedDecisionPlanThought(item, locale = state.locale) {
+    if (!item) {
+      return '';
+    }
+    return locale === 'en'
+      ? String(item.thoughtEn || item.cueEn || item.thoughtZh || item.cueZh || '').trim()
+      : String(item.thoughtZh || item.cueZh || item.thoughtEn || item.cueEn || '').trim();
+  }
+
+  function buildPlaybackFallbackDecisionPlan(locale = state.locale) {
+    const playback = getActivePlayback() || state.scenario?.precomputedPlayback || null;
+    const snapshots = getPlaybackTraceSnapshots(playback);
+    if (!Array.isArray(snapshots) || !snapshots.length) {
+      return null;
+    }
+    const sampleIndexes = Array.from(new Set([
+      0,
+      Math.floor((snapshots.length - 1) * 0.25),
+      Math.floor((snapshots.length - 1) * 0.5),
+      Math.floor((snapshots.length - 1) * 0.75),
+      snapshots.length - 1,
+    ].filter((index) => index >= 0 && index < snapshots.length)));
+    const timeline = sampleIndexes.map((snapshotIndex, index) => {
+      const snapshot = snapshots[snapshotIndex] || {};
+      const progress = clamp(Number(snapshot.progress || 0), 0, 1);
+      const timeSeconds = Number(snapshot.time || 0);
+      const isFirst = index === 0;
+      const isLast = index === sampleIndexes.length - 1;
+      const thoughtZh = isFirst
+        ? '我先确认起点和方向，按这条路线慢慢走。'
+        : (isLast
+          ? '已经接近实际终点了，我再确认一下最后的位置。'
+          : '我继续看着前方和周围情况，保持稳一点的节奏。');
+      const thoughtEn = isFirst
+        ? 'I will confirm the start and direction first, then follow this route carefully.'
+        : (isLast
+          ? 'I am close to the actual endpoint, so I should confirm the final position.'
+          : 'I will keep watching ahead and around me, and maintain a steady pace.');
+      return {
+        order: index + 1,
+        nodeId: `path_sample_${index + 1}`,
+        phase: isFirst ? 'start' : (isLast ? 'arrive' : 'progress'),
+        timeSeconds,
+        progress,
+        thoughtZh,
+        thoughtEn,
+        localizedThought: locale === 'en' ? thoughtEn : thoughtZh,
+      };
+    });
+    return {
+      analysisKind: 'decision-plan',
+      title: 'Elderly Travel Decision Chain',
+      summaryZh: 'LLM 结果不可用，当前使用真实播放轨迹生成本地决策链。',
+      summaryEn: 'The LLM result is unavailable, so a local decision chain is generated from the real playback path.',
+      provider: {
+        id: 'playback-fallback',
+        label: 'Playback',
+        status: locale === 'en' ? 'Fallback from real playback' : '已从真实播放兜底',
+        connected: false,
+      },
+      timeline,
+      decisions: [],
+      sections: [],
+      fallback: true,
+    };
+  }
+
+  function localizeRouteAnalysisOutput(analysis, locale = state.locale) {
+    if (!analysis) {
+      return null;
+    }
+    const analysisKind = String(analysis?.analysisKind || '');
+    if (analysisKind === 'decision-plan') {
+      const localizedTimeline = (Array.isArray(analysis.timeline) ? analysis.timeline : [])
+        .filter(Boolean)
+        .map((item, index) => ({
+          ...item,
+          order: Math.max(1, Math.round(Number(item?.order || index + 1))),
+          localizedThought: getLocalizedDecisionPlanThought(item, locale),
+        }))
+        .filter((item) => item.localizedThought)
+        .sort((left, right) => left.order - right.order)
+        .map((item, index) => ({
+          ...item,
+          sourceOrder: item.sourceOrder ?? item.order,
+          order: index + 1,
+        }));
+      const localizedSections = Array.isArray(analysis.sections) ? analysis.sections.slice() : [];
+      return {
+        ...analysis,
+        timeline: localizedTimeline,
+        sections: localizedSections,
+      };
+    }
+    const localizedSections = (Array.isArray(analysis.sections) ? analysis.sections : [])
+      .map((section) => {
+        const title = locale === 'en'
+          ? (section.titleEn || section.title_en || section.title || section.titleZh || section.title_zh)
+          : (section.titleZh || section.title_zh || section.title || section.titleEn || section.title_en);
+        const bullets = locale === 'en'
+          ? (section.bulletsEn || section.bullets_en || section.bullets || section.items || section.bulletsZh || section.bullets_zh)
+          : (section.bulletsZh || section.bullets_zh || section.bullets || section.items || section.bulletsEn || section.bullets_en);
+        return {
+          ...section,
+          title: String(title || '').trim(),
+          bullets: (Array.isArray(bullets) ? bullets : [])
+            .map((item) => String(item || '').trim())
+            .filter(Boolean),
+        };
+      })
+      .filter((section) => section.title && section.bullets.length);
+    return {
+      ...analysis,
+      sections: localizedSections,
+    };
+  }
+
+  function hydrateRouteAnalysisFromHeatmapPlayback(locale = state.locale) {
+    return buildPlaybackRouteAnalysisSnapshot(locale);
+  }
+
+  function buildPlaybackRouteAnalysisSnapshot(locale = state.locale) {
+    const playbackAnalysis = getPlaybackRouteAnalysisResult();
+    if (playbackAnalysis) {
+      const hasTimeline = Array.isArray(playbackAnalysis.timeline) && playbackAnalysis.timeline.length > 0;
+      if (playbackAnalysis.failed || !hasTimeline) {
+        return buildPlaybackFallbackDecisionPlan(locale) || localizeRouteAnalysisOutput(playbackAnalysis, locale);
+      }
+      return localizeRouteAnalysisOutput(playbackAnalysis, locale);
+    }
+    return buildPlaybackFallbackDecisionPlan(locale);
+  }
+
+  function shouldRequestRouteAnalysisForCurrentState() {
+    if (getPlaybackRouteAnalysisResult()) {
+      return false;
+    }
+    return false;
+  }
+
+  function getVisualizationDetailTimelineActiveOrder(timeline = []) {
+    const orderedTimeline = Array.isArray(timeline)
+      ? timeline
+        .filter(Boolean)
+        .slice()
+        .sort((left, right) => Number(left?.order || 0) - Number(right?.order || 0))
+      : [];
+    if (!orderedTimeline.length) {
+      return null;
+    }
+
+    const inspection = getCurrentFocusInspection() || null;
+    const playbackSnapshot = getPlaybackSnapshotAtTime() || null;
+    const playback = getActivePlayback() || state.scenario?.precomputedPlayback || null;
+    const currentTime = Number.isFinite(Number(state.scenario?.playbackRevealTime))
+      ? Number(state.scenario.playbackRevealTime)
+      : (
+        Number.isFinite(Number(playbackSnapshot?.time))
+          ? Number(playbackSnapshot.time)
+          : Number(inspection?.time ?? playback?.startTime ?? state.scenario?.time ?? 0)
+      );
+    const currentProgress = clamp(
+      Number(
+        playbackSnapshot?.progress
+        ?? inspection?.progress
+        ?? state.scenario?.focusAgent?.progress
+        ?? 0
+      ),
+      0,
+      1
+    );
+    const currentRestState = String(
+      playbackSnapshot?.restState
+      ?? inspection?.restState
+      ?? state.scenario?.focusAgent?.restState
+      ?? ''
+    ).trim() || null;
+    const currentDecisionNodeId = String(
+      playbackSnapshot?.decisionDiagnostics?.decisionNodeId
+      ?? inspection?.decisionDiagnostics?.decisionNodeId
+      ?? state.scenario?.focusAgent?.activeDecisionNodeId
+      ?? state.scenario?.focusAgent?.lastDecisionNodeId
+      ?? ''
+    ).trim() || null;
+    const currentSelectedTargetNodeId = String(
+      playbackSnapshot?.selectedTargetNodeId
+      ?? inspection?.selectedTargetNodeId
+      ?? state.scenario?.focusAgent?.selectedTargetNodeId
+      ?? ''
+    ).trim() || null;
+    const currentTopBurdenId = String(
+      playbackSnapshot?.topBurdenId
+      ?? inspection?.topBurdenId
+      ?? state.scenario?.focusAgent?.topBurdenId
+      ?? ''
+    ).trim() || null;
+    const currentWalkingSpeed = Number(
+      playbackSnapshot?.walkingSpeed
+      ?? playbackSnapshot?.currentWalkingSpeed
+      ?? playbackSnapshot?.actualWalkingSpeed
+      ?? inspection?.walkingSpeed
+      ?? state.scenario?.focusAgent?.currentWalkingSpeed
+      ?? Number.NaN
+    );
+    const isStrictRuntimeBoundTimelineItem = (item) => {
+      const triggerKind = String(item?.triggerKind || '').trim();
+      const triggerEventId = String(item?.triggerEventId || '').trim();
+      const triggerEventType = String(item?.triggerEventType || '').trim();
+      const triggerRestState = String(item?.triggerRestState || '').trim();
+      const triggerBurdenDimension = String(item?.triggerBurdenDimension || '').trim();
+      const runtimeRestState = String(item?.runtimeRestState || '').trim();
+      return Boolean(
+        triggerKind === 'runtime_event'
+        || triggerEventId
+        || triggerEventType
+        || triggerRestState
+        || triggerBurdenDimension
+        || runtimeRestState
+      );
+    };
+    const isRestTimelineItem = (item) => {
+      if (!isStrictRuntimeBoundTimelineItem(item)) {
+        return false;
+      }
+      const eventType = String(item?.triggerEventType || item?.runtimeEventType || '').trim();
+      const restState = String(item?.triggerRestState || item?.runtimeRestState || '').trim();
+      return (
+        eventType === 'short_rest_started'
+        || eventType === 'seat_search_started'
+        || eventType === 'seat_rest_started'
+        || eventType === 'rest_state_changed'
+        || eventType === 'rest_resumed'
+        || ['searching', 'short-rest', 'sitting', 'standing'].includes(restState)
+      );
+    };
+    const isGuidancePauseTimelineItem = (item) => {
+      if (!isStrictRuntimeBoundTimelineItem(item)) {
+        return false;
+      }
+      const eventType = String(item?.triggerEventType || item?.runtimeEventType || '').trim();
+      return eventType === 'guidance_pause';
+    };
+    const canUseTimelineItemAsGenericFallback = (item) => {
+      if (isGuidancePauseTimelineItem(item)) {
+        return Number.isFinite(currentWalkingSpeed) && currentWalkingSpeed <= 0.05;
+      }
+      if (!isRestTimelineItem(item)) {
+        return true;
+      }
+      const restState = String(item?.triggerRestState || item?.runtimeRestState || '').trim();
+      return Boolean(currentRestState && currentRestState !== 'none' && (!restState || restState === currentRestState));
+    };
+    const getExplicitProgressGate = (item) => {
+      const explicitProgress = Number(item?.progress);
+      if (Number.isFinite(explicitProgress)) {
+        return clamp(explicitProgress, 0, 1);
+      }
+      return null;
+    };
+    const timelineEndTime = (() => {
+      const times = orderedTimeline
+        .map((item) => Number(item?.timeSeconds))
+        .filter((value) => Number.isFinite(value));
+      return times.length ? Math.max(...times) : Number.NaN;
+    })();
+    const playbackEndTime = (() => {
+      const explicitEndTime = Number(playback?.endTime);
+      if (Number.isFinite(explicitEndTime)) {
+        return explicitEndTime;
+      }
+      const snapshots = Array.isArray(playback?.traceSnapshots) ? playback.traceSnapshots : [];
+      const lastSnapshotTime = snapshots.length ? Number(snapshots[snapshots.length - 1]?.time) : Number.NaN;
+      if (Number.isFinite(lastSnapshotTime)) {
+        return lastSnapshotTime;
+      }
+      const summaryDuration = Number(playback?.summary?.duration);
+      return Number.isFinite(summaryDuration) ? summaryDuration : Number.NaN;
+    })();
+    const isFinalTimelineItem = (item, index) => {
+      const eventType = String(item?.triggerEventType || item?.runtimeEventType || '').trim();
+      return index === orderedTimeline.length - 1
+        || eventType === 'route_completed'
+        || eventType === 'route_incomplete';
+    };
+    const terminalClusterStartIndex = (() => {
+      if (!Number.isFinite(playbackEndTime) || orderedTimeline.length < 3) {
+        return -1;
+      }
+      let clusterStart = -1;
+      for (let index = orderedTimeline.length - 1; index >= 0; index -= 1) {
+        const item = orderedTimeline[index];
+        const itemProgress = getExplicitProgressGate(item);
+        const itemTime = Number(item?.timeSeconds);
+        const isTerminalLike = Boolean(
+          isFinalTimelineItem(item, index)
+          || (itemProgress !== null && itemProgress >= 0.995)
+          || (Number.isFinite(itemTime) && itemTime >= playbackEndTime - 0.5)
+        );
+        if (!isTerminalLike) {
+          break;
+        }
+        clusterStart = index;
+      }
+      return clusterStart >= 0 && clusterStart < orderedTimeline.length - 1 ? clusterStart : -1;
+    })();
+    const isInTerminalCluster = (index) => terminalClusterStartIndex >= 0 && index >= terminalClusterStartIndex;
+    const getTerminalClusterRatio = (index) => {
+      if (!isInTerminalCluster(index)) {
+        return null;
+      }
+      const clusterLength = Math.max(1, orderedTimeline.length - terminalClusterStartIndex);
+      return clamp((index - terminalClusterStartIndex + 1) / clusterLength, 0, 1);
+    };
+    const getEffectiveProgressGate = (item, index) => {
+      const explicitProgress = getExplicitProgressGate(item);
+      const ratio = getTerminalClusterRatio(index);
+      if (ratio === null) {
+        return explicitProgress;
+      }
+      const previousProgress = terminalClusterStartIndex > 0
+        ? getExplicitProgressGate(orderedTimeline[terminalClusterStartIndex - 1])
+        : 0;
+      const startProgress = previousProgress === null ? 0 : clamp(previousProgress, 0, 1);
+      return clamp(startProgress + (1 - startProgress) * ratio, 0, 1);
+    };
+    const getEffectiveTimeGate = (item, index) => {
+      const itemTime = Number(item?.timeSeconds);
+      const ratio = getTerminalClusterRatio(index);
+      if (ratio === null || !Number.isFinite(playbackEndTime)) {
+        return itemTime;
+      }
+      const previousTime = terminalClusterStartIndex > 0
+        ? Number(orderedTimeline[terminalClusterStartIndex - 1]?.timeSeconds)
+        : Number.NaN;
+      const startTime = Number.isFinite(previousTime) ? previousTime : Number(playback?.startTime || 0);
+      return startTime + Math.max(0, playbackEndTime - startTime) * ratio;
+    };
+    const isTerminalTimelineItem = (item, index) => {
+      return isFinalTimelineItem(item, index);
+    };
+    const isTerminalTimelineItemReached = (item, index) => {
+      if (!isTerminalTimelineItem(item, index)) {
+        return true;
+      }
+      const finalTime = Number.isFinite(playbackEndTime) ? playbackEndTime : timelineEndTime;
+      if (!Number.isFinite(finalTime)) {
+        return currentProgress >= 0.985;
+      }
+      return currentTime >= finalTime - 0.35;
+    };
+    const isCollapsedTerminalClusterItemReached = (item, index) => {
+      if (!isInTerminalCluster(index)) {
+        return true;
+      }
+      if (isFinalTimelineItem(item, index)) {
+        return true;
+      }
+      const effectiveTime = getEffectiveTimeGate(item, index);
+      return !Number.isFinite(effectiveTime) || effectiveTime <= currentTime + 1e-6;
+    };
+    const isTimelineItemReached = (item) => {
+      const itemTime = Number(item?.timeSeconds);
+      const progressGate = getExplicitProgressGate(item);
+      const timeReached = Number.isFinite(itemTime) ? itemTime <= currentTime + 1e-6 : true;
+      const progressReached = progressGate === null || progressGate <= currentProgress + 1e-6;
+      return timeReached && progressReached;
+    };
+    const getTriggerAlignedItem = (items = []) => {
+      const decisionMatches = items.filter((item) => {
+        const triggerDecisionNodeId = String(item?.triggerDecisionNodeId || '').trim() || null;
+        const triggerTargetNodeId = String(item?.triggerTargetNodeId || '').trim() || null;
+        if (!triggerDecisionNodeId || triggerDecisionNodeId !== currentDecisionNodeId) {
+          return false;
+        }
+        if (triggerTargetNodeId && currentSelectedTargetNodeId && triggerTargetNodeId !== currentSelectedTargetNodeId) {
+          return false;
+        }
+        return isTimelineItemReached(item);
+      });
+      if (decisionMatches.length) {
+        return decisionMatches[decisionMatches.length - 1];
+      }
+
+      const runtimeMatches = items.filter((item) => {
+        const triggerKind = String(item?.triggerKind || '').trim() || null;
+        const triggerEventType = String(item?.triggerEventType || '').trim() || null;
+        const triggerRestState = String(item?.triggerRestState || item?.runtimeRestState || '').trim() || null;
+        const triggerBurdenDimension = String(item?.triggerBurdenDimension || '').trim() || null;
+        if (triggerKind !== 'runtime_event' && !triggerEventType && !triggerRestState && !triggerBurdenDimension) {
+          return false;
+        }
+        const restMatch = Boolean(triggerRestState && currentRestState && triggerRestState === currentRestState);
+        const eventTypeMatch = (
+          (triggerEventType === 'seat_search_started' && currentRestState === 'searching')
+          || (triggerEventType === 'short_rest_started' && currentRestState === 'short-rest')
+          || (triggerEventType === 'rest_state_changed' && Boolean(triggerRestState) && triggerRestState === currentRestState)
+          || (triggerEventType === 'burden_spike' && Boolean(triggerBurdenDimension) && triggerBurdenDimension === currentTopBurdenId)
+          || (triggerEventType === 'guidance_pause' && Number.isFinite(currentWalkingSpeed) && currentWalkingSpeed <= 0.05)
+        );
+        if (!restMatch && !eventTypeMatch) {
+          return false;
+        }
+        return isTimelineItemReached(item);
+      });
+      if (runtimeMatches.length) {
+        return runtimeMatches[runtimeMatches.length - 1];
+      }
+      return null;
+    };
+    const getRestStateAlignedItem = (items = []) => {
+      if (!currentRestState || currentRestState === 'none') {
+        return null;
+      }
+      let bestMatch = null;
+      items.forEach((item) => {
+        if (!isStrictRuntimeBoundTimelineItem(item)) {
+          return;
+        }
+        const runtimeRestState = String(item?.runtimeRestState || '').trim() || null;
+        if (!runtimeRestState || runtimeRestState !== currentRestState) {
+          return;
+        }
+        const itemTime = Number(item?.timeSeconds);
+        const itemProgress = Number(item?.progress);
+        const timeReached = Number.isFinite(itemTime) ? itemTime <= currentTime + 1e-6 : true;
+        const progressReached = Number.isFinite(itemProgress) ? clamp(itemProgress, 0, 1) <= currentProgress + 1e-6 : true;
+        if (timeReached && progressReached) {
+          bestMatch = item;
+        }
+      });
+      return bestMatch;
+    };
+    const getGuidancePauseAlignedItem = (items = []) => {
+      if (!Number.isFinite(currentWalkingSpeed) || currentWalkingSpeed > 0.05) {
+        return null;
+      }
+      let bestMatch = null;
+      items.forEach((item) => {
+        if (!isGuidancePauseTimelineItem(item)) {
+          return;
+        }
+        if (!isTimelineItemReached(item)) {
+          return;
+        }
+        bestMatch = item;
+      });
+      return bestMatch;
+    };
+    const stateAlignedItem = getRestStateAlignedItem(orderedTimeline) || getGuidancePauseAlignedItem(orderedTimeline);
+    if (stateAlignedItem) {
+      return stateAlignedItem.order || null;
+    }
+
+    const finiteTimes = orderedTimeline
+      .map((item) => Number(item?.timeSeconds))
+      .filter((value) => Number.isFinite(value));
+    const explicitProgressTimeline = orderedTimeline.filter((item) => Number.isFinite(Number(item?.progress)));
+    if (explicitProgressTimeline.length) {
+      let bestProgressItem = explicitProgressTimeline[0];
+      explicitProgressTimeline.forEach((item) => {
+        const originalIndex = orderedTimeline.findIndex((timelineItem) => timelineItem === item);
+        const itemProgress = getEffectiveProgressGate(item, originalIndex);
+        if (
+          itemProgress !== null
+          && itemProgress <= currentProgress + 1e-6
+          && isTerminalTimelineItemReached(item, originalIndex)
+          && isCollapsedTerminalClusterItemReached(item, originalIndex)
+          && canUseTimelineItemAsGenericFallback(item)
+        ) {
+          bestProgressItem = item;
+        }
+      });
+      return bestProgressItem?.order || orderedTimeline[0]?.order || null;
+    }
+
+    const minTime = finiteTimes.length ? Math.min(...finiteTimes) : Number.NaN;
+    const maxTime = finiteTimes.length ? Math.max(...finiteTimes) : Number.NaN;
+    const hasDistinctTimelineTimes = finiteTimes.length >= 2 && Number.isFinite(maxTime - minTime) && (maxTime - minTime) > 0.5;
+    if (hasDistinctTimelineTimes) {
+      let bestTimedItem = orderedTimeline[0];
+      orderedTimeline.forEach((item, index) => {
+        const itemTime = getEffectiveTimeGate(item, index);
+        if (
+          Number.isFinite(itemTime)
+          && itemTime <= currentTime + 1e-6
+          && isTerminalTimelineItemReached(item, index)
+          && canUseTimelineItemAsGenericFallback(item)
+        ) {
+          bestTimedItem = item;
+        }
+      });
+      return bestTimedItem?.order || orderedTimeline[0]?.order || null;
+    }
+
+    const sampledTimeline = orderedTimeline
+      .map((item) => ({
+        ...item,
+        sampleOrder: parseTimelineSampleOrder(item?.nodeId || ''),
+      }))
+      .filter((item) => item.sampleOrder !== null);
+    if (sampledTimeline.length) {
+      const maxSampleOrder = sampledTimeline.reduce((maxValue, item) => Math.max(maxValue, Number(item.sampleOrder || 0)), 1);
+      let bestSampleItem = sampledTimeline[0];
+      sampledTimeline.forEach((item) => {
+        const sampleThreshold = maxSampleOrder <= 1
+          ? 0
+          : clamp(Number(item.sampleOrder || 1) / maxSampleOrder, 0, 1);
+        const originalIndex = orderedTimeline.findIndex((timelineItem) => timelineItem.order === item.order);
+        if (
+          sampleThreshold <= currentProgress + 1e-6
+          && isTerminalTimelineItemReached(item, originalIndex)
+          && isCollapsedTerminalClusterItemReached(item, originalIndex)
+          && canUseTimelineItemAsGenericFallback(item)
+        ) {
+          bestSampleItem = item;
+        }
+      });
+      return bestSampleItem?.order || orderedTimeline[0]?.order || null;
+    }
+
+    const maxTimelineIndex = Math.max(1, orderedTimeline.length - 1);
+    let fallbackBest = orderedTimeline[0] || null;
+    orderedTimeline.forEach((item, index) => {
+      const threshold = clamp(index / maxTimelineIndex, 0, 1);
+      if (
+        threshold <= currentProgress + 1e-6
+        && isTerminalTimelineItemReached(item, index)
+        && isCollapsedTerminalClusterItemReached(item, index)
+        && canUseTimelineItemAsGenericFallback(item)
+      ) {
+        fallbackBest = item;
+      }
+    });
+    return fallbackBest?.order || null;
+  }
+
+  function getVisualizationIssueImpactTone(value) {
+    const numeric = clamp(Number(value || 0), 0, 100);
+    if (numeric >= 80) return 'high';
+    if (numeric >= 60) return 'medium-high';
+    if (numeric >= 40) return 'medium';
+    if (numeric >= 20) return 'medium-low';
+    return 'low';
+  }
+
+  function getVisualizationIssueImpactLabel(value, locale = state.locale) {
+    const tone = getVisualizationIssueImpactTone(value);
+    const labels = locale === 'en'
+      ? {
+        high: 'High impact',
+        'medium-high': 'Medium-high impact',
+        medium: 'Medium impact',
+        'medium-low': 'Medium-low impact',
+        low: 'Low impact',
+      }
+      : {
+        high: '高影响',
+        'medium-high': '较高影响',
+        medium: '中等影响',
+        'medium-low': '较低影响',
+        low: '低影响',
+      };
+    return {
+      tone,
+      label: labels[tone],
+    };
+  }
+
+  function getVisualizationDetailCurrentModeLabel(viewMode = getSafeViewMode(state.visualizationDetailView || state.viewMode)) {
+    const analysis = getPlaybackRouteAnalysisResult();
+    const providerLabel = String(
+      analysis?.provider?.label
+      || analysis?.providerLabel
+      || analysis?.provider?.id
+      || ''
+    ).trim();
+    return providerLabel || getVisualizationViewTitle(viewMode);
+  }
+
+  function getVisualizationDetailApiStatusLabel(locale = state.locale) {
+    const analysis = getPlaybackRouteAnalysisResult();
+    const providerStatus = String(
+      analysis?.provider?.status
+      || analysis?.providerStatus
+      || analysis?.model
+      || ''
+    ).trim();
+    if (providerStatus) {
+      return providerStatus;
+    }
+    if (state.localSimServerStatus === 'online') {
+      return locale === 'en' ? 'Online' : '在线';
+    }
+    if (state.localSimServerStatus === 'offline') {
+      return locale === 'en' ? 'Offline' : '离线';
+    }
+    return locale === 'en' ? 'Checking' : '检测中';
+  }
+
+  function buildVisualizationDetailCotMetaMarkup(activeView, locale = state.locale) {
+    const currentModeLabel = locale === 'en' ? 'Current Mode' : 'Current Mode';
+    const apiStatusLabel = locale === 'en' ? 'API Status' : 'API Status';
+    return `
+      <div class="visualization-detail__report-meta">
+        <div class="visualization-detail__report-meta-column">
+          <span class="visualization-detail__report-meta-label">${escapeHtml(currentModeLabel)}</span>
+          <span class="visualization-detail__report-meta-value">${escapeHtml(getVisualizationDetailCurrentModeLabel(activeView))}</span>
+        </div>
+        <div class="visualization-detail__report-meta-column">
+          <span class="visualization-detail__report-meta-label">${escapeHtml(apiStatusLabel)}</span>
+          <span class="visualization-detail__report-meta-value">${escapeHtml(getVisualizationDetailApiStatusLabel(locale))}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  function isRestTimelineDisplayItem(item = {}) {
+    const isStrictRuntimeBound = Boolean(
+      String(item?.triggerKind || '').trim() === 'runtime_event'
+      || String(item?.triggerEventId || '').trim()
+      || String(item?.triggerEventType || '').trim()
+      || String(item?.triggerRestState || '').trim()
+      || String(item?.triggerBurdenDimension || '').trim()
+    );
+    if (!isStrictRuntimeBound) {
+      return false;
+    }
+    const eventType = String(item?.triggerEventType || item?.runtimeEventType || '').trim();
+    const restState = String(item?.triggerRestState || item?.runtimeRestState || '').trim();
+    return (
+      eventType === 'short_rest_started'
+      || eventType === 'seat_search_started'
+      || eventType === 'seat_rest_started'
+      || eventType === 'rest_state_changed'
+      || eventType === 'rest_resumed'
+      || ['searching', 'short-rest', 'sitting', 'standing'].includes(restState)
+    );
+  }
+
+  function isGuidancePauseTimelineDisplayItem(item = {}) {
+    const isStrictRuntimeBound = Boolean(
+      String(item?.triggerKind || '').trim() === 'runtime_event'
+      || String(item?.triggerEventId || '').trim()
+      || String(item?.triggerEventType || '').trim()
+      || String(item?.triggerRestState || '').trim()
+      || String(item?.triggerBurdenDimension || '').trim()
+    );
+    if (!isStrictRuntimeBound) {
+      return false;
+    }
+    const eventType = String(item?.triggerEventType || item?.runtimeEventType || '').trim();
+    const walkingSpeed = Number(item?.walkingSpeed ?? item?.currentWalkingSpeed);
+    return eventType === 'guidance_pause' && (!Number.isFinite(walkingSpeed) || walkingSpeed <= 0.05);
+  }
+
+  function sanitizeTimelineDisplayText(text = '', item = {}) {
+    let sanitized = String(text || '')
+      .replace(/左手边|右手边|左侧|右侧|左边|右边|左前方|右前方|左后方|右后方/g, '附近')
+      .replace(/往左|向左|往右|向右/g, '顺着指引')
+      .replace(/\bon\s+the\s+(left|right)\b/gi, 'nearby')
+      .replace(/\bto\s+the\s+(left|right)\b/gi, 'along the route')
+      .replace(/\b(left|right)\s+side\b/gi, 'nearby area')
+      .replace(/\b(left|right)\b/gi, 'nearby');
+    if (isRestTimelineDisplayItem(item)) {
+      return sanitized;
+    }
+    const preserveStopWording = isGuidancePauseTimelineDisplayItem(item);
+    sanitized = sanitized
+      .replace(/先?停下来缓一下/g, '先放慢一点')
+      .replace(/休息一下|休息一会儿|休息一会|休息/g, '缓一缓节奏')
+      .replace(/歇一下|歇一会儿|歇一会|歇/g, '缓一缓节奏')
+      .replace(/缓一下/g, '放慢一点')
+      .replace(/\bstop\s+and\s+rest\b/gi, 'slow down')
+      .replace(/\bstop\s+for\s+a\s+short\s+rest\b/gi, 'slow down for a moment')
+      .replace(/\bshort\s+rest\b/gi, 'slower pace')
+      .replace(/\brest\b/gi, 'slow down');
+    if (!preserveStopWording) {
+      sanitized = sanitized
+        .replace(/停下来/g, '放慢一点')
+        .replace(/停下/g, '放慢')
+        .replace(/\bstop\b/gi, 'slow down')
+        .replace(/\bpause\b/gi, 'slow down');
+    }
+    return sanitized;
+  }
+
+  function buildVisualizationDetailBurdenRankingMarkup(issueItems, activeView, locale) {
+    if (!issueItems.length) {
+      return `<div class="visualization-detail__empty">${escapeHtml(t('visualization.detailNoIssues'))}</div>`;
+    }
+    return `
+      <div class="visualization-detail__burden-ranking">
+        ${issueItems.slice(0, 5).map((item, index) => `
+          <button
+            class="visualization-detail__burden-rank-item${item.actionViewMode === activeView ? ' is-active' : ''}"
+            type="button"
+            data-detail-burden-view="${escapeHtml(item.actionViewMode || '')}">
+            <span class="visualization-detail__burden-rank-order">${escapeHtml(String(index + 1))}</span>
+            <span class="visualization-detail__burden-rank-label">${escapeHtml(item.name || item.id || '--')}</span>
+            <span class="visualization-detail__burden-rank-value">${escapeHtml(formatMetricValue(item.pressure || item.score || 0))}</span>
+          </button>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function buildVisualizationDetailIssueCardMarkup(item, options = {}) {
+    const locale = options.locale || state.locale;
+    const showOrder = options.showOrder !== false;
+    const orderText = showOrder ? `<span class="visualization-detail__issue-order">${escapeHtml(String(options.order || item.rank || ''))}</span>` : '';
+    const hotspotTargets = resolveHotspotTargets(item)
+      .filter((target) => target.type === 'pressure' || target.type === 'seat');
+    const hotspotLinkId = hotspotTargets.length ? (item.id || item.mapTargetId || item.mapTargetIds?.[0] || '') : '';
+    const isClickable = Boolean(hotspotLinkId || item.actionViewMode);
+    const isActive = hotspotLinkId ? itemMatchesHotspotSelection(item) : (item.actionViewMode && item.actionViewMode === state.visualizationDetailView);
+    const impact = getVisualizationIssueImpactLabel(item.pressure || item.score || 0, locale);
+    const problemLabel = locale === 'en' ? 'Issue' : '问题内容';
+    const adviceLabel = locale === 'en' ? 'Suggestion' : '建议';
+    const impactLabel = locale === 'en' ? 'Impact' : '影响程度';
+    const summaryText = item.summary || item.feature || item.name || '--';
+    const adviceText = item.advice || getSuggestionByCategoryText(item.category, locale) || '--';
+    return `
+      <article
+        class="visualization-detail__issue-panel${item.isStatusCard ? ' visualization-detail__issue-panel--status' : ''}${isClickable ? ' is-clickable' : ''}${isActive ? ' is-active' : ''}"
+        ${hotspotLinkId ? `data-detail-hotspot-id="${escapeHtml(hotspotLinkId)}"` : ''}
+        ${item.actionViewMode ? `data-detail-burden-view="${escapeHtml(item.actionViewMode)}"` : ''}>
+        <div class="visualization-detail__issue-head">
+          ${orderText}
+          <div class="visualization-detail__issue-heading">${escapeHtml(item.name || item.id || '--')}</div>
+        </div>
+        ${item.showImpact === false ? '' : `
+          <div class="visualization-detail__issue-impact">
+            <span class="visualization-detail__issue-impact-label">${escapeHtml(impactLabel)}</span>
+            <span class="visualization-detail__issue-impact-level ${escapeHtml(`is-${impact.tone}`)}">${escapeHtml(impact.label)}</span>
+          </div>
+        `}
+        <div class="visualization-detail__issue-section-label">${escapeHtml(problemLabel)}</div>
+        <p class="visualization-detail__issue-copy">${escapeHtml(summaryText)}</p>
+        <div class="visualization-detail__issue-section-label">${escapeHtml(adviceLabel)}</div>
+        <p class="visualization-detail__issue-copy">${escapeHtml(adviceText)}</p>
+      </article>
+    `;
   }
 
   function buildVisualizationDetailCotMarkup() {
     const locale = state.locale === 'en' ? 'en' : 'zh-CN';
-    let reportData = null;
-    try {
-      reportData = buildRouteReportData(locale);
-    } catch (error) {
-      return `<div class="visualization-detail__empty">${escapeHtml(error instanceof Error ? error.message : t('hint.summaryEmpty'))}</div>`;
+    const activeView = getSafeViewMode(state.visualizationDetailView || state.viewMode);
+    const hasPlaybackAnalysis = Boolean(getPlaybackRouteAnalysisResult());
+    const defaultLlmAnalysis = hydrateRouteAnalysisFromHeatmapPlayback(locale);
+    const localizedLlmAnalysis = defaultLlmAnalysis;
+    const llmAnalysis = hasPlaybackAnalysis ? defaultLlmAnalysis : localizedLlmAnalysis;
+    const timeline = Array.isArray(llmAnalysis?.timeline) ? llmAnalysis.timeline : [];
+    const activeTimelineOrder = getVisualizationDetailTimelineActiveOrder(timeline);
+    if (!timeline.length) {
+      const fallbackMessage = locale === 'en'
+        ? (llmAnalysis?.placeholderEn || llmAnalysis?.summaryEn || t('hint.summaryEmpty'))
+        : (llmAnalysis?.placeholderZh || llmAnalysis?.summaryZh || t('hint.summaryEmpty'));
+      return `
+        <div class="visualization-detail__report-stack">
+          <div class="visualization-detail__report-header">
+            <h3 class="visualization-detail__report-title visualization-detail__report-title--icon">${getVisualizationDetailIcon('brain')}<span>${escapeHtml(t('visualization.detailCotTitle'))}</span></h3>
+            ${buildVisualizationDetailCotMetaMarkup(activeView, locale)}
+          </div>
+          <div class="visualization-detail__empty">${escapeHtml(fallbackMessage)}</div>
+        </div>
+      `;
     }
-    const steps = getVisualizationDetailTimelineSteps(reportData);
     return `
       <div class="visualization-detail__report-stack">
         <div class="visualization-detail__report-header">
           <h3 class="visualization-detail__report-title visualization-detail__report-title--icon">${getVisualizationDetailIcon('brain')}<span>${escapeHtml(t('visualization.detailCotTitle'))}</span></h3>
-          <p class="visualization-detail__report-copy">${escapeHtml(reportData.risk?.summary || '--')}</p>
+          ${buildVisualizationDetailCotMetaMarkup(activeView, locale)}
         </div>
         <div class="visualization-detail__timeline">
-          ${steps.map((item, index) => `
-            <div class="visualization-detail__timeline-item">
-              <div class="visualization-detail__timeline-marker">${index + 1}</div>
-              <p class="visualization-detail__timeline-copy">${escapeHtml(item)}</p>
+          ${timeline.map((item) => `
+            <div class="visualization-detail__timeline-item${item.order === activeTimelineOrder ? ' is-active' : ''}" data-timeline-order="${escapeHtml(String(item.order || ''))}">
+              <div class="visualization-detail__timeline-marker"></div>
+              <p class="visualization-detail__timeline-copy">${escapeHtml(sanitizeTimelineDisplayText(item.localizedThought || '', item))}</p>
             </div>
           `).join('')}
         </div>
@@ -8243,44 +14058,83 @@
   }
 
   function buildVisualizationDetailIssuesMarkup() {
-    if (state.selectedDynamic?.kind !== 'focus-agent') {
-      return `<div class="visualization-detail__empty">${escapeHtml(t('hint.hotspotsPrompt'))}</div>`;
-    }
-    const panelState = getIssuePanelState();
+    const activeView = getSafeViewMode(state.visualizationDetailView || state.viewMode);
+    const panelState = getVisualizationDetailIssuePanelState(activeView);
     const locale = state.locale === 'en' ? 'en' : 'zh-CN';
     const issueItems = panelState.mode === 'issues' ? panelState.items : [];
-    const issueMarkup = issueItems.length
-      ? issueItems.map((item) => `
-          <article class="visualization-detail__issue-pair">
-            <div class="visualization-detail__issue-box">
-              <div class="visualization-detail__issue-box-title">${getVisualizationDetailIcon('issue')}<span>${escapeHtml(item.name || item.id || '--')}</span></div>
-              <div class="visualization-detail__issue-meta">${escapeHtml(item.categoryLabel || getCategoryLabel(item.category))} · ${escapeHtml(formatMetricValue(item.pressure || item.score || 0))}</div>
-            </div>
-            <div class="visualization-detail__issue-box visualization-detail__issue-box--suggestion">
-              <div class="visualization-detail__issue-box-title">${getVisualizationDetailIcon('suggestion')}<span>${escapeHtml(t('label.advice'))}</span></div>
-              <p class="visualization-detail__issue-copy">${escapeHtml(item.advice || getSuggestionByCategoryText(item.category, locale) || '--')}</p>
-            </div>
-          </article>
-        `).join('')
-      : `<div class="visualization-detail__empty">${escapeHtml(panelState.summary || t('visualization.detailNoIssues'))}</div>`;
+    const vitalityStatusItem = activeView === 'vitality'
+      ? issueItems.find((item) => item.isStatusCard) || null
+      : null;
+    const detailIssueItems = activeView === 'vitality'
+      ? issueItems.filter((item) => !item.isStatusCard).slice(0, 3)
+      : (activeView !== COMPOSITE_BURDEN_VIEW ? issueItems.slice(0, 3) : issueItems.slice(0, 5));
+    let issueMarkup = '';
+    if (activeView === COMPOSITE_BURDEN_VIEW) {
+      issueMarkup = buildVisualizationDetailBurdenRankingMarkup(detailIssueItems, activeView, locale);
+    } else if (detailIssueItems.length || vitalityStatusItem) {
+      issueMarkup = `
+        <div class="visualization-detail__issue-list">
+          ${vitalityStatusItem ? buildVisualizationDetailIssueCardMarkup(vitalityStatusItem, { locale, showOrder: false }) : ''}
+          ${detailIssueItems.map((item, index) => buildVisualizationDetailIssueCardMarkup(item, { locale, order: index + 1 })).join('')}
+        </div>
+      `;
+    } else {
+      issueMarkup = `<div class="visualization-detail__empty">${escapeHtml(panelState.summary || t('visualization.detailNoIssues'))}</div>`;
+    }
     return `
       <div class="visualization-detail__report-stack">
         <div class="visualization-detail__report-header">
           <h3 class="visualization-detail__report-title visualization-detail__report-title--icon">${getVisualizationDetailIcon('suggestion')}<span>${escapeHtml(t('visualization.detailIssuesTitle'))}</span></h3>
         </div>
-        <div class="visualization-detail__issue-list">${issueMarkup}</div>
+        ${issueMarkup}
       </div>
     `;
   }
 
   function openVisualizationDetailView(viewId = COMPOSITE_BURDEN_VIEW) {
-    state.visualizationDetailView = getSafeViewMode(viewId);
+    ensurePlaybackScenarioState();
+    syncScenarioToPlaybackArtifacts(getActivePlayback() || state.scenario?.precomputedPlayback || null);
+    const previousDetailView = getSafeViewMode(state.visualizationDetailView || state.viewMode);
+    const safeViewId = getSafeViewMode(viewId);
+    applyVisualizationDetailSeatLayerPolicy(safeViewId, previousDetailView);
+    state.visualizationDetailView = safeViewId;
     state.viewMode = state.visualizationDetailView;
+    state.visualizationDetailLayerMenuOpen = false;
+    state.visualizationDetailLayerHoveredValue = null;
+    state.visualizationDetailHoverTarget = null;
+    state.visualizationDetailHoverPointer = null;
+    state.visualizationDetailSelectedIssue = null;
+    state.selectedHotspotId = null;
+    state.selectedHotspotOverlaySnapshot = null;
+    state.visualizationDetailCotMarkupCache = '';
+    state.visualizationDetailIssuesMarkupCache = '';
+    state.visualizationDetailCotRenderedAt = 0;
+    state.visualizationDetailIssuesRenderedAt = 0;
+    state.visualizationDetailStageDeferredView = safeViewId;
+    state.visualizationDetailStageRenderScheduled = false;
+    state.suppressNextDetailLayerTriggerClick = false;
+    state.suppressNextDetailLayerMenuClick = false;
     requestRender();
   }
 
   function closeVisualizationDetailView() {
+    applyVisualizationDetailSeatLayerPolicy(COMPOSITE_BURDEN_VIEW, getSafeViewMode(state.visualizationDetailView || state.viewMode));
     state.visualizationDetailView = null;
+    state.visualizationDetailLayerMenuOpen = false;
+    state.visualizationDetailLayerHoveredValue = null;
+    state.visualizationDetailHoverTarget = null;
+    state.visualizationDetailHoverPointer = null;
+    state.visualizationDetailSelectedIssue = null;
+    state.selectedHotspotId = null;
+    state.selectedHotspotOverlaySnapshot = null;
+    state.visualizationDetailCotMarkupCache = '';
+    state.visualizationDetailIssuesMarkupCache = '';
+    state.visualizationDetailCotRenderedAt = 0;
+    state.visualizationDetailIssuesRenderedAt = 0;
+    state.visualizationDetailStageDeferredView = null;
+    state.visualizationDetailStageRenderScheduled = false;
+    state.suppressNextDetailLayerTriggerClick = false;
+    state.suppressNextDetailLayerMenuClick = false;
     requestRender();
   }
 
@@ -8311,6 +14165,83 @@
     openVisualizationDetailView(viewId);
   }
 
+  function handleVisualizationDetailIssueClick(event) {
+    if (event.type === 'click' && state.suppressNextDetailIssueClick) {
+      state.suppressNextDetailIssueClick = false;
+      return;
+    }
+    if (!elements.visualizationDetailIssues) {
+      return;
+    }
+    const burdenButton = event.target.closest('[data-detail-burden-view]');
+    if (burdenButton && elements.visualizationDetailIssues.contains(burdenButton)) {
+      const viewId = burdenButton.dataset?.detailBurdenView;
+      if (!viewId) {
+        return;
+      }
+      event.stopPropagation();
+      state.visualizationDetailSelectedIssue = null;
+      state.selectedHotspotId = null;
+      state.selectedHotspotOverlaySnapshot = null;
+      closePointPopover();
+      openVisualizationDetailView(viewId);
+      return;
+    }
+    const hotspotCard = event.target.closest('[data-detail-hotspot-id]');
+    if (!hotspotCard || !elements.visualizationDetailIssues.contains(hotspotCard)) {
+      return;
+    }
+    event.stopPropagation();
+    const hotspotId = hotspotCard.dataset?.detailHotspotId;
+    const hotspot = getHotspotById(hotspotId);
+    if (!hotspot) {
+      return;
+    }
+    const hotspotTargets = resolveHotspotTargets(hotspot)
+      .filter((target) => target.type === 'pressure' || target.type === 'seat');
+    if (!hotspotTargets.length) {
+      return;
+    }
+    state.visualizationDetailSelectedIssue = {
+      id: hotspot.id,
+      name: hotspot.name || hotspot.id || '',
+      category: hotspot.category || '',
+      feature: hotspot.feature || '',
+      pressure: hotspot.pressure,
+      score: hotspot.score,
+      mapTargetId: hotspot.mapTargetId || hotspotTargets[0]?.item?.id || null,
+      mapTargetIds: Array.from(new Set([
+        ...(Array.isArray(hotspot.mapTargetIds) ? hotspot.mapTargetIds : []),
+        hotspot.mapTargetId,
+        ...hotspotTargets.map((target) => target?.item?.id).filter(Boolean),
+      ])),
+    };
+    const nextHotspotId = state.selectedHotspotId === hotspot.id ? null : hotspot.id;
+    state.animationPaused = true;
+    state.selectedHotspotId = nextHotspotId;
+    state.selectedHotspotOverlaySnapshot = {
+      selectionId: hotspot.id,
+      items: buildSelectedHotspotOverlayEntries(hotspot),
+    };
+    if (!state.selectedHotspotId) {
+      state.visualizationDetailSelectedIssue = null;
+      state.selectedHotspotOverlaySnapshot = null;
+    }
+    closePointPopover();
+    requestRender();
+  }
+
+  function handleVisualizationDetailIssuePointerDown(event) {
+    const interactiveTarget = event.target.closest('[data-detail-burden-view], [data-detail-hotspot-id]');
+    if (!interactiveTarget || !elements.visualizationDetailIssues?.contains(interactiveTarget)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    state.suppressNextDetailIssueClick = true;
+    handleVisualizationDetailIssueClick(event);
+  }
+
   function handleVisualizationDetailLayerSelect(event) {
     state.activeLayerCategory = event.target?.value || null;
     closePointPopover();
@@ -8322,11 +14253,13 @@
       return {
         section: t('visualization.detailSection') || 'Section 04',
         title: t('visualization.detailTitle') || 'Detailed Route Diagnosis',
+        back: state.locale === 'en' ? 'Back to Overview' : '返回总览',
       };
     }
     return {
       section: t('visualization.section'),
       title: t('visualization.title'),
+      back: state.locale === 'en' ? 'Back to Attribute Settings' : '返回属性设置',
     };
   }
 
@@ -8357,25 +14290,95 @@
         .join('');
       elements.visualizationDetailViewSelect.value = activeView;
     }
-    renderVisualizationStage(activeView, {
-      base: elements.visualizationDetailBase,
-      background: elements.visualizationDetailBackground,
-      heat: elements.visualizationDetailHeat,
-      overlay: elements.visualizationDetailOverlay,
-      min: null,
-      max: null,
-    });
+    if (state.visualizationDetailStageDeferredView === activeView) {
+      clearVisualizationStageCanvas(elements.visualizationDetailBackground);
+      clearVisualizationStageCanvas(elements.visualizationDetailHeat);
+      if (elements.visualizationDetailOverlay) {
+        elements.visualizationDetailOverlay.innerHTML = '';
+      }
+      scheduleVisualizationDetailStageRender(activeView);
+    } else {
+      renderVisualizationStage(activeView, {
+        base: elements.visualizationDetailBase,
+        background: elements.visualizationDetailBackground,
+        heat: elements.visualizationDetailHeat,
+        overlay: elements.visualizationDetailOverlay,
+        min: null,
+        max: null,
+      });
+    }
+    renderVisualizationDetailStageHeader(activeView);
     renderVisualizationStatusMonitor(elements.visualizationDetailStatus);
     renderVisualizationCapabilityRadar(elements.visualizationDetailRadar);
     renderVisualizationBurdenFeedback(elements.visualizationDetailFeedback);
-    renderVisualizationDetailLayerSelect(elements.visualizationDetailLayerSelect);
+    renderVisualizationDetailLayerSelect(elements.visualizationDetailLayerSelect, elements.visualizationDetailLayerMenu);
     if (elements.visualizationDetailCot) {
-      elements.visualizationDetailCot.innerHTML = buildVisualizationDetailCotMarkup();
+      const nextCotMarkup = buildVisualizationDetailCotMarkup();
+      const shouldUpdateCot = nextCotMarkup !== state.visualizationDetailCotMarkupCache;
+      if (shouldUpdateCot) {
+        elements.visualizationDetailCot.innerHTML = nextCotMarkup;
+        state.visualizationDetailCotMarkupCache = nextCotMarkup;
+        state.visualizationDetailCotRenderedAt = Date.now();
+      }
     }
     if (elements.visualizationDetailIssues) {
-      elements.visualizationDetailIssues.innerHTML = buildVisualizationDetailIssuesMarkup();
+      const nextIssuesMarkup = buildVisualizationDetailIssuesMarkup();
+      const shouldUpdateIssues = nextIssuesMarkup !== state.visualizationDetailIssuesMarkupCache;
+      if (shouldUpdateIssues) {
+        elements.visualizationDetailIssues.innerHTML = nextIssuesMarkup;
+        state.visualizationDetailIssuesMarkupCache = nextIssuesMarkup;
+        state.visualizationDetailIssuesRenderedAt = Date.now();
+      }
     }
     restoreVisualizationWorkspaceLayers();
+  }
+
+  function renderVisualizationDetailPlaybackFramePanels() {
+    if (!state.visualizationDetailView || !elements.visualizationDetail) {
+      return;
+    }
+    renderVisualizationDetailStageMetrics(elements.visualizationDetailStageMetrics);
+    renderVisualizationStatusMonitor(elements.visualizationDetailStatus);
+    renderVisualizationBurdenFeedback(elements.visualizationDetailFeedback);
+    if (elements.visualizationDetailCot) {
+      const nextCotMarkup = buildVisualizationDetailCotMarkup();
+      if (nextCotMarkup !== state.visualizationDetailCotMarkupCache) {
+        elements.visualizationDetailCot.innerHTML = nextCotMarkup;
+        state.visualizationDetailCotMarkupCache = nextCotMarkup;
+        state.visualizationDetailCotRenderedAt = Date.now();
+      }
+    }
+    if (elements.visualizationDetailIssues) {
+      const nextIssuesMarkup = buildVisualizationDetailIssuesMarkup();
+      if (nextIssuesMarkup !== state.visualizationDetailIssuesMarkupCache) {
+        elements.visualizationDetailIssues.innerHTML = nextIssuesMarkup;
+        state.visualizationDetailIssuesMarkupCache = nextIssuesMarkup;
+        state.visualizationDetailIssuesRenderedAt = Date.now();
+      }
+    }
+  }
+
+  function renderVisualizationDetailPlaybackFrameStage(shouldRenderOverlay = true) {
+    if (!state.visualizationDetailView || !elements.visualizationDetailOverlay) {
+      return;
+    }
+    const stageFrame = elements.visualizationDetailOverlay.parentElement
+      || elements.visualizationDetailBase?.parentElement
+      || null;
+    const stageTransform = computeTransformForContainer(stageFrame);
+    renderBackgroundCrowdCanvas({
+      targetCanvas: elements.visualizationDetailBackground,
+      transform: stageTransform,
+    });
+    if (shouldRenderOverlay) {
+      renderOverlayLayer({
+        target: elements.visualizationDetailOverlay,
+        transform: stageTransform,
+        isVisualizationDetail: true,
+        showAllNodes: true,
+        activeLayerCategories: getVisualizationDetailActiveLayerCategories(),
+      });
+    }
   }
 
   function renderVisualizationShell() {
@@ -8388,6 +14391,12 @@
     }
     if (elements.visualizationShellTitle) {
       elements.visualizationShellTitle.textContent = shellCopy.title;
+    }
+    if (elements.visualizationBackBtn) {
+      const label = elements.visualizationBackBtn.querySelector('span');
+      if (label) {
+        label.textContent = shellCopy.back;
+      }
     }
     renderVisualizationDetailView();
     if (!state.visualizationDetailView) {
@@ -8461,21 +14470,41 @@
     if (state.uiScreen !== 'workspace') {
       return;
     }
+    const shouldRenderOverlay = shouldRenderPlaybackOverlayFrame();
+    const shouldRenderUiPanels = shouldRenderPlaybackUiPanels();
+    if (state.visualizationDetailView) {
+      renderVisualizationDetailPlaybackFrameStage(shouldRenderOverlay);
+      syncVisualizationDetailHoverTargetFromPointer();
+      if (state.pointPopover.visible) {
+        renderPointPopover();
+      }
+      if (shouldRenderUiPanels) {
+        renderVisualizationDetailPlaybackFramePanels();
+      }
+      return;
+    }
     renderBackgroundCrowdCanvas();
-    renderHeatmap();
-    renderOverlayLayer();
-    if (state.selectedDynamic) {
+    if (shouldRenderHeatmapDuringPlaybackFrame()) {
+      renderHeatmap();
+    }
+    if (shouldRenderOverlay) {
+      renderOverlayLayer();
+    }
+    syncVisualizationDetailHoverTargetFromPointer();
+    if (shouldRenderUiPanels && state.selectedDynamic) {
       renderSummary();
       renderInspectorAgentSummary();
       renderHotspots();
     }
-    if (state.selectedObject) {
+    if (shouldRenderUiPanels && state.selectedObject) {
       renderObjectInspector();
     }
     if (state.pointPopover.visible) {
       renderPointPopover();
     }
-    renderVisualizationShell();
+    if (shouldRenderUiPanels) {
+      state.visualizationDetailView ? renderVisualizationDetailPlaybackFramePanels() : renderVisualizationShell();
+    }
   }
 
   function applyLocale(locale) {
@@ -8485,7 +14514,7 @@
       try {
         rebuildReportModalContent(getReportLocale());
       } catch (error) {
-        state.reportModal.error = error instanceof Error ? error.message : reportT('errorPreview');
+        state.reportModal.error = error instanceof Error ? error.message : reportT('errorPreview', null, state.locale);
       }
     }
     requestRender();
@@ -8533,6 +14562,7 @@
       const text = (await file.text()).replace(/^\uFEFF/, '');
       const raw = JSON.parse(text);
       applyPreparedModel(raw, file.name);
+      void requestBackgroundFieldPrewarmForModel(raw);
     } catch (error) {
       state.prepared = null;
       state.rawModel = null;
@@ -8583,12 +14613,13 @@
   async function handleRunHeatmap() {
     if (!state.prepared || !state.scenario || !state.crowdGenerated || state.heatmapComputing) {
       requestRender();
-      return;
+      return false;
     }
     const computeToken = state.heatmapComputeToken + 1;
     state.heatmapComputeToken = computeToken;
     state.heatmapComputing = true;
     state.heatmapComputeProgress = 0.02;
+    state.heatmapComputeStage = 'bootstrap';
     state.heatmapRunError = '';
     resetHeatmapPlaybackDisplayState();
     state.animationPaused = true;
@@ -8644,14 +14675,17 @@
       syncScenarioToPlaybackArtifacts(precomputedPlayback);
       state.animationPaused = false;
       syncScenarioRuntimeState();
+      return true;
     } catch (error) {
       console.error('Heatmap precompute failed:', error);
       state.heatmapRunError = error instanceof Error ? error.message : '热力图计算失败。';
       state.animationPaused = true;
+      return false;
     } finally {
       if (state.heatmapComputeToken === computeToken) {
         state.heatmapComputing = false;
         state.heatmapComputeProgress = 0;
+        state.heatmapComputeStage = '';
         requestRender();
       }
     }
@@ -8663,27 +14697,39 @@
       return;
     }
     try {
+      state.reportLocale = state.locale === 'en' ? 'en' : 'zh-CN';
       const reportLocale = getReportLocale();
       const reportData = buildRouteReportData(reportLocale);
       state.reportModal = {
         open: true,
         exporting: false,
+        exportFormat: getReportExportFormat(),
+        languageMenuOpen: false,
+        formatMenuOpen: false,
         status: typeof window.showSaveFilePicker === 'function'
-          ? reportT('readyPreviewPicker', null, reportLocale)
-          : reportT('readyPreviewDownload', null, reportLocale),
+          ? reportT('readyPreviewPicker', null, state.locale)
+          : reportT('readyPreviewDownload', null, state.locale),
         error: '',
         data: reportData,
         documentHtml: buildRouteReportDocument(reportData),
         fileName: buildRouteReportFileName(reportData),
+        llmAnalysis: null,
+        llmAnalysisPending: false,
+        llmAnalysisPromise: null,
+        llmAnalysisKey: '',
+        llmAnalysisRequestKey: '',
       };
     } catch (error) {
       state.reportModal = {
         ...createDefaultReportModalState(),
         open: true,
-        error: error instanceof Error ? error.message : reportT('errorPreview'),
+        error: error instanceof Error ? error.message : reportT('errorPreview', null, state.locale),
       };
     }
     requestRender();
+    if (state.reportModal.open && state.reportModal.documentHtml) {
+      ensureRouteAnalysisForCurrentState(getReportLocale());
+    }
   }
 
   function setReportLocale(locale) {
@@ -8691,11 +14737,18 @@
       return;
     }
     state.reportLocale = locale === 'en' ? 'en' : 'zh-CN';
+    state.reportModal.languageMenuOpen = false;
     if (state.reportModal.open) {
       try {
+        state.reportModal.llmAnalysis = null;
+        state.reportModal.llmAnalysisPending = false;
+        state.reportModal.llmAnalysisPromise = null;
+        state.reportModal.llmAnalysisKey = '';
+        state.reportModal.llmAnalysisRequestKey = '';
         rebuildReportModalContent(getReportLocale());
+        ensureRouteAnalysisForCurrentState(getReportLocale());
       } catch (error) {
-        state.reportModal.error = error instanceof Error ? error.message : reportT('errorPreview');
+        state.reportModal.error = error instanceof Error ? error.message : reportT('errorPreview', null, state.locale);
         state.reportModal.documentHtml = '';
         state.reportModal.data = null;
       }
@@ -8703,9 +14756,189 @@
     requestRender();
   }
 
+  function setReportExportFormat(format) {
+    if (state.reportModal.exporting) {
+      return;
+    }
+    state.reportModal.exportFormat = format === 'pdf' ? 'pdf' : 'html';
+    state.reportModal.formatMenuOpen = false;
+    requestRender();
+  }
+
+  function handleReportLanguageTrigger(event) {
+    if (event?.type === 'click' && state.reportModal.suppressNextReportLanguageTriggerClick) {
+      state.reportModal.suppressNextReportLanguageTriggerClick = false;
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      return;
+    }
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (state.reportModal.exporting) {
+      return;
+    }
+    if (event?.type === 'pointerdown') {
+      state.reportModal.suppressNextReportLanguageTriggerClick = true;
+    }
+    state.reportModal.languageMenuOpen = !state.reportModal.languageMenuOpen;
+    state.reportModal.formatMenuOpen = false;
+    requestRender();
+  }
+
+  function handleReportLanguageMenuClick(event) {
+    if (event?.type === 'click' && state.reportModal.suppressNextReportLanguageMenuClick) {
+      state.reportModal.suppressNextReportLanguageMenuClick = false;
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      return;
+    }
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (state.reportModal.exporting) {
+      return;
+    }
+    const option = event.target.closest('[data-report-locale]');
+    if (!option || !elements.reportLanguageMenu?.contains(option)) {
+      return;
+    }
+    if (event?.type === 'pointerdown') {
+      state.reportModal.suppressNextReportLanguageMenuClick = true;
+    }
+    setReportLocale(option.dataset.reportLocale);
+  }
+
+  function handleReportFormatTrigger(event) {
+    if (event?.type === 'click' && state.reportModal.suppressNextReportFormatTriggerClick) {
+      state.reportModal.suppressNextReportFormatTriggerClick = false;
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      return;
+    }
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (state.reportModal.exporting) {
+      return;
+    }
+    if (event?.type === 'pointerdown') {
+      state.reportModal.suppressNextReportFormatTriggerClick = true;
+    }
+    state.reportModal.formatMenuOpen = !state.reportModal.formatMenuOpen;
+    state.reportModal.languageMenuOpen = false;
+    requestRender();
+  }
+
+  function handleReportFormatMenuClick(event) {
+    if (event?.type === 'click' && state.reportModal.suppressNextReportFormatMenuClick) {
+      state.reportModal.suppressNextReportFormatMenuClick = false;
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      return;
+    }
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (state.reportModal.exporting) {
+      return;
+    }
+    const option = event.target.closest('[data-report-format]');
+    if (!option || !elements.reportFormatMenu?.contains(option)) {
+      return;
+    }
+    if (event?.type === 'pointerdown') {
+      state.reportModal.suppressNextReportFormatMenuClick = true;
+    }
+    setReportExportFormat(option.dataset.reportFormat);
+  }
+
+  function handleReportDropdownClick(event) {
+    const languageOption = event.target.closest('[data-report-locale]');
+    if (languageOption) {
+      event?.preventDefault?.();
+      setReportLocale(languageOption.dataset.reportLocale);
+      return;
+    }
+    const languageTrigger = event.target.closest('#report-language-trigger');
+    if (languageTrigger) {
+      handleReportLanguageTrigger(event);
+      return;
+    }
+    const formatOption = event.target.closest('[data-report-format]');
+    if (formatOption) {
+      event?.preventDefault?.();
+      setReportExportFormat(formatOption.dataset.reportFormat);
+      return;
+    }
+    const formatTrigger = event.target.closest('#report-format-trigger');
+    if (formatTrigger) {
+      handleReportFormatTrigger(event);
+      return;
+    }
+    state.reportModal.languageMenuOpen = false;
+    state.reportModal.formatMenuOpen = false;
+  }
+
   function closeReportModal() {
     state.reportModal = createDefaultReportModalState();
     requestRender();
+  }
+
+  function reserveReportPrintWindow() {
+    return window.open('', '_blank');
+  }
+
+  function exportReportPdf(reportWindow = null) {
+    const targetWindow = reportWindow || reserveReportPrintWindow();
+    if (!targetWindow) {
+      throw new Error(reportT('exportFailed', null, state.locale));
+    }
+    targetWindow.document.open();
+    targetWindow.document.write(state.reportModal.documentHtml);
+    targetWindow.document.close();
+    targetWindow.focus();
+    window.setTimeout(() => {
+      targetWindow.print();
+    }, 250);
+  }
+
+  async function reserveReportHtmlFileHandle(fileName) {
+    if (typeof window.showSaveFilePicker !== 'function') {
+      return null;
+    }
+    return window.showSaveFilePicker({
+      suggestedName: fileName,
+      types: [
+        {
+          description: 'HTML Report',
+          accept: { 'text/html': ['.html'] },
+        },
+      ],
+    });
+  }
+
+  async function exportReportHtml(fileName, reportLocale, reservedFileHandle = null) {
+    const fileHandle = reservedFileHandle;
+    if (fileHandle) {
+      const writable = await fileHandle.createWritable();
+      await writable.write(state.reportModal.documentHtml);
+      await writable.close();
+      state.reportModal.status = reportT('exported', { fileName }, reportLocale);
+    } else if (typeof window.showSaveFilePicker === 'function') {
+      const nextFileHandle = await reserveReportHtmlFileHandle(fileName);
+      const writable = await nextFileHandle.createWritable();
+      await writable.write(state.reportModal.documentHtml);
+      await writable.close();
+      state.reportModal.status = reportT('exported', { fileName }, reportLocale);
+    } else {
+      const blob = new Blob([state.reportModal.documentHtml], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      state.reportModal.status = reportT('downloaded', null, reportLocale);
+    }
   }
 
   async function handleExportReport() {
@@ -8714,42 +14947,41 @@
     }
     const fileName = state.reportModal.fileName || 'route-report.html';
     const reportLocale = getReportLocale();
+    const uiLocale = state.locale === 'en' ? 'en' : 'zh-CN';
+    const exportFormat = getReportExportFormat();
+    let reservedHtmlFileHandle = null;
+    let reservedPrintWindow = null;
     state.reportModal.exporting = true;
+    state.reportModal.languageMenuOpen = false;
+    state.reportModal.formatMenuOpen = false;
     state.reportModal.error = '';
-    state.reportModal.status = reportT('exporting', null, reportLocale);
+    state.reportModal.status = reportT('exporting', null, uiLocale);
     requestRender();
     try {
-      if (typeof window.showSaveFilePicker === 'function') {
-        const fileHandle = await window.showSaveFilePicker({
-          suggestedName: fileName,
-          types: [
-            {
-              description: 'HTML Report',
-              accept: { 'text/html': ['.html'] },
-            },
-          ],
-        });
-        const writable = await fileHandle.createWritable();
-        await writable.write(state.reportModal.documentHtml);
-        await writable.close();
-        state.reportModal.status = reportT('exported', { fileName }, reportLocale);
+      if (exportFormat === 'pdf') {
+        reservedPrintWindow = reserveReportPrintWindow();
+        if (!reservedPrintWindow) {
+          throw new Error(reportT('exportFailed', null, uiLocale));
+        }
       } else {
-        const blob = new Blob([state.reportModal.documentHtml], { type: 'text/html;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = fileName;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 0);
-        state.reportModal.status = reportT('downloaded', null, reportLocale);
+        reservedHtmlFileHandle = await reserveReportHtmlFileHandle(fileName);
+      }
+      await ensureRouteAnalysisForCurrentState(reportLocale);
+      if (getReportLocale() !== reportLocale) {
+        return;
+      }
+      rebuildReportModalContent(reportLocale);
+      if (exportFormat === 'pdf') {
+        exportReportPdf(reservedPrintWindow);
+        state.reportModal.status = reportT('pdfPrintReady', null, uiLocale);
+      } else {
+        await exportReportHtml(fileName, reportLocale, reservedHtmlFileHandle);
       }
     } catch (error) {
       if (error && error.name === 'AbortError') {
-        state.reportModal.status = reportT('cancelled', null, reportLocale);
+        state.reportModal.status = reportT('cancelled', null, uiLocale);
       } else {
-        state.reportModal.error = error instanceof Error ? error.message : reportT('exportFailed', null, reportLocale);
+        state.reportModal.error = error instanceof Error ? error.message : reportT('exportFailed', null, uiLocale);
         state.reportModal.status = '';
       }
     } finally {
@@ -8801,7 +15033,7 @@
       try {
         rebuildReportModalContent(getReportLocale());
       } catch (error) {
-        state.reportModal.error = error instanceof Error ? error.message : reportT('errorPreview');
+        state.reportModal.error = error instanceof Error ? error.message : reportT('errorPreview', null, state.locale);
         state.reportModal.documentHtml = '';
         state.reportModal.data = null;
       }
@@ -8966,6 +15198,10 @@
     requestRender();
   }
 
+  function handleSettingsDestinationToggle() {
+    handleSettingsDestinationTrigger();
+  }
+
   function handleSettingsDestinationMenuClick(event) {
     const button = event.target.closest('[data-settings-region-id]');
     if (!button) {
@@ -9079,8 +15315,13 @@
         state.selectedHotspotId = null;
         const selectedItem = getObjectBySelection({ type, id });
         const layerCategory = getLayerCategoryForObject(type, selectedItem);
-        if (selectedItem && state.activeLayerCategory && layerCategory === state.activeLayerCategory) {
-          openPointPopover(type, selectedItem);
+        const detailLayerActive = overlayRoot === elements.visualizationDetailOverlay
+          && getVisualizationDetailActiveLayerCategories().includes(layerCategory);
+        const workspaceLayerActive = Boolean(state.activeLayerCategory) && layerCategory === state.activeLayerCategory;
+        if (selectedItem && (detailLayerActive || workspaceLayerActive)) {
+          openPointPopover(type, selectedItem, {
+            overlayTarget: overlayRoot === elements.visualizationDetailOverlay ? 'detail' : 'main',
+          });
         } else {
           closePointPopover();
         }
@@ -9131,6 +15372,32 @@
     requestRender();
   }
 
+  function handleVisualizationDetailOverlayPointerMove(event) {
+    const overlayRoot = event.currentTarget || elements.visualizationDetailOverlay;
+    state.visualizationDetailHoverPointer = {
+      clientX: event.clientX,
+      clientY: event.clientY,
+    };
+    const nextHoverTarget = findVisualizationDetailHoverTarget(event.clientX, event.clientY, overlayRoot);
+    if (
+      state.visualizationDetailHoverTarget?.type === nextHoverTarget?.type
+      && state.visualizationDetailHoverTarget?.id === nextHoverTarget?.id
+    ) {
+      return;
+    }
+    state.visualizationDetailHoverTarget = nextHoverTarget;
+    requestRender();
+  }
+
+  function handleVisualizationDetailOverlayPointerLeave() {
+    if (!state.visualizationDetailHoverTarget && !state.visualizationDetailHoverPointer) {
+      return;
+    }
+    state.visualizationDetailHoverPointer = null;
+    state.visualizationDetailHoverTarget = null;
+    requestRender();
+  }
+
   function handlePointPopoverInput(event) {
     const field = event.target.dataset?.popoverField;
     if (!field || !state.pointPopover.draft) {
@@ -9172,14 +15439,16 @@
 
   function animationLoop(timestamp) {
     try {
-      const deltaSeconds = state.lastFrameTime ? Math.min(0.08, (timestamp - state.lastFrameTime) / 1000) : 0.016;
+      const elapsedSeconds = state.lastFrameTime ? Math.max(0, (timestamp - state.lastFrameTime) / 1000) : 0.016;
+      const playbackDeltaSeconds = Math.min(0.25, elapsedSeconds);
+      const simulationDeltaSeconds = Math.min(0.08, elapsedSeconds);
       state.lastFrameTime = timestamp;
       ensurePlaybackScenarioState();
       if (state.prepared && state.scenario && !state.animationPaused) {
         if (state.scenario.usePrecomputedHeatPlayback && state.scenario.precomputedPlayback) {
-          advancePrecomputedPlayback(deltaSeconds);
+          advancePrecomputedPlayback(playbackDeltaSeconds);
         } else {
-          Sim.stepScenario(state.prepared, state.scenario, deltaSeconds);
+          Sim.stepScenario(state.prepared, state.scenario, simulationDeltaSeconds);
         }
         syncScenarioRuntimeState();
         state.needsPlaybackRender = true;
@@ -9211,6 +15480,35 @@
     }
     if (elements.settingsUploadTrigger) {
       elements.settingsUploadTrigger.addEventListener('click', () => elements.modelFileInput?.click());
+    }
+    if (elements.settingsSpatialEditorBtn) {
+      elements.settingsSpatialEditorBtn.addEventListener('click', openSpatialEditor);
+    }
+    if (elements.spatialEditorBackBtn) {
+      elements.spatialEditorBackBtn.addEventListener('click', closeSpatialEditor);
+    }
+    if (elements.spatialEditorReturnSettingsBtn) {
+      elements.spatialEditorReturnSettingsBtn.addEventListener('click', closeSpatialEditor);
+    }
+    elements.spatialEditorToolButtons.forEach((button) => {
+      button.addEventListener('click', () => setSpatialEditorTool(button.dataset.spatialEditorTool));
+    });
+    elements.spatialEditorActionButtons.forEach((button) => {
+      button.addEventListener('click', () => handleSpatialEditorAction(button.dataset.spatialEditorAction));
+    });
+    elements.spatialEditorResultButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        elements.spatialEditorResultButtons.forEach((item) => item.classList.toggle('active', item === button));
+        state.spatialEditor.statusKey = 'spatialEditor.statusHistory';
+        requestRender();
+      });
+    });
+    if (elements.spatialEditorMap) {
+      elements.spatialEditorMap.addEventListener('pointerdown', handleSpatialEditorMapPointerDown);
+      elements.spatialEditorMap.addEventListener('pointermove', handleSpatialEditorMapPointerMove);
+      elements.spatialEditorMap.addEventListener('pointerup', handleSpatialEditorMapPointerEnd);
+      elements.spatialEditorMap.addEventListener('pointercancel', handleSpatialEditorMapPointerEnd);
+      elements.spatialEditorMap.addEventListener('lostpointercapture', handleSpatialEditorMapPointerEnd);
     }
     if (elements.settingsRoutePickBtn) {
       elements.settingsRoutePickBtn.addEventListener('click', handleRoutePickToggle);
@@ -9249,8 +15547,23 @@
     if (elements.visualizationDetailViewSelect) {
       elements.visualizationDetailViewSelect.addEventListener('change', handleVisualizationDetailSwitch);
     }
+    if (elements.visualizationDetailIssues) {
+      elements.visualizationDetailIssues.addEventListener('pointerdown', handleVisualizationDetailIssuePointerDown);
+      elements.visualizationDetailIssues.addEventListener('click', handleVisualizationDetailIssueClick);
+    }
     if (elements.visualizationDetailLayerSelect) {
-      elements.visualizationDetailLayerSelect.addEventListener('change', handleVisualizationDetailLayerSelect);
+      elements.visualizationDetailLayerSelect.addEventListener('pointerdown', handleVisualizationDetailLayerTrigger);
+      elements.visualizationDetailLayerSelect.addEventListener('click', handleVisualizationDetailLayerTrigger);
+    }
+    if (elements.visualizationDetailLayerMenu) {
+      elements.visualizationDetailLayerMenu.addEventListener('pointerdown', handleVisualizationDetailLayerMenuClick);
+      elements.visualizationDetailLayerMenu.addEventListener('click', handleVisualizationDetailLayerMenuClick);
+      elements.visualizationDetailLayerMenu.addEventListener('pointermove', handleVisualizationDetailLayerMenuPointerMove);
+      elements.visualizationDetailLayerMenu.addEventListener('pointerleave', handleVisualizationDetailLayerMenuPointerLeave);
+    }
+    if (elements.visualizationDetailOverlay) {
+      elements.visualizationDetailOverlay.addEventListener('pointermove', handleVisualizationDetailOverlayPointerMove);
+      elements.visualizationDetailOverlay.addEventListener('pointerleave', handleVisualizationDetailOverlayPointerLeave);
     }
     if (elements.settingsBackgroundCrowdSlider) {
       elements.settingsBackgroundCrowdSlider.addEventListener('input', handleBackgroundCrowdChange);
@@ -9312,8 +15625,26 @@
     if (elements.reportLocaleEn) {
       elements.reportLocaleEn.addEventListener('click', () => setReportLocale('en'));
     }
+    if (elements.reportLanguageTrigger) {
+      elements.reportLanguageTrigger.addEventListener('pointerdown', handleReportLanguageTrigger);
+      elements.reportLanguageTrigger.addEventListener('click', handleReportLanguageTrigger);
+    }
+    if (elements.reportLanguageMenu) {
+      elements.reportLanguageMenu.addEventListener('pointerdown', handleReportLanguageMenuClick);
+      elements.reportLanguageMenu.addEventListener('click', handleReportLanguageMenuClick);
+    }
+    if (elements.reportFormatTrigger) {
+      elements.reportFormatTrigger.addEventListener('pointerdown', handleReportFormatTrigger);
+      elements.reportFormatTrigger.addEventListener('click', handleReportFormatTrigger);
+    }
+    if (elements.reportFormatMenu) {
+      elements.reportFormatMenu.addEventListener('pointerdown', handleReportFormatMenuClick);
+      elements.reportFormatMenu.addEventListener('click', handleReportFormatMenuClick);
+    }
+    document.addEventListener('pointerdown', handleVisualizationDetailDocumentPointerDown);
     elements.viewModeSelect.addEventListener('change', handleViewModeChange);
     elements.reportModal.addEventListener('click', (event) => {
+      handleReportDropdownClick(event);
       if (event.target.dataset?.modalClose === 'report' && !state.reportModal.exporting) {
         closeReportModal();
       }

@@ -4,14 +4,8 @@ const path = require('path');
 
 const appJs = fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8');
 
-const detailViewStart = appJs.indexOf('function renderVisualizationDetailView() {');
-const detailViewEnd = appJs.indexOf('function bindVisualizationDetailCotTrigger() {');
-const detailViewSource = detailViewStart >= 0 && detailViewEnd > detailViewStart
-  ? appJs.slice(detailViewStart, detailViewEnd)
-  : '';
-
 assert(
-  detailViewSource && !detailViewSource.includes('void ensureRouteAnalysisForCurrentState(state.locale);'),
+  /function shouldRequestRouteAnalysisForCurrentState\(\)\s*\{[\s\S]*getPlaybackRouteAnalysisResult\(\)[\s\S]*return false;[\s\S]*\}/.test(appJs),
   'Expected Section 04 to stop auto-requesting the legacy route-analysis endpoint'
 );
 

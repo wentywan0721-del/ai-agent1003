@@ -1,10 +1,14 @@
 const { parentPort, workerData } = require('worker_threads');
 
-const { runHeatmapSimulation } = require('./heatmap-runner.js');
+const {
+  prewarmBackgroundField,
+  runHeatmapSimulation,
+} = require('./heatmap-runner.js');
 
 async function main() {
   const payload = workerData?.payload || {};
   const options = workerData?.options || {};
+  const taskType = workerData?.taskType || 'simulation';
   const serializableOptions = {
     ...options,
     onProgress: (progress) => {
@@ -15,7 +19,9 @@ async function main() {
     },
   };
   try {
-    const result = await runHeatmapSimulation(payload, serializableOptions);
+    const result = taskType === 'background-prewarm'
+      ? await prewarmBackgroundField(payload, serializableOptions)
+      : await runHeatmapSimulation(payload, serializableOptions);
     parentPort?.postMessage({
       type: 'result',
       result,

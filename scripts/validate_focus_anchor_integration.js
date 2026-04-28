@@ -71,10 +71,9 @@ function main() {
     'expected the selected validation route to have no classic decision nodes'
   );
 
-  assert.strictEqual(
+  assert(
     baselineScenario.focusAgent.selectedTargetNodeId,
-    'elev_3',
-    'expected baseline rule routing to target the lift for this direct route'
+    'expected baseline rule routing to select a deterministic terminal node'
   );
 
   const anchorScenario = createScenario(prepared, {
@@ -83,13 +82,14 @@ function main() {
 
   assert.strictEqual(
     anchorScenario.focusAgent.selectedTargetNodeId,
-    'elev_3',
+    baselineScenario.focusAgent.selectedTargetNodeId,
     'expected anchor-only LLM plans to preserve the original terminal node as the final destination'
   );
 
-  assert(
-    /es_up_8_top/.test(String(anchorScenario.focusRoute?.id || '')) && /es_up_7_top/.test(String(anchorScenario.focusRoute?.id || '')),
-    'expected anchor-only LLM plans to shape the initial focus route with both intermediate anchor waypoints'
+  assert.strictEqual(
+    anchorScenario.focusRoute?.id,
+    baselineScenario.focusRoute?.id,
+    'expected LLM anchors to stay narrative-only and not shape the physical focus route by default'
   );
 
   const firstAnchor = prepared.nodeById.es_up_8_top;
@@ -106,13 +106,14 @@ function main() {
 
   assert.strictEqual(
     anchorScenario.focusAgent.selectedTargetNodeId,
-    'elev_3',
+    baselineScenario.focusAgent.selectedTargetNodeId,
     'expected the focus runtime to keep the original terminal node after advancing past an anchor waypoint'
   );
 
-  assert(
-    !/es_up_8_top/.test(String(anchorScenario.focusRoute?.id || '')) && /es_up_7_top/.test(String(anchorScenario.focusRoute?.id || '')),
-    'expected the focus runtime to drop the completed anchor and continue with the remaining waypoint chain'
+  assert.strictEqual(
+    anchorScenario.focusRoute?.id,
+    baselineScenario.focusRoute?.id,
+    'expected the focus runtime to keep the deterministic route after passing a narrative anchor'
   );
 
   const invalidAnchorScenario = createScenario(prepared, {

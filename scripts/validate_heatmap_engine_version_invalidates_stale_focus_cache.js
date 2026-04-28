@@ -78,16 +78,12 @@ async function main() {
 
   const runnerSource = fs.readFileSync(path.join(rootDir, 'server', 'heatmap-runner.js'), 'utf8');
   const serverSource = fs.readFileSync(path.join(rootDir, 'server', 'sim-server.js'), 'utf8');
-  const appSource = fs.readFileSync(path.join(rootDir, 'src', 'app.js'), 'utf8');
   const runnerVersion = extractConst(runnerSource, 'HEATMAP_ENGINE_VERSION');
   const serverVersion = extractConst(serverSource, 'EXPECTED_HEATMAP_ENGINE_VERSION');
-  const appVersion = extractConst(appSource, 'EXPECTED_HEATMAP_ENGINE_VERSION');
 
   assert(runnerVersion, 'expected heatmap runner engine version constant');
   assert(serverVersion, 'expected sim-server heatmap engine version constant');
-  assert(appVersion, 'expected frontend heatmap engine version constant');
   assert.strictEqual(serverVersion, runnerVersion, 'sim-server heatmap version gate should match the runner version');
-  assert.strictEqual(appVersion, runnerVersion, 'frontend heatmap version gate should match the runner version');
   assert.notStrictEqual(
     staleCache?.meta?.engineVersion || null,
     runnerVersion,

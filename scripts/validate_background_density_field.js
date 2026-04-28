@@ -110,9 +110,13 @@ function main() {
   });
 
   assert(Array.isArray(backgroundField.densityFrames), 'expected background field to expose time-sliced density frames');
-  assert(backgroundField.densityFrames.length === backgroundField.frames.length, 'expected density frames to stay aligned with playback frames');
+  assert(backgroundField.densityFrames.length >= backgroundField.frames.length, 'expected density frames to be at least as dense as playback frames');
   assert(Array.isArray(backgroundField.queueFrames), 'expected background field to expose time-sliced queue frames');
-  assert(backgroundField.queueFrames.length === backgroundField.frames.length, 'expected queue frames to stay aligned with playback frames');
+  assert(backgroundField.queueFrames.length >= backgroundField.frames.length, 'expected queue frames to be at least as dense as playback frames');
+  assert(
+    backgroundField.frames.length < backgroundField.densityFrames.length,
+    'expected playback frames to be sparsified separately from calculation density frames'
+  );
 
   const probePoint = prepared.nodeById.elev_3;
   assert(probePoint, 'expected elevator node elev_3 to exist');

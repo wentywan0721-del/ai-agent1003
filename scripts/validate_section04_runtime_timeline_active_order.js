@@ -345,4 +345,64 @@ assert.strictEqual(
   'when a nodeId appears in multiple timeline steps, Section04 should ignore that ambiguous node match and keep following progress instead of sticking to the first duplicate step'
 );
 
+context.getCurrentFocusInspection = () => ({
+  progress: 0.5,
+  restState: 'none',
+  selectedTargetNodeId: null,
+  decisionDiagnostics: {
+    decisionNodeId: null,
+  },
+});
+context.getPlaybackSnapshotAtTime = () => ({
+  progress: 0.5,
+  restState: 'none',
+  walkingSpeed: 0.62,
+  time: 50,
+  selectedTargetNodeId: null,
+});
+context.getActivePlayback = () => ({
+  traceSnapshots: [
+    { time: 0, progress: 0 },
+    { time: 100, progress: 1 },
+  ],
+  summary: {
+    duration: 100,
+  },
+});
+context.state.scenario = {
+  playbackRevealTime: 50,
+  focusAgent: {
+    progress: 0.5,
+    restState: 'none',
+    selectedTargetNodeId: null,
+    activeDecisionNodeId: null,
+    currentWalkingSpeed: 0.62,
+  },
+};
+
+const inheritedRuntimeTypeTimeline = [
+  { order: 1, nodeId: 'route_start', timeSeconds: 0, progress: 0, runtimeEventType: 'route_started' },
+  { order: 2, nodeId: 'path_sample_2', timeSeconds: 20, progress: 0.2, runtimeEventType: 'guidance_pause' },
+  { order: 3, nodeId: 'path_sample_3', timeSeconds: 40, progress: 0.4, runtimeEventType: 'guidance_pause' },
+  { order: 4, nodeId: 'path_sample_4', timeSeconds: 60, progress: 0.6, runtimeEventType: 'guidance_pause' },
+  { order: 5, nodeId: 'path_sample_5', timeSeconds: 80, progress: 0.8, runtimeEventType: 'route_completed' },
+];
+assert.strictEqual(
+  context.getVisualizationDetailTimelineActiveOrder(inheritedRuntimeTypeTimeline),
+  3,
+  'timeline rows that only inherited nearest runtimeEventType for timing should still advance by their own time/progress gates instead of freezing when the agent is walking'
+);
+
+const strictRuntimeTimedTimeline = [
+  { order: 1, nodeId: 'route_start', timeSeconds: 0, progress: 0, triggerKind: 'runtime_event', triggerEventType: 'route_started' },
+  { order: 2, nodeId: 'path_sample_2', timeSeconds: 18, progress: 0.18, triggerKind: 'runtime_event', triggerEventType: 'guidance_pause', walkingSpeed: 0 },
+  { order: 3, nodeId: 'path_sample_3', timeSeconds: 42, progress: 0.42, triggerKind: 'runtime_event', triggerEventType: 'burden_spike', triggerBurdenDimension: 'cognitive' },
+  { order: 4, nodeId: 'path_sample_4', timeSeconds: 70, progress: 0.7, triggerKind: 'runtime_event', triggerEventType: 'route_completed' },
+];
+assert.strictEqual(
+  context.getVisualizationDetailTimelineActiveOrder(strictRuntimeTimedTimeline),
+  3,
+  'even strict runtime-event timeline rows should be selected by reached time/progress order once they have grounded timestamps'
+);
+
 console.log('validate_section04_runtime_timeline_active_order: ok');

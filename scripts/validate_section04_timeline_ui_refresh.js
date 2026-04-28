@@ -6,7 +6,8 @@ const appJs = fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8
 const stylesCss = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
 
 assert(
-  /const readySummary = '';/m.test(appJs),
+  !/const readySummary = '';/m.test(appJs)
+  && /function buildVisualizationDetailCotMarkup\(\)[\s\S]*<div class="visualization-detail__timeline">/.test(appJs),
   'Expected Section04 decision chain markup to remove the top summary paragraph and keep the timeline only'
 );
 
