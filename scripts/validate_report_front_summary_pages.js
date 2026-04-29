@@ -4,6 +4,7 @@ const path = require('path');
 
 const appJs = fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8');
 const simServerJs = fs.readFileSync(path.join(__dirname, '..', 'server', 'sim-server.js'), 'utf8');
+const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
 assert(
   appJs.includes('function buildReportExecutiveFrontPageMarkup(reportData)')
@@ -12,8 +13,8 @@ assert(
 );
 
 assert(
-  /const coverPage = buildReportCoverPageMarkup\(reportData\);[\s\S]*const frontSummaryPage = buildReportExecutiveFrontPageMarkup\(reportData\);[\s\S]*<main class="report-document">\s*\$\{coverPage\}\s*\$\{frontSummaryPage\}\s*<section class="report-page report-page--1">/.test(appJs),
-  'Expected the cover and single front summary page to be inserted before the existing report content without moving existing pages'
+  /const coverPage = buildReportCoverPageMarkup\(reportData\);[\s\S]*const frontSummaryPage = buildReportExecutiveFrontPageMarkup\(reportData\);[\s\S]*<main class="report-document">\s*\$\{coverPage\}\s*\$\{frontSummaryPage\}\s*<section class="report-page report-page--simulation-results">[\s\S]*<section class="report-page report-page--thought">[\s\S]*<section class="report-page report-page--stressors">[\s\S]*<section class="report-page report-page--heatmaps">[\s\S]*\$\{detailCardPages\}/.test(appJs),
+  'Expected the cover and front summary page to be followed by the reorganized detailed simulation result pages'
 );
 
 assert(
@@ -23,6 +24,11 @@ assert(
     && appJs.includes('.report-front-priority-grid')
     && appJs.includes('.report-cover-title-block'),
   'Expected cover and front-page specific report styling'
+);
+
+assert(
+  indexHtml.includes('./src/app.js?v=20260429-report-layout-a4'),
+  'Expected index.html to load the current report-layout app.js cache-busted URL'
 );
 
 assert(

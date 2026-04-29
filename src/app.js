@@ -1669,7 +1669,7 @@
       downloaded: '当前环境不支持直接选择保存路径，已使用浏览器下载 HTML。',
       cancelled: '已取消导出。',
       exportFailed: '报告导出失败。',
-      pdfPrintReady: '已打开 PDF 打印窗口，可在系统打印面板中保存为 PDF。',
+      pdfPrintReady: '已导出 PDF：{fileName}',
       localModel: '本地模型',
       conclusion: '诊断结论',
       snapshot: '运行快照',
@@ -1740,7 +1740,7 @@
       downloaded: 'This environment cannot choose a save location directly, so the HTML file was downloaded through the browser.',
       cancelled: 'Export cancelled.',
       exportFailed: 'Report export failed.',
-      pdfPrintReady: 'The PDF print window is open. Save it as PDF from the system print dialog.',
+      pdfPrintReady: 'PDF exported: {fileName}',
       localModel: 'Local model',
       conclusion: 'Diagnosis',
       snapshot: 'Run Snapshot',
@@ -9995,6 +9995,10 @@
     return `${sanitizeFileName(reportData.projectName)}-route-report.html`;
   }
 
+  function buildRouteReportPdfFileName(reportData) {
+    return `${sanitizeFileName(reportData.projectName)}-route-report.pdf`;
+  }
+
   function getReportHotspots() {
     return (state.scenario?.hotspots || []).slice(0, 3);
   }
@@ -10099,7 +10103,8 @@
     return {
       ...base,
       pageOneTitle: zh ? '空间模型信息' : 'Spatial Model Information',
-      pageOneInputTitle: zh ? '输入参数信息' : 'Input Parameters',
+      pageOneInputTitle: zh ? '代理人属性' : 'Agent Attribute',
+      detailedSimulationTitle: zh ? '详细模拟结果' : 'Detailed simulation results',
       pageTwoSimulationTitle: zh ? '模拟参数信息' : 'Simulation Parameters',
       pageTwoThoughtTitle: zh ? '代理人思维链' : 'Agent Thought Chain',
       thoughtMapNote: zh
@@ -10108,7 +10113,7 @@
       pageTwoPressureTitle: zh ? '涉及的压力点' : 'Involved Stressors',
       pageThreeHeatTitle: zh ? '热力图结果' : 'Heatmap Results',
       coverTitle: zh ? '智能诊断报告' : 'INTELLIGENT DIAGNOSTIC REPORT',
-      coverSubtitle: zh ? '老人负担模拟' : 'Elderly Burden Simulation',
+      coverSubtitle: zh ? '老人旅行负担模拟' : 'Elderly Travel Burden Simulation',
       coverProjectFile: zh ? '项目文件:' : 'Project File:',
       coverExportTime: zh ? '导出时间:' : 'Export Time:',
       coverRoute: zh ? '模拟路线:' : 'Simulation Route:',
@@ -10130,6 +10135,9 @@
       frontOverallScore: zh ? '总体负担' : 'Overall Burden',
       frontFriendlyScore: zh ? '路线友好度' : 'Route Friendliness',
       frontDominantBurden: zh ? '主导负担' : 'Dominant Burden',
+      frontRouteMapNote: zh
+        ? '黑色虚线表示本次模拟路线，彩色区域表示综合高热区，彩色圆圈表示本路线涉及的压力点，圆圈内部数字表示压力点贡献值排序。'
+        : 'The black dashed line shows the simulated route, colored areas show composite hot zones, colored circles show involved stressors, and the number inside each circle is its contribution rank.',
       frontTraceability: zh ? '后续模拟结果页提供热力图、思维链和压力点贡献证据。' : 'The following simulation-result pages provide heatmaps, thought-chain evidence, and stressor contribution records.',
       detailAnalysisTitle: zh ? '详细负担分析' : 'Detailed Burden Analysis',
       llmAdjustmentTitle: zh ? '模型调整建议总结' : 'Model Adjustment Recommendations',
@@ -11644,7 +11652,7 @@
 
   function buildReportAgentAttributesMarkup(reportData) {
     return (reportData.agentAttributes || []).map((item) => `
-      <div class="report-attribute-card">
+      <div class="report-attribute-card" style="--attribute-color:${escapeHtml(getAgentPreviewScoreColor(item.capacityScore))}">
         <div class="report-attribute-score">${escapeHtml(formatReportNumber(item.capacityScore, 0))}</div>
         <div class="report-attribute-content">
           <strong>${escapeHtml(item.capacityLabel)}</strong>
@@ -11838,6 +11846,24 @@
     }).join('');
   }
 
+  function buildReportDetailCardPagesMarkup(reportData) {
+    const copy = reportData.copy || buildReportExportCopy(reportData.locale);
+    return (reportData.detailBurdenCards || []).map((card) => {
+      const singleCardMarkup = buildReportDetailCardsMarkup({
+        ...reportData,
+        detailBurdenCards: [card],
+      });
+      return `
+        <section class="report-page report-page--detail-single">
+          <section class="report-section report-section--detail-single">
+            <h2 class="report-section-title">${escapeHtml(card.title || copy.detailAnalysisTitle)}</h2>
+            ${singleCardMarkup}
+          </section>
+        </section>
+      `;
+    }).join('');
+  }
+
   function getLocalizedReportAnalysisSections(reportData) {
     const localized = localizeRouteAnalysisOutput(reportData?.llmAnalysis, reportData?.locale || getReportLocale());
     return Array.isArray(localized?.sections) ? localized.sections : [];
@@ -11896,7 +11922,14 @@
 
   function buildReportPressurePointActionText(point, burdenLabel, locale = getReportLocale()) {
     const zh = locale !== 'en';
-    const raw = `${point?.name || ''} ${point?.description || ''} ${point?.categoryLabel || ''} ${point?.categoryId || ''}`.toLowerCase();
+    const nameRaw = `${point?.name || ''} ${point?.label || ''}`.toLowerCase();
+    const categoryRaw = `${point?.categoryLabel || ''} ${point?.categoryId || ''}`.toLowerCase();
+    const raw = `${nameRaw} ${point?.description || ''} ${categoryRaw}`.toLowerCase();
+    if (/advert|lcd|screen|广告|屏/.test(nameRaw) || /advert|lcd|screen|广告|屏/.test(categoryRaw)) {
+      return zh
+        ? `降低动态/高亮展示强度和声压覆盖范围，调整朝向，避免在决策点附近同时叠加视觉闪动、噪音和导向信息竞争。`
+        : `Reduce dynamic brightness, visual change intensity, and sound-pressure coverage, then adjust orientation so the display does not stack visual, noise, and wayfinding competition near decision points.`;
+    }
     if (/ambassador|service|服务/.test(raw)) {
       return zh
         ? `将其从主行走线和决策停顿点旁移开，改为布置在不遮挡导向视线的侧向咨询位置，优先降低${burdenLabel || '感知与决策负担'}。`
@@ -11911,11 +11944,6 @@
       return zh
         ? `降低覆盖到路线高热段的声压或调整声源朝向，避免在识别导向和转向时叠加感知压力。`
         : `Reduce sound pressure over the route hot segment or redirect the source so sensory stress does not compound wayfinding and turning.`;
-    }
-    if (/advert|ad|lcd|screen|广告|屏/.test(raw)) {
-      return zh
-        ? `降低动态/高亮展示强度，调整朝向，避免在决策点附近抢占导向信息注意力。`
-        : `Lower dynamic or bright display intensity and adjust orientation so it does not compete with wayfinding near decision points.`;
     }
     return zh
       ? `按贡献排序优先复核位置、朝向、强度和影响范围，减少其对应高热区的${burdenLabel || '局部负担'}。`
@@ -12111,11 +12139,16 @@
     return (reportData.routeScoreSummary?.dimensions || []).map((item) => {
       const value = clamp(Number(item.burdenScore || 0), 0, 100);
       const level = getReportBurdenLevel(value, reportData.locale);
+      const levelAdjective = String(level.label || '')
+        .replace(/[()（）]/g, '')
+        .replace(/\s*burden\s*/ig, '')
+        .replace(/\s*负担\s*/g, '')
+        .trim();
       return `
         <div class="report-front-score-row">
           <span>${escapeHtml(item.label)}</span>
           <div class="report-front-score-track"><i style="width:${escapeHtml(String(value))}%; background:${escapeHtml(level.color)}"></i></div>
-          <b style="color:${escapeHtml(level.color)}">${escapeHtml(formatReportMetric(value))}</b>
+          <b style="color:${escapeHtml(level.color)}"><span>${escapeHtml(formatReportMetric(value))}</span><small>${escapeHtml(levelAdjective)}</small></b>
         </div>
       `;
     }).join('');
@@ -12127,6 +12160,9 @@
 
   function buildReportCoverPageMarkup(reportData) {
     const copy = reportData.copy || buildReportExportCopy(reportData.locale);
+    const coverTitleMarkup = reportData.locale === 'en'
+      ? '<span>INTELLIGENT</span><span>DIAGNOSTIC REPORT</span>'
+      : escapeHtml(copy.coverTitle);
     return `
       <section class="report-page report-page--cover">
         <div class="report-cover-white"></div>
@@ -12135,14 +12171,14 @@
         <div class="report-cover-bar report-cover-bar--navy"></div>
         <div class="report-cover-bar report-cover-bar--teal"></div>
         <div class="report-cover-title-block">
-          <h1>${escapeHtml(copy.coverTitle)}</h1>
+          <h1>${coverTitleMarkup}</h1>
           <p>${escapeHtml(copy.coverSubtitle)}</p>
         </div>
         <div class="report-cover-meta">
-          <div><strong>${escapeHtml(copy.coverProjectFile)}</strong> ${escapeHtml(reportData.projectName)}</div>
-          <div><strong>${escapeHtml(copy.coverExportTime)}</strong> ${escapeHtml(reportData.generatedAt)}</div>
-          <div><strong>${escapeHtml(copy.coverRoute)}</strong> ${escapeHtml(reportData.inputSnapshot.routeText)}</div>
-          <div><strong>${escapeHtml(copy.coverBackgroundCrowd)}</strong> ${escapeHtml(formatReportNumber(reportData.inputSnapshot.backgroundCrowd, 0))} ${escapeHtml(copy.people)}</div>
+          <div><strong>${escapeHtml(copy.coverProjectFile)}</strong> <span>${escapeHtml(reportData.projectName)}</span></div>
+          <div><strong>${escapeHtml(copy.coverExportTime)}</strong> <span>${escapeHtml(reportData.generatedAt)}</span></div>
+          <div><strong>${escapeHtml(copy.coverRoute)}</strong> <span>${escapeHtml(reportData.inputSnapshot.routeText)}</span></div>
+          <div><strong>${escapeHtml(copy.coverBackgroundCrowd)}</strong> <span>${escapeHtml(formatReportNumber(reportData.inputSnapshot.backgroundCrowd, 0))} ${escapeHtml(copy.people)}</span></div>
         </div>
       </section>
     `;
@@ -12198,16 +12234,18 @@
     const zh = locale !== 'en';
     const compositeCard = (reportData.detailBurdenCards || []).find((card) => card.id === COMPOSITE_BURDEN_VIEW) || null;
     const regions = Array.isArray(compositeCard?.regionRankings) ? compositeCard.regionRankings.slice(0, 3) : [];
-    const items = regions.map((region) => {
+    const items = regions.map((region, index) => {
       const label = getReportHotZoneLabel(compositeCard, region.index, locale);
       const burden = region.ranking?.[0]?.burdenLabel || reportData.peakDimension?.burdenLabel || '';
       const point = getTopRegionPressurePoints(compositeCard, region.index, 1)[0] || null;
       const pressureMarkup = buildReportPressurePointReferenceMarkup(point);
       const action = buildReportPressurePointActionText(point, burden, locale);
       const prefix = zh
-        ? `优先处理${label}${pressureMarkup ? '中的' : ''}`
-        : `Prioritize ${label}${pressureMarkup ? ' through ' : ': '}`;
-      const connector = zh ? `，${action}` : `${action}`;
+        ? `优先级${index + 1}: 修改${label}${pressureMarkup ? '中的' : '的主要压力源'}`
+        : `Priority ${index + 1}: adjust the main stressor in ${label}${pressureMarkup ? ', ' : ': '}`;
+      const connector = zh
+        ? `。调整方式：${action}`
+        : ` Adjustment: ${action}`;
       return {
         html: `${escapeHtml(prefix)}${pressureMarkup}${escapeHtml(connector)}`,
       };
@@ -12219,6 +12257,34 @@
     return fallbackPoints.map((point) => ({
       html: `${buildReportPressurePointReferenceMarkup(point)}${escapeHtml(buildReportPressurePointActionText(point, reportData.peakDimension?.burdenLabel, locale))}`,
     }));
+  }
+
+  function buildReportFrontJudgementMarkup(reportData, fallbackSummary = '') {
+    const locale = reportData.locale === 'en' ? 'en' : 'zh-CN';
+    const zh = locale !== 'en';
+    const routeScore = reportData.routeScoreSummary || buildReportRouteScoreSummary(reportData.dimensionSummary, locale);
+    const burdenLevel = getReportBurdenLevel(routeScore.overallBurdenScore, locale);
+    const dominant = getDominantReportBurden(reportData);
+    const compositeCard = (reportData.detailBurdenCards || []).find((card) => card.id === COMPOSITE_BURDEN_VIEW) || null;
+    const topRegion = Array.isArray(compositeCard?.regionRankings) ? compositeCard.regionRankings[0] : null;
+    const hotZoneLabel = topRegion ? getReportHotZoneLabel(compositeCard, topRegion.index, locale) : '';
+    const topBurden = topRegion?.ranking?.[0]?.burdenLabel || dominant?.burdenLabel || '';
+    const pressureMarkup = topRegion
+      ? buildReportPressurePointReferenceListMarkup(getTopRegionPressurePoints(compositeCard, topRegion.index, 3), 3)
+      : buildReportPressurePointReferenceListMarkup(reportData.routePressurePoints || [], 3);
+    const intro = zh
+      ? `本路线友好度为${formatReportMetric(routeScore.routeFriendlyScore || 0)}，总体负担为${formatReportMetric(routeScore.overallBurdenScore || 0)}（${burdenLevel.label}），主导负担为${dominant?.burdenLabel || '--'}。`
+      : `The route friendliness score is ${formatReportMetric(routeScore.routeFriendlyScore || 0)}. Overall burden is ${formatReportMetric(routeScore.overallBurdenScore || 0)} (${burdenLevel.label}), led by ${dominant?.burdenLabel || '--'}.`;
+    const evidence = hotZoneLabel
+      ? (zh
+        ? `${hotZoneLabel}是当前最需要优先查看的位置，${topBurden || '综合负担'}贡献最高${pressureMarkup ? '，主要关联' : '。'}`
+        : `${hotZoneLabel} is the first area to review; ${topBurden || 'composite burden'} contributes most${pressureMarkup ? ', mainly associated with ' : '.'}`)
+      : (fallbackSummary || '');
+    const tail = hotZoneLabel && pressureMarkup ? (zh ? `。` : `.`) : '';
+    return `
+      <p>${escapeHtml(intro)}</p>
+      ${evidence ? `<p>${escapeHtml(evidence)}${pressureMarkup || ''}${escapeHtml(tail)}</p>` : ''}
+    `;
   }
 
   function buildReportExecutiveFrontPageMarkup(reportData) {
@@ -12236,10 +12302,6 @@
           <div>
             <h1>${escapeHtml(copy.frontExecutiveTitle)}</h1>
           </div>
-          <div class="report-front-meta">
-            <span>${escapeHtml(copy.projectFile)}: ${escapeHtml(reportData.projectName)}</span>
-            <span>${escapeHtml(copy.exportedAt)}: ${escapeHtml(reportData.generatedAt)}</span>
-          </div>
         </header>
         <div class="report-front-summary-grid">
           <div class="report-front-friendliness" style="--score-color:${escapeHtml(burdenLevel.color)}">
@@ -12248,7 +12310,10 @@
               <strong>${escapeHtml(formatReportMetric(routeScore.routeFriendlyScore || 0))}</strong>
               <span>${escapeHtml(burdenLevel.label)}</span>
             </div>
-            <p>${escapeHtml(copy.frontDominantBurden)}: ${escapeHtml(dominant?.burdenLabel || '--')}</p>
+            <div class="report-front-dominant">
+              <h2>${escapeHtml(copy.frontDominantBurden)}</h2>
+              <p>${escapeHtml(dominant?.burdenLabel || '--')}</p>
+            </div>
           </div>
           <div class="report-front-right-panel">
             <section class="report-front-score-panel">
@@ -12257,13 +12322,13 @@
             </section>
             <section class="report-front-judgement">
               <h2>${escapeHtml(copy.frontRouteJudgement)}</h2>
-              <p>${escapeHtml(summary)}</p>
+              ${buildReportFrontJudgementMarkup(reportData, summary)}
             </section>
           </div>
         </div>
         <section class="report-front-map-panel">
-          <h2>${escapeHtml(copy.frontRouteMapTitle)}</h2>
           <div class="report-front-map-stage">${buildReportFrontMapMarkup(reportData)}</div>
+          <p class="report-front-map-note">• ${escapeHtml(copy.frontRouteMapNote)}</p>
         </section>
         <div class="report-front-priority-grid">
           <section>
@@ -12407,14 +12472,9 @@
     const pressureGroups = buildReportNumberedPressureGroupsMarkup(reportData);
     const routePressurePointCount = (reportData.routePressurePoints || []).length;
     const heatmapCards = buildReportHeatmapCardsMarkup(reportData);
-    const detailCards = buildReportDetailCardsMarkup(reportData);
-    const methodNote = buildReportMethodNoteMarkup(reportData);
-    const adjustmentMarkup = buildReportLlmAdjustmentMarkup(reportData);
+    const detailCardPages = buildReportDetailCardPagesMarkup(reportData);
     const coverPage = buildReportCoverPageMarkup(reportData);
     const frontSummaryPage = buildReportExecutiveFrontPageMarkup(reportData);
-    const agentFigure = reportData.agentFigureUrl
-      ? `<img src="${escapeHtml(reportData.agentFigureUrl)}" alt="${escapeHtml(copy.agentProfile)}" />`
-      : `<div class="report-empty">${escapeHtml(copy.agentProfile)}</div>`;
     return `<!DOCTYPE html>
 <html lang="${escapeHtml(reportData.locale === 'en' ? 'en' : 'zh-CN')}">
   <head>
@@ -12424,56 +12484,66 @@
     <style>
       :root { color-scheme: light; --ink:#17262f; --muted:#62717c; --line:#cad2d8; --panel:#f4f6f8; --panel-soft:#f7f8fa; --panel-strong:#eef2f5; --outline:#4e5961; }
       * { box-sizing:border-box; }
-      @page { margin:12mm; }
-      body { margin:0; background:#d9e0e5; color:var(--ink); font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
-      .report-document { width:min(1120px, calc(100vw - 48px)); margin:0 auto; padding:18px 20px 36px; display:grid; gap:14px; background:#fff; }
-      .report-page { width:100%; min-height:auto; margin:0; padding:0; background:transparent; display:flex; flex-direction:column; gap:10mm; overflow:visible; }
+      @page { size:A4 portrait; margin:7mm; }
+      body { margin:0; background:#d9e0e5; color:var(--ink); font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; counter-reset:report-page; }
+      .report-document { width:min(210mm, calc(100vw - 48px)); margin:0 auto; padding:18px 20px 36px; display:grid; gap:14px; background:#fff; }
+      .report-page { position:relative; width:100%; min-height:auto; margin:0; padding:0; background:transparent; display:flex; flex-direction:column; gap:10mm; overflow:visible; counter-increment:report-page; }
       .report-page--cover { position:relative; min-height:270mm; overflow:hidden; background:#fff; border:1px solid #d1d8de; padding:0; gap:0; }
       .report-cover-white { position:absolute; inset:0; background:#fff; }
-      .report-cover-teal { position:absolute; left:0; right:0; top:86mm; height:148mm; background:#91c9d2; }
-      .report-cover-frame { position:absolute; left:25mm; top:62mm; width:52mm; height:158mm; border:6mm solid #1f5b91; background:transparent; }
-      .report-cover-bar { position:absolute; top:62mm; width:10mm; height:34mm; }
-      .report-cover-bar--navy { left:84mm; background:#1f5b91; }
-      .report-cover-bar--teal { left:100mm; background:#91c9d2; }
-      .report-cover-title-block { position:absolute; left:76mm; top:103mm; display:grid; gap:8mm; }
-      .report-cover-title-block h1 { margin:0; color:#fff; font-size:34px; line-height:1.1; font-weight:800; letter-spacing:0; }
-      .report-cover-title-block p { margin:0; color:#1f5b91; font-size:25px; line-height:1.1; font-weight:800; letter-spacing:0; }
-      .report-cover-meta { position:absolute; left:94mm; top:163mm; display:grid; gap:10mm; color:#1f5b91; font-size:17px; line-height:1.25; font-weight:700; }
+      .report-cover-teal { position:absolute; left:0; right:0; top:86mm; height:162mm; background:#91c9d2; }
+      .report-cover-frame { position:absolute; left:14mm; top:66mm; width:54mm; height:166mm; border-left:1.7mm solid #1f5b91; border-top:1.7mm solid #1f5b91; border-bottom:1.7mm solid #1f5b91; background:transparent; }
+      .report-cover-frame::before, .report-cover-frame::after { content:""; position:absolute; right:-1.7mm; width:1.7mm; background:#1f5b91; }
+      .report-cover-frame::before { top:-1.7mm; height:22mm; }
+      .report-cover-frame::after { bottom:-1.7mm; height:70mm; }
+      .report-cover-bar { position:absolute; top:66mm; width:8.6mm; height:20mm; }
+      .report-cover-bar--navy { left:74mm; background:#1f5b91; }
+      .report-cover-bar--teal { left:87mm; width:4.8mm; background:#91c9d2; }
+      .report-cover-title-block { position:absolute; left:55mm; top:102mm; display:grid; gap:8mm; }
+      .report-cover-title-block h1 { margin:0; color:#fff; font-size:38px; line-height:1.15; font-weight:800; letter-spacing:0; }
+      .report-cover-title-block h1 span { display:block; }
+      .report-cover-title-block p { margin:0; color:#1f5b91; font-size:22px; line-height:1.12; font-weight:800; letter-spacing:0; }
+      .report-cover-meta { position:absolute; left:90mm; top:197mm; width:102mm; display:grid; gap:5.2mm; color:#1f5b91; font-size:12px; line-height:1.32; font-weight:400; }
+      .report-cover-meta div { max-width:100%; overflow-wrap:anywhere; }
       .report-cover-meta strong { font-weight:800; }
-      .report-page--front { min-height:270mm; padding:9mm; border:1px solid #d1d8de; background:#ffffff; gap:5.2mm; }
-      .report-front-header { display:grid; grid-template-columns:minmax(0,1fr) minmax(260px,0.65fr); gap:8mm; align-items:start; padding-bottom:3mm; border-bottom:1px solid #cfd7dd; }
+      .report-cover-meta span { font-weight:400; }
+      .report-page--front { min-height:270mm; padding:7mm; border:1px solid #d1d8de; background:#ffffff; gap:4mm; }
+      .report-page--front-summary { display:grid; grid-template-rows:auto 58mm auto minmax(0,1fr); align-content:stretch; }
+      .report-front-header { display:grid; grid-template-columns:minmax(0,1fr); gap:8mm; align-items:start; padding-bottom:3mm; border-bottom:1px solid #cfd7dd; }
       .report-front-kicker { margin:0 0 2mm; color:#60707b; font-size:10px; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; }
       .report-front-header h1 { margin:0; color:#17262f; font-size:26px; line-height:1.08; letter-spacing:0; }
       .report-front-meta { display:grid; gap:1.4mm; color:#5d6d78; font-size:10.5px; line-height:1.45; text-align:right; }
-      .report-front-summary-grid { display:grid; grid-template-columns:minmax(0,0.74fr) minmax(0,1.26fr); gap:7mm; align-items:stretch; }
-      .report-front-friendliness { display:grid; align-content:start; gap:4mm; padding:5mm 5.5mm; background:#f6f8fa; border-left:3mm solid var(--score-color); min-height:62mm; }
-      .report-front-friendliness h2 { margin:0; color:#17262f; font-size:15px; line-height:1.2; }
-      .report-front-big-score { display:flex; align-items:flex-end; gap:3mm; }
-      .report-front-big-score strong { color:var(--score-color); font-size:52px; line-height:0.95; font-weight:850; letter-spacing:0; }
-      .report-front-big-score span { color:var(--score-color); font-size:12px; font-weight:800; padding-bottom:1.3mm; }
-      .report-front-friendliness p { margin:0; color:#17262f; font-size:12px; line-height:1.4; font-weight:700; }
-      .report-front-right-panel { display:grid; grid-template-rows:auto 1fr; gap:3.5mm; min-width:0; }
-      .report-front-judgement { display:grid; align-content:start; gap:2.5mm; padding:0; background:transparent; color:#17262f; min-height:0; }
+      .report-front-summary-grid { display:grid; grid-template-columns:minmax(0,0.74fr) minmax(0,1.26fr); gap:6mm; align-items:stretch; min-height:0; }
+      .report-front-friendliness { display:grid; grid-template-rows:auto minmax(0,1fr) auto; gap:3mm; padding:4mm 5mm; background:#f6f8fa; border-left:1.5mm solid var(--score-color); min-height:0; height:100%; }
+      .report-front-friendliness h2 { margin:0; color:#17262f; font-size:14px; line-height:1.25; font-weight:800; }
+      .report-front-big-score { display:grid; align-self:center; gap:1.2mm; min-height:0; }
+      .report-front-big-score strong { color:var(--score-color); font-size:62px; line-height:0.92; font-weight:850; letter-spacing:0; }
+      .report-front-big-score span { color:var(--score-color); font-size:12px; font-weight:800; padding-bottom:0; }
+      .report-front-dominant { display:grid; gap:1mm; align-self:end; padding-top:2mm; }
+      .report-front-dominant p { margin:0; color:#17262f; font-size:13px; line-height:1.25; font-weight:400; }
+      .report-front-right-panel { display:grid; grid-template-rows:auto 1fr; gap:3mm; min-width:0; }
+      .report-front-judgement { display:grid; align-content:start; gap:2.5mm; padding:2mm 0 0; background:transparent; color:#17262f; min-height:0; }
       .report-front-badge { justify-self:start; padding:1.4mm 2.6mm; border:1px solid rgba(255,255,255,0.34); border-radius:999px; color:#dbe6eb; font-size:9.5px; font-weight:700; }
-      .report-front-judgement h2, .report-front-priority-grid h2, .report-front-adjustment-summary h2 { margin:0; font-size:14px; line-height:1.25; }
-      .report-front-judgement p { margin:0; color:#17262f; font-size:12px; line-height:1.5; font-weight:600; }
+      .report-front-judgement h2, .report-front-priority-grid h2, .report-front-adjustment-summary h2 { margin:0; font-size:14px; line-height:1.25; font-weight:800; }
+      .report-front-judgement p { margin:0; color:#17262f; font-size:10.2px; line-height:1.52; font-weight:400; }
       .report-front-score-grid { display:grid; grid-template-columns:1fr; gap:3mm; }
       .report-front-metric { display:grid; gap:1mm; padding:4mm; background:#eef2f5; border-left:2.4mm solid var(--metric-color); }
       .report-front-metric span { color:#60707b; font-size:9.6px; font-weight:800; }
       .report-front-metric strong { color:var(--metric-color); font-size:24px; line-height:1.05; }
       .report-front-metric small { color:#60707b; font-size:9.5px; line-height:1.35; }
-      .report-front-score-panel { display:grid; gap:2.1mm; padding:3.2mm; border:1px solid #cfd7dd; background:#fff; }
-      .report-front-score-panel h3 { margin:0; font-size:12px; }
-      .report-front-score-row { display:grid; grid-template-columns:28mm minmax(0,1fr) 16mm; gap:3mm; align-items:center; font-size:9.5px; }
+      .report-front-score-panel { display:grid; gap:2.1mm; padding:4mm 0 0; border:0; background:transparent; }
+      .report-front-score-panel h3 { margin:0; font-size:14px; line-height:1.25; font-weight:800; }
+      .report-front-score-row { display:grid; grid-template-columns:28mm minmax(0,1fr) 30mm; gap:3mm; align-items:center; font-size:9.5px; }
       .report-front-score-track { height:2.4mm; background:#dbe2e7; overflow:hidden; }
       .report-front-score-track i { display:block; height:100%; }
-      .report-front-score-row b { text-align:right; font-size:9.5px; }
-      .report-front-map-panel { display:grid; gap:2.2mm; }
-      .report-front-map-panel h2 { margin:0; font-size:14px; line-height:1.2; }
+      .report-front-score-row b { display:grid; grid-template-columns:10mm minmax(0,1fr); align-items:baseline; gap:1mm; text-align:right; font-size:9.5px; white-space:nowrap; }
+      .report-front-score-row b span { text-align:left; }
+      .report-front-score-row b small { font-size:8px; font-weight:800; }
+      .report-front-map-panel { display:grid; gap:1mm; margin:12mm 0 5mm; }
+      .report-front-map-note { margin:0; color:#17262f; font-size:10.2px; line-height:1.52; }
       .report-front-map-stage { position:relative; overflow:hidden; border:1px solid #111; background:#fff; aspect-ratio:860 / 330; }
-      .report-front-priority-grid { display:grid; grid-template-columns:1fr 1fr; gap:5mm; }
-      .report-front-priority-grid section, .report-front-adjustment-summary section { display:grid; align-content:start; gap:2.6mm; padding:4mm; background:#fff; border:1px solid #cfd7dd; }
-      .report-front-priority-grid ol, .report-front-adjustment-summary ol { margin:0; padding-left:5mm; display:grid; gap:2mm; }
+      .report-front-priority-grid { display:grid; grid-template-columns:1fr 1fr; gap:4mm; min-height:0; align-self:stretch; }
+      .report-front-priority-grid section, .report-front-adjustment-summary section { display:grid; grid-template-rows:auto minmax(0,1fr); align-content:stretch; gap:2mm; padding:3mm; background:#fff; border:1px solid #cfd7dd; min-height:0; }
+      .report-front-priority-grid ol, .report-front-adjustment-summary ol { margin:0; padding-left:5mm; display:grid; gap:2mm; align-content:start; overflow:hidden; }
       .report-front-priority-grid li, .report-front-adjustment-summary li { font-size:10.2px; line-height:1.52; color:#17262f; }
       .report-front-footnote { margin-top:auto; padding-top:3mm; border-top:1px solid #d7dee3; color:#60707b; font-size:9.6px; }
       .report-front-adjustment-layout { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(280px,0.85fr); gap:5mm; align-items:stretch; }
@@ -12484,27 +12554,37 @@
       .report-meta { margin:0; display:grid; gap:1.4mm; color:var(--muted); font-size:11px; }
       .report-section { display:grid; gap:3.5mm; }
       .report-section-title { margin:0; font-size:15px; font-weight:800; letter-spacing:0.01em; }
+      .report-page--simulation-results { min-height:270mm; padding:7mm; border:1px solid #d1d8de; background:#fff; gap:5mm; }
+      .report-page--simulation-results { display:grid; grid-template-rows:auto auto minmax(0,1fr); align-content:start; }
+      .report-page--simulation-results .report-title { font-size:26px; line-height:1.08; }
+      .report-page--simulation-results .report-header { padding-bottom:3mm; }
+      .report-page--thought, .report-page--stressors, .report-page--heatmaps, .report-page--detail-single { min-height:270mm; padding:7mm; border:1px solid #d1d8de; background:#fff; gap:5mm; }
+      .report-page--thought { gap:5mm; }
+      .report-page--heatmaps { gap:0; }
       .report-method-note { padding:1.8mm 2.2mm; background:var(--panel-soft); border-left:2px solid var(--outline); }
       .report-method-note p { margin:0; font-size:9.4px; line-height:1.5; color:var(--muted); }
       .report-table { width:100%; border-collapse:collapse; border:1px solid var(--line); }
-      .report-table th, .report-table td { padding:6px 8px; border:1px solid var(--line); font-size:10.2px; line-height:1.45; vertical-align:top; text-align:left; }
+      .report-table th, .report-table td { padding:5px 7px; border:1px solid var(--line); font-size:10px; line-height:1.35; vertical-align:top; text-align:left; }
       .report-table thead th { background:var(--panel-strong); font-weight:700; }
       .report-model-meta, .report-input-lines { display:grid; gap:1.3mm; font-size:11px; }
       .report-model-meta strong, .report-input-lines strong { font-weight:700; }
       .report-agent-layout, .report-agent-composition { position:relative; display:grid; grid-template-columns:36% minmax(0,1fr); gap:6mm; min-height:148mm; }
+      .report-agent-composition--radar-only { grid-template-columns:39% minmax(0,1fr); min-height:88mm; align-items:stretch; }
+      .report-agent-composition--radar-only .report-agent-block { min-height:0; }
+      .report-agent-composition--radar-only .radar-shell { align-items:center; }
       .report-agent-left { display:grid; grid-template-rows:39% 61%; gap:3.5mm; min-height:0; }
       .report-agent-block { min-height:0; display:grid; align-items:center; }
       .radar-shell { width:100%; height:100%; display:grid; place-items:center; }
       .radar-shell svg { width:100%; height:100%; }
       .report-figure-wrap { width:100%; height:100%; display:grid; place-items:center; }
       .report-figure-wrap img { max-width:100%; max-height:72mm; object-fit:contain; filter:drop-shadow(0 0.24mm 0 #111) drop-shadow(0 -0.24mm 0 #111) drop-shadow(0.24mm 0 0 #111) drop-shadow(-0.24mm 0 0 #111); }
-      .report-attribute-column { display:grid; grid-template-rows:repeat(5, minmax(0, 1fr)); gap:3.2mm; min-height:0; }
-      .report-attribute-card { display:grid; grid-template-columns:12mm minmax(0,1fr); gap:2.8mm; align-items:start; padding:1mm 0; min-height:0; }
-      .report-attribute-score { display:grid; place-items:center; min-height:10mm; border-radius:999px; background:#fff; border:1px solid #b9c3ca; font-size:10px; font-weight:600; }
-      .report-attribute-content strong { display:block; margin-bottom:1mm; font-size:10.2px; }
-      .report-attribute-content p { margin:0; color:var(--muted); font-size:9.2px; line-height:1.45; }
+      .report-attribute-column { display:grid; grid-template-rows:repeat(5, minmax(0, 1fr)); gap:2.2mm; min-height:0; }
+      .report-attribute-card { display:grid; grid-template-columns:8.5mm minmax(0,1fr); gap:2.6mm; align-items:start; padding:0.5mm 0; min-height:0; }
+      .report-attribute-score { width:7mm; height:7mm; min-height:7mm; display:grid; place-items:center; border-radius:999px; background:#fff; border:1px solid var(--attribute-color, #b9c3ca); color:var(--attribute-color, #17262f); font-size:12px; line-height:1; font-weight:850; }
+      .report-attribute-content strong { display:block; margin-bottom:0.8mm; font-size:10.2px; }
+      .report-attribute-content p { margin:0; color:var(--muted); font-size:9.1px; line-height:1.35; }
       .report-thought-flow { display:flex; flex-wrap:wrap; gap:1.4mm; align-items:center; font-size:10px; line-height:1.5; }
-      .report-thought-note { color:var(--muted); font-size:9.4px; line-height:1.45; }
+      .report-thought-note { color:var(--ink); font-size:10.2px; line-height:1.52; }
       .report-thought-step { color:var(--ink); }
       .report-thought-arrow { color:var(--muted); font-size:11px; margin:0 0.5mm; }
       .report-empty { color:var(--muted); font-size:10.2px; }
@@ -12522,47 +12602,50 @@
       .agent-radar-shape { fill:#ccd3d8; fill-opacity:0.94; stroke:#111; stroke-width:1.7; }
       .agent-radar-hit { fill:transparent; stroke:none; }
       .agent-radar-handle { fill:var(--radar-handle-fill); stroke:#111; stroke-width:0.55; }
-      .report-route-path { fill:none; stroke:#111; stroke-width:0.58; stroke-dasharray:2.2 1.8; stroke-linecap:round; stroke-linejoin:round; }
+      .report-route-path { fill:none; stroke:#111; stroke-width:0.38; stroke-dasharray:1.8 1.8; stroke-linecap:round; stroke-linejoin:round; }
       .report-decision-ring { fill:none; stroke:#111; stroke-width:0.58; }
       .report-decision-dot { fill:#111; stroke:#111; stroke-width:0.18; }
       .report-pressure-dot { stroke:#111; stroke-width:0.2; }
-      .report-pressure-marker text { fill:#111; font-size:1.12px; text-anchor:middle; dominant-baseline:central; font-weight:900; stroke:none; }
+      .report-pressure-marker text { fill:#111; font-size:2.1px; text-anchor:middle; dominant-baseline:central; font-weight:900; stroke:none; }
       .report-pressure-number { display:inline-grid; place-items:center; min-width:14px; height:14px; margin-right:4px; border-radius:999px; border:1px solid #111; font-size:8px; font-weight:800; }
       .report-pressure-number--filled { width:14px; min-width:14px; color:#111; font-size:9px; font-weight:900; line-height:1; }
       .report-pressure-ref { display:inline-flex; align-items:center; gap:1mm; margin:0 1mm 0.8mm 0; vertical-align:middle; font-weight:800; white-space:nowrap; }
       .report-pressure-ref .report-pressure-number { margin-right:0; }
       .report-heat-raster { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
       .report-swatch { display:inline-block; width:10px; height:10px; border-radius:999px; margin-right:6px; vertical-align:middle; border:1px solid #5f6970; }
-      .report-pressure-groups { display:grid; grid-template-columns:1fr 1fr; gap:3.2mm 6mm; }
-      .report-pressure-group { display:grid; gap:1.5mm; }
+      .report-pressure-groups { display:grid; grid-template-columns:1fr 1fr; gap:3mm 5mm; align-items:start; }
+      .report-pressure-group { display:grid; gap:1.2mm; break-inside:avoid; page-break-inside:avoid; }
       .report-pressure-group-title { font-size:10.4px; font-weight:700; }
       .report-pressure-table { width:100%; border-collapse:collapse; table-layout:fixed; }
-      .report-pressure-table td { padding:1.1mm 0.8mm; vertical-align:top; font-size:9px; line-height:1.38; border:none; }
+      .report-pressure-table td { padding:0.8mm 0.8mm; vertical-align:top; font-size:10.2px; line-height:1.45; border:none; }
       .report-pressure-table__name { width:32%; font-weight:700; }
       .report-pressure-table__desc { width:68%; color:var(--muted); }
-      .report-heat-grid { display:grid; grid-template-columns:1fr 1fr; gap:5mm; }
-      .report-heat-card { border:1px solid #111; padding:2.2mm; display:grid; gap:1.6mm; align-content:start; }
+      .report-heat-grid { display:grid; grid-template-columns:1fr 1fr; gap:3mm; }
+      .report-heat-card { border:1px solid #111; padding:1.6mm; display:grid; gap:1mm; align-content:start; }
       .report-heat-stage { position:relative; overflow:hidden; background:#eef1f4; }
       .report-heat-header { position:absolute; left:6px; top:6px; font-size:10px; font-weight:700; color:#17262f; background:rgba(255,255,255,0.78); padding:1px 4px 1px 0; }
       .report-heat-legend { position:absolute; left:6px; top:22px; width:112px; font-size:8px; color:#17262f; text-shadow:0 0 1px rgba(255,255,255,0.9); }
       .report-heat-legend-gradient { height:7px; border-radius:999px; margin-bottom:2px; }
       .report-heat-legend-labels { display:flex; justify-content:space-between; color:#4f5960; }
       .report-heat-legend-note { margin-top:2px; line-height:1.25; color:#4f5960; }
-      .report-heat-meta p { margin:0; color:var(--muted); font-size:8.7px; line-height:1.35; }
-      .report-heat-stats { display:grid; gap:0.4mm; font-size:8.9px; font-weight:700; justify-items:start; }
+      .report-heat-meta p { margin:0; color:var(--muted); font-size:8.2px; line-height:1.28; }
+      .report-heat-stats { display:grid; gap:0.3mm; font-size:8.3px; font-weight:700; justify-items:start; }
       .report-detail-stack { display:grid; gap:5mm; }
+      .report-section--detail-single { height:100%; display:grid; grid-template-rows:auto minmax(0,1fr); gap:3.5mm; }
+      .report-section--detail-single > .report-section-title { font-size:15px; line-height:1.2; }
+      .report-section--detail-single .report-detail-card { height:100%; grid-template-rows:minmax(0, 116mm) minmax(0,1fr); }
       .report-detail-card { display:grid; grid-template-columns:1fr; gap:3mm; align-items:start; }
-      .report-detail-card__title { font-size:12px; font-weight:700; }
+      .report-detail-card__title { display:none; font-size:12px; font-weight:700; }
       .report-detail-map { position:relative; overflow:hidden; border:1px solid #111; background:#fff; }
-      .report-detail-text { display:grid; grid-template-columns:1fr; gap:2mm; }
+      .report-detail-text { display:grid; grid-template-columns:1fr; gap:2mm; min-height:0; overflow:hidden; }
       .report-detail-card__title { grid-column:1 / -1; }
       .report-detail-ranking { font-size:10px; line-height:1.45; color:#17262f; }
       .report-detail-region-rows { display:grid; gap:2.2mm; }
       .report-detail-region-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,0.82fr); gap:4mm; align-items:start; padding-bottom:2mm; border-bottom:1px solid #d8dee2; }
       .report-detail-region-row:last-child { border-bottom:0; padding-bottom:0; }
-      .report-detail-region-advice { display:grid; gap:0.8mm; font-size:9px; line-height:1.42; color:#17262f; }
+      .report-detail-region-advice { display:grid; gap:0.8mm; font-size:10.2px; line-height:1.45; color:#17262f; }
       .report-detail-region-advice p { margin:0; }
-      .report-detail-region-pressure-ranking { display:grid; gap:1mm; font-size:9px; color:#17262f; line-height:1.38; }
+      .report-detail-region-pressure-ranking { display:grid; gap:1mm; font-size:10.2px; color:#17262f; line-height:1.45; }
       .report-detail-region-pressure-ranking ol { list-style:none; margin:0; padding:0; display:grid; gap:0.8mm; }
       .report-detail-region-pressure-ranking li { display:flex; align-items:center; min-width:0; }
       .report-detail-region-pressure-ranking p { margin:0; color:#56616a; }
@@ -12575,7 +12658,7 @@
       .report-detail-issue-advice { font-size:9px; line-height:1.4; color:#17262f; }
       .report-detail-pressure-inline { display:flex; flex-wrap:wrap; gap:2mm; font-size:8.8px; color:#56616a; }
       .report-high-label circle { fill:none; stroke:#111; stroke-width:0.42; }
-      .report-high-label text { fill:#111; font-size:2px; text-anchor:middle; dominant-baseline:central; font-weight:900; }
+      .report-high-label text { fill:#111; font-size:4px; text-anchor:middle; dominant-baseline:central; font-weight:900; }
       .report-high-label--vitality circle { stroke:#d63838; stroke-width:0.5; }
       .report-adjustment-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:4mm; }
       .report-adjustment-score { display:grid; gap:1mm; padding:2.2mm; background:var(--panel-soft); border:1px solid var(--line); }
@@ -12585,21 +12668,29 @@
       .report-adjustment-block strong { font-size:10px; }
       .report-adjustment-block p, .report-adjustment-block li { margin:0; color:#17262f; font-size:9px; line-height:1.45; }
       .report-adjustment-block ol { margin:0; padding-left:4mm; display:grid; gap:1mm; }
-      @media print { body { background:#fff; } .report-document { width:auto; margin:0; padding:0; } .report-page { margin:0 0 10mm; padding:0; box-shadow:none; } }
+      @media print {
+        body { background:#fff; }
+        .report-document { width:auto; margin:0; padding:0; display:block; gap:0; background:#fff; }
+        .report-page { width:196mm; min-height:283mm; margin:0; box-shadow:none; break-after:page; page-break-after:always; overflow:hidden; }
+        .report-page:last-child { break-after:auto; page-break-after:auto; }
+        .report-page::after { content:counter(report-page); position:absolute; right:4mm; bottom:2.5mm; color:#5d6d78; font-size:8px; line-height:1; }
+        .report-page--cover { height:283mm; min-height:283mm; border:0; }
+        .report-page--front { height:283mm; min-height:283mm; border:0; padding:0; gap:3mm; }
+        .report-page--front-summary { grid-template-rows:auto 58mm auto minmax(0,1fr); }
+        .report-page--simulation-results, .report-page--thought, .report-page--heatmaps, .report-page--detail-single { height:283mm; min-height:283mm; border:0; padding:0; }
+        .report-page--stressors { display:block; min-height:283mm; height:auto; border:0; padding:0; overflow:visible; }
+        .report-page--detail-single { gap:0; }
+      }
     </style>
   </head>
   <body>
     <main class="report-document">
       ${coverPage}
       ${frontSummaryPage}
-      <section class="report-page report-page--1">
+      <section class="report-page report-page--simulation-results">
         <header class="report-header">
           <div>
-            <h1 class="report-title">${escapeHtml(reportData.title)}</h1>
-            <div class="report-meta">
-              <div>${escapeHtml(copy.projectFile)}: ${escapeHtml(reportData.projectName)}</div>
-              <div>${escapeHtml(copy.exportedAt)}: ${escapeHtml(reportData.generatedAt)}</div>
-            </div>
+            <h1 class="report-title">${escapeHtml(copy.detailedSimulationTitle)}</h1>
           </div>
         </header>
         <section class="report-section">
@@ -12615,20 +12706,13 @@
         </section>
         <section class="report-section">
           <h2 class="report-section-title">${escapeHtml(copy.pageOneInputTitle)}</h2>
-          <div class="report-input-lines">
-            <div><strong>${escapeHtml(copy.routeSelection)}:</strong> ${escapeHtml(reportData.inputSnapshot.routeText)}</div>
-            <div><strong>${escapeHtml(copy.backgroundCrowdCount)}:</strong> ${escapeHtml(formatReportNumber(reportData.inputSnapshot.backgroundCrowd, 0))} ${escapeHtml(copy.people)}</div>
-          </div>
-          <div class="report-agent-layout report-agent-composition">
-            <div class="report-agent-left">
-              <div class="report-agent-block"><div class="radar-shell">${reportData.agentRadarSvg}</div></div>
-              <div class="report-agent-block"><div class="report-figure-wrap">${agentFigure}</div></div>
-            </div>
+          <div class="report-agent-layout report-agent-composition report-agent-composition--radar-only">
+            <div class="report-agent-block"><div class="radar-shell">${reportData.agentRadarSvg}</div></div>
             <div class="report-attribute-column">${agentAttributes}</div>
           </div>
         </section>
       </section>
-      <section class="report-page report-page--2">
+      <section class="report-page report-page--thought">
         <section class="report-section">
           <h2 class="report-section-title">${escapeHtml(copy.pageTwoSimulationTitle)}</h2>
           <table class="report-table">
@@ -12638,32 +12722,27 @@
         </section>
         <section class="report-section">
           <h2 class="report-section-title">${escapeHtml(copy.pageTwoThoughtTitle)}</h2>
-          <div class="report-thought-note">${escapeHtml(copy.thoughtMapNote)}</div>
           <div class="report-thought-flow">${thoughtFlow}</div>
           <div class="report-map-stage report-map-stage--thought" style="aspect-ratio:860 / 400;">
             <div class="report-map-layer report-map-layer--base">${reportData.thoughtMapSnapshot.baseSvg}</div>
             <div class="report-map-layer report-map-layer--overlay">${reportData.thoughtMapSnapshot.overlaySvg}</div>
           </div>
+          <div class="report-thought-note">• ${escapeHtml(copy.thoughtMapNote)}</div>
         </section>
+      </section>
+      <section class="report-page report-page--stressors">
         <section class="report-section">
           <h2 class="report-section-title">${escapeHtml(copy.pageTwoPressureTitle)} · ${escapeHtml(formatReportNumber(routePressurePointCount, 0))}</h2>
           <div class="report-pressure-groups">${pressureGroups}</div>
         </section>
       </section>
-      <section class="report-page report-page--3">
+      <section class="report-page report-page--heatmaps">
         <section class="report-section">
           <h2 class="report-section-title">${escapeHtml(copy.pageThreeHeatTitle)}</h2>
           <div class="report-heat-grid">${heatmapCards}</div>
         </section>
       </section>
-      <section class="report-page report-page--detail">
-        <section class="report-section">
-          <h2 class="report-section-title">${escapeHtml(copy.detailAnalysisTitle)}</h2>
-          ${methodNote}
-          <div class="report-detail-stack">${detailCards}</div>
-        </section>
-        ${adjustmentMarkup}
-      </section>
+      ${detailCardPages}
     </main>
   </body>
 </html>`;
@@ -14881,22 +14960,35 @@
     requestRender();
   }
 
-  function reserveReportPrintWindow() {
-    return window.open('', '_blank');
-  }
-
-  function exportReportPdf(reportWindow = null) {
-    const targetWindow = reportWindow || reserveReportPrintWindow();
-    if (!targetWindow) {
-      throw new Error(reportT('exportFailed', null, state.locale));
+  async function exportReportPdf(fileName, reportLocale) {
+    const response = await fetch(getLocalSimServerUrl('/api/report/pdf'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName,
+        html: state.reportModal.documentHtml,
+      }),
+    });
+    if (!response.ok) {
+      let message = reportT('exportFailed', null, reportLocale);
+      try {
+        const body = await response.json();
+        message = body?.error || message;
+      } catch (error) {
+        message = await response.text().catch(() => message);
+      }
+      throw new Error(message);
     }
-    targetWindow.document.open();
-    targetWindow.document.write(state.reportModal.documentHtml);
-    targetWindow.document.close();
-    targetWindow.focus();
-    window.setTimeout(() => {
-      targetWindow.print();
-    }, 250);
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    state.reportModal.status = reportT('pdfPrintReady', { fileName }, reportLocale);
   }
 
   async function reserveReportHtmlFileHandle(fileName) {
@@ -14946,11 +15038,11 @@
       return;
     }
     const fileName = state.reportModal.fileName || 'route-report.html';
+    const pdfFileName = state.reportModal.data ? buildRouteReportPdfFileName(state.reportModal.data) : fileName.replace(/\.html?$/i, '.pdf');
     const reportLocale = getReportLocale();
     const uiLocale = state.locale === 'en' ? 'en' : 'zh-CN';
     const exportFormat = getReportExportFormat();
     let reservedHtmlFileHandle = null;
-    let reservedPrintWindow = null;
     state.reportModal.exporting = true;
     state.reportModal.languageMenuOpen = false;
     state.reportModal.formatMenuOpen = false;
@@ -14958,12 +15050,7 @@
     state.reportModal.status = reportT('exporting', null, uiLocale);
     requestRender();
     try {
-      if (exportFormat === 'pdf') {
-        reservedPrintWindow = reserveReportPrintWindow();
-        if (!reservedPrintWindow) {
-          throw new Error(reportT('exportFailed', null, uiLocale));
-        }
-      } else {
+      if (exportFormat !== 'pdf') {
         reservedHtmlFileHandle = await reserveReportHtmlFileHandle(fileName);
       }
       await ensureRouteAnalysisForCurrentState(reportLocale);
@@ -14972,8 +15059,7 @@
       }
       rebuildReportModalContent(reportLocale);
       if (exportFormat === 'pdf') {
-        exportReportPdf(reservedPrintWindow);
-        state.reportModal.status = reportT('pdfPrintReady', null, uiLocale);
+        await exportReportPdf(pdfFileName, uiLocale);
       } else {
         await exportReportHtml(fileName, reportLocale, reservedHtmlFileHandle);
       }

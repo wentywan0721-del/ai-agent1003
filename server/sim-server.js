@@ -1,6 +1,8 @@
 const http = require('http');
 const os = require('os');
 const path = require('path');
+const fs = require('fs');
+const { execFile } = require('child_process');
 const { randomUUID } = require('crypto');
 const { Worker } = require('worker_threads');
 
@@ -1004,6 +1006,88 @@ function sendJson(response, statusCode, body) {
   response.end(JSON.stringify(body));
 }
 
+function sendPdf(response, buffer, fileName = 'route-report.pdf') {
+  const safeFileName = String(fileName || 'route-report.pdf').replace(/[^\w\u4e00-\u9fa5.-]+/g, '_');
+  response.writeHead(200, {
+    'Content-Type': 'application/pdf',
+    'Content-Length': buffer.length,
+    'Content-Disposition': `attachment; filename="${encodeURIComponent(safeFileName)}"`,
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Cache-Control': 'no-store',
+  });
+  response.end(buffer);
+}
+
+function findChromiumExecutable() {
+  const candidates = [
+    process.env.CHROME_PATH,
+    process.env.CHROMIUM_PATH,
+    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+    path.join(process.env.LOCALAPPDATA || '', 'ms-playwright', 'chromium-1219', 'chrome-win64', 'chrome.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'ms-playwright', 'chromium-1208', 'chrome-win64', 'chrome.exe'),
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+  ].filter(Boolean);
+  return candidates.find((candidate) => {
+    try {
+      return fs.existsSync(candidate);
+    } catch (error) {
+      return false;
+    }
+  }) || '';
+}
+
+function execFileAsync(file, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, options, (error, stdout, stderr) => {
+      if (error) {
+        error.stdout = stdout;
+        error.stderr = stderr;
+        reject(error);
+        return;
+      }
+      resolve({ stdout, stderr });
+    });
+  });
+}
+
+async function renderReportHtmlToPdf(html, fileName = 'route-report.pdf') {
+  const chromePath = findChromiumExecutable();
+  if (!chromePath) {
+    throw new Error('Chromium executable not found. Set CHROME_PATH or install Playwright Chromium.');
+  }
+  const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'route-report-pdf-'));
+  const htmlPath = path.join(tempDir, 'report.html');
+  const pdfPath = path.join(tempDir, 'report.pdf');
+  try {
+    await fs.promises.writeFile(htmlPath, String(html || ''), 'utf8');
+    await execFileAsync(chromePath, [
+      '--headless=new',
+      '--disable-gpu',
+      '--no-sandbox',
+      '--allow-file-access-from-files',
+      '--disable-dev-shm-usage',
+      `--print-to-pdf=${pdfPath}`,
+      '--no-pdf-header-footer',
+      '--print-to-pdf-no-header',
+      `file:///${htmlPath.replace(/\\/g, '/')}`,
+    ], { timeout: 120000, windowsHide: true });
+    const buffer = await fs.promises.readFile(pdfPath);
+    if (!buffer.length) {
+      throw new Error(`Failed to render ${fileName}`);
+    }
+    return buffer;
+  } finally {
+    fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 function parseRequestBody(request) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -1573,6 +1657,21 @@ function createSimServer(options = {}) {
     }
   }
 
+  async function handleReportPdf(request, response) {
+    const payload = await parseRequestBody(request);
+    const html = String(payload?.html || '');
+    if (!html.trim()) {
+      sendJson(response, 400, { error: 'report html is required' });
+      return;
+    }
+    const requestedName = String(payload?.fileName || 'route-report.pdf');
+    const fileName = requestedName.toLowerCase().endsWith('.pdf')
+      ? requestedName
+      : requestedName.replace(/\.html?$/i, '') + '.pdf';
+    const pdfBuffer = await renderReportHtmlToPdf(html, fileName);
+    sendPdf(response, pdfBuffer, fileName);
+  }
+
   async function handleBackgroundFieldPrewarm(request, response) {
     const payload = await parseRequestBody(request);
     const scheduledBuckets = scheduleBackgroundFieldPrewarm(payload, { includeRequested: true });
@@ -1603,6 +1702,11 @@ function createSimServer(options = {}) {
 
       if (request.method === 'POST' && url.pathname === '/api/route-analysis') {
         await handleRouteAnalysis(request, response);
+        return;
+      }
+
+      if (request.method === 'POST' && url.pathname === '/api/report/pdf') {
+        await handleReportPdf(request, response);
         return;
       }
 
