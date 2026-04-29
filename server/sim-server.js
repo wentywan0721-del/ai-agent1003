@@ -546,9 +546,10 @@ function buildRouteAnalysisSystemPrompt(locale = 'zh-CN') {
     'Avoid vague advice; name the route segment, hot zone, spatial element, facility, or numbered pressure point whenever the input provides it.',
     'Only refer to stressors by the supplied global pressure-point numbers.',
     'Do not use ambiguous Zone labels; use the supplied hot-zone labels such as Composite hot zone 1 or Decision hot zone 2.',
-    'Every recommendation must be traceable to the supplied route, hot zones, burden scores, or numbered pressure points.',
+    'Every recommendation must be traceable to the supplied route, hot zones, burden scores, influence sources, or numbered pressure points.',
     'For exported reports, prefer these section meanings: route score interpretation, spatial model changes, priority modification areas, and priority facilities.',
-    'Use route score, five burden scores, high-heat zones, ranked stressors, and pressure-point numbers as evidence.',
+    'Use route score, five burden scores, high-heat zones, influenceSources, ranked stressors, and pressure-point numbers as evidence.',
+    'When a hot zone is driven by area factors or facility nodes instead of pressure points, explain those sources directly instead of saying no explicit pressure point is associated.',
     'Facility recommendations must mention numbered pressure points when available and must not repeat one generic sentence for every facility.',
     'Write evidence-dense professional diagnosis with concrete modification intent; avoid filler, slogans, or generic score restatement.',
     'Do not invent new geometry, formulas, heatmap values, or pressure points.'

@@ -43,7 +43,7 @@ assert(
 assert(
   simServerJs.includes('front summary page after the cover')
     && simServerJs.includes('Avoid vague advice')
-    && simServerJs.includes('Every recommendation must be traceable to the supplied route, hot zones, burden scores, or numbered pressure points'),
+    && simServerJs.includes('Every recommendation must be traceable to the supplied route, hot zones, burden scores, influence sources, or numbered pressure points'),
   'Expected route-analysis prompt to force targeted, evidence-grounded summary and adjustment advice'
 );
 

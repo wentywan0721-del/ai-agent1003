@@ -10148,7 +10148,7 @@
       overallBurdenScore: zh ? '总体负担评分' : 'Overall Burden Score',
       routeFriendlyScore: zh ? '路线友好度' : 'Route Friendliness',
       fiveDimensionScore: zh ? '五维负担评分' : 'Five-Dimension Burden Scores',
-      influenceRankingTitle: zh ? '对应影响压力点按贡献值排序' : 'Influencing Stressors Ranked By Contribution',
+      influenceRankingTitle: zh ? '主要影响源按贡献值排序' : 'Influence Sources Ranked By Contribution',
       importedModel: zh ? '导入模型' : 'Imported Model',
       modelArea: zh ? '面积' : 'Area',
       category: zh ? '类别' : 'Category',
@@ -10570,6 +10570,19 @@
     }).join('');
   }
 
+  function buildReportNumberedInfluenceSourceMarkup(transform, influenceSources = []) {
+    return influenceSources.map((item) => {
+      if (item?.sourceType === 'pressure') {
+        return buildReportNumberedPressurePointMarkup(transform, [item]);
+      }
+      const point = worldToDisplayPoint(item, transform);
+      const label = item.displayNumber || item.sourceNumber || '';
+      const radius = item.sourceType === 'area' ? worldRadiusForPixels(9.6, transform) : worldRadiusForPixels(7.8, transform);
+      const className = item.sourceType === 'area' ? 'report-area-marker' : 'report-node-marker';
+      return `<g class="${className}"><circle cx="${point.x}" cy="${point.y}" r="${radius}" fill="${escapeHtml(item.color || '#60707b')}"><title>${escapeHtml(item.name || '')}</title></circle><text x="${point.x}" y="${point.y}">${escapeHtml(String(label))}</text></g>`;
+    }).join('');
+  }
+
   function buildReportThoughtMapSnapshot(reportData, locale = getReportLocale()) {
     const transform = computeTransformForViewportSize(860, 400);
     return {
@@ -10818,6 +10831,296 @@
     return aggregateReportRegionPressureContributions(region, pressurePoints, viewMode);
   }
 
+  function getReportNodeLabel(node) {
+    return node?.label || node?.name || node?.semanticId || node?.id || 'node';
+  }
+
+  function getReportNodeKind(node) {
+    const raw = `${node?.semanticId || ''} ${node?.type || ''} ${node?.category || ''} ${node?.id || ''}`.toLowerCase();
+    if (/elev|电梯/.test(raw)) return 'elevator';
+    if (/es_|escalator|扶梯/.test(raw)) return 'escalator';
+    if (/stair|楼梯/.test(raw)) return 'stair';
+    if (/gate|exit|entry|出入口|入口|出口/.test(raw)) return 'gate';
+    if (/platform|boarding|乘车/.test(raw)) return 'boarding';
+    return 'node';
+  }
+
+  function getReportNodeKindLabel(kind, locale = getReportLocale()) {
+    const zh = locale !== 'en';
+    const labels = {
+      elevator: zh ? '电梯节点' : 'Elevator node',
+      escalator: zh ? '扶梯节点' : 'Escalator node',
+      stair: zh ? '楼梯节点' : 'Stair node',
+      gate: zh ? '出入口节点' : 'Entry/exit node',
+      boarding: zh ? '乘车点节点' : 'Boarding node',
+      node: zh ? '空间节点' : 'Spatial node',
+    };
+    return labels[kind] || labels.node;
+  }
+
+  function getReportNodeInfluenceColor(kind) {
+    const colors = {
+      elevator: '#396a9f',
+      escalator: '#4b8f7a',
+      stair: '#7a6aa8',
+      gate: '#4f5960',
+      boarding: '#b27a2a',
+      node: '#60707b',
+    };
+    return colors[kind] || colors.node;
+  }
+
+  function getReportRouteNodeInfluenceIndex(locale = getReportLocale()) {
+    const nodes = Array.isArray(state.prepared?.nodes) ? state.prepared.nodes : [];
+    const traceSnapshots = getReportTraceSnapshots();
+    const candidates = nodes
+      .map((node) => {
+        const kind = getReportNodeKind(node);
+        const routeDistance = reportDistanceToTrace(node, traceSnapshots);
+        const relevant = kind !== 'node' || routeDistance <= 3.5;
+        return {
+          id: node.id || node.semanticId || getReportNodeLabel(node),
+          node,
+          sourceType: 'node',
+          sourceNumber: 0,
+          name: getReportNodeLabel(node),
+          categoryLabel: getReportNodeKindLabel(kind, locale),
+          color: getReportNodeInfluenceColor(kind),
+          x: Number(node.x || 0),
+          y: Number(node.y || 0),
+          kind,
+          routeDistance,
+          relevant,
+        };
+      })
+      .filter((item) => item.relevant && Number.isFinite(item.routeDistance))
+      .sort((left, right) => Number(left.routeDistance || 0) - Number(right.routeDistance || 0))
+      .slice(0, 48)
+      .map((item, index) => ({
+        ...item,
+        sourceNumber: index + 1,
+        displayNumber: `N${index + 1}`,
+      }));
+    return {
+      items: candidates,
+      byId: new Map(candidates.map((item) => [String(item.id), item])),
+    };
+  }
+
+  function getReportRegionSnapshots(region) {
+    const regionCells = Array.isArray(region?.cells) ? region.cells : [];
+    if (!regionCells.length) {
+      return [];
+    }
+    const cellSize = Math.max(0.2, Number(state.prepared?.grid?.cellSize || 1.15));
+    return getReportTraceSnapshots().filter((snapshot) => pointInsideReportRegion(snapshot, regionCells, cellSize * 1.15));
+  }
+
+  function averageReportSnapshotValue(snapshots, keys = []) {
+    const values = snapshots
+      .map((snapshot) => {
+        for (const key of keys) {
+          const value = Number(snapshot?.[key]);
+          if (Number.isFinite(value)) {
+            return value;
+          }
+        }
+        return NaN;
+      })
+      .filter((value) => Number.isFinite(value));
+    return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+  }
+
+  function getReportAreaInfluenceLabel(id, locale = getReportLocale()) {
+    const zh = locale !== 'en';
+    const labels = {
+      crowd_density: zh ? '局部人群密度' : 'Local crowd density',
+      queue_spillover: zh ? '排队/等待外溢' : 'Queue spillover',
+      slow_walking: zh ? '步速下降' : 'Reduced walking speed',
+      decision_delay: zh ? '决策迟滞' : 'Decision delay',
+      fatigue_growth: zh ? '疲劳快速增长' : 'Fatigue growth',
+      narrow_passage: zh ? '窄通道/贴边通行' : 'Narrow passage',
+      vertical_transfer: zh ? '垂直交通转换' : 'Vertical transfer',
+      noise_environment: zh ? '区域噪音水平' : 'Area noise level',
+      lighting_environment: zh ? '区域照度舒适度' : 'Area lighting comfort',
+    };
+    return labels[id] || (zh ? '区域影响因素' : 'Area influence factor');
+  }
+
+  function getReportAreaInfluenceReason(id, value, locale = getReportLocale()) {
+    const zh = locale !== 'en';
+    const formatted = Number.isFinite(Number(value)) ? formatReportMetric(value) : '';
+    const reasons = {
+      crowd_density: zh ? `热区附近人群密度偏高` : `crowd density is elevated near this hot zone`,
+      queue_spillover: zh ? `等待或排队状态在该段叠加` : `waiting or queueing accumulates in this segment`,
+      slow_walking: zh ? `代理人步速在该段下降` : `agent walking speed drops in this segment`,
+      decision_delay: zh ? `代理人在该段决策迟滞上升` : `decision delay increases in this segment`,
+      fatigue_growth: zh ? `疲劳值或疲劳增长速度上升` : `fatigue value or fatigue growth rises`,
+      narrow_passage: zh ? `贴边或窄通道行为增强` : `wall-following or narrow-passage behaviour increases`,
+      vertical_transfer: zh ? `垂直交通转换增加行动/决策成本` : `vertical transfer raises movement or decision cost`,
+      noise_environment: zh ? `区域噪音水平提高` : `area noise level increases`,
+      lighting_environment: zh ? `照度偏离舒适范围` : `lighting deviates from the comfort range`,
+    };
+    return formatted ? `${reasons[id] || getReportAreaInfluenceLabel(id, locale)} (${formatted})` : (reasons[id] || getReportAreaInfluenceLabel(id, locale));
+  }
+
+  function buildReportAreaInfluenceSource(id, contribution, point, value, locale = getReportLocale()) {
+    return {
+      id: `area:${id}`,
+      sourceType: 'area',
+      sourceNumber: 0,
+      displayNumber: '',
+      name: getReportAreaInfluenceLabel(id, locale),
+      categoryLabel: locale === 'en' ? 'Area factor' : '区域因素',
+      color: '#d25f52',
+      x: Number(point?.x || 0),
+      y: Number(point?.y || 0),
+      contribution: Number(Math.max(0, contribution || 0).toFixed(3)),
+      regionContribution: Number(Math.max(0, contribution || 0).toFixed(3)),
+      reasonLabel: getReportAreaInfluenceReason(id, value, locale),
+      value: Number.isFinite(Number(value)) ? Number(Number(value).toFixed(3)) : null,
+    };
+  }
+
+  function getReportRegionAreaInfluenceSources(region, viewMode = COMPOSITE_BURDEN_VIEW, locale = getReportLocale()) {
+    const snapshots = getReportRegionSnapshots(region);
+    const point = region?.labelPoint || region?.peakCell || {};
+    const safeViewMode = getSafeViewMode(viewMode);
+    const sources = [];
+    const crowdDensity = averageReportSnapshotValue(snapshots, ['crowdDensity', 'crowdDensityLocal']);
+    const queueCount = averageReportSnapshotValue(snapshots, ['queueCount']);
+    const walkingSpeed = averageReportSnapshotValue(snapshots, ['walkingSpeed', 'currentWalkingSpeed']);
+    const decisionDelay = averageReportSnapshotValue(snapshots, ['decisionDelay']);
+    const fatigue = averageReportSnapshotValue(snapshots, ['fatiguePercent', 'fatigue']);
+    const noise = averageReportSnapshotValue(snapshots, ['environmentNoise', 'noiseLevel']);
+    const lighting = averageReportSnapshotValue(snapshots, ['environmentLighting', 'lightingLevel']);
+    const movementCauses = snapshots.map((snapshot) => String(snapshot?.movementMainCause || '')).join(' ');
+    if (crowdDensity > 0.65 && [COMPOSITE_BURDEN_VIEW, 'locomotor', 'sensory', 'cognitive', 'psychological'].includes(safeViewMode)) {
+      sources.push(buildReportAreaInfluenceSource('crowd_density', crowdDensity * 18, point, crowdDensity, locale));
+    }
+    if (queueCount > 0.8 && [COMPOSITE_BURDEN_VIEW, 'locomotor', 'cognitive', 'psychological'].includes(safeViewMode)) {
+      sources.push(buildReportAreaInfluenceSource('queue_spillover', queueCount * 5.5, point, queueCount, locale));
+    }
+    if (walkingSpeed > 0 && walkingSpeed < 0.78 && [COMPOSITE_BURDEN_VIEW, 'locomotor', 'vitality'].includes(safeViewMode)) {
+      sources.push(buildReportAreaInfluenceSource('slow_walking', (0.78 - walkingSpeed) * 55, point, walkingSpeed, locale));
+    }
+    if (decisionDelay > 1.05 && [COMPOSITE_BURDEN_VIEW, 'cognitive', 'psychological'].includes(safeViewMode)) {
+      sources.push(buildReportAreaInfluenceSource('decision_delay', (decisionDelay - 1.05) * 24, point, decisionDelay, locale));
+    }
+    if ((fatigue > 45 || region?.vitalitySurge) && [COMPOSITE_BURDEN_VIEW, 'vitality'].includes(safeViewMode)) {
+      sources.push(buildReportAreaInfluenceSource('fatigue_growth', Math.max(fatigue / 4, Number(region?.peakMetric || 0) * 80), point, fatigue, locale));
+    }
+    if (/narrow|obstacle|wall/.test(movementCauses) && [COMPOSITE_BURDEN_VIEW, 'locomotor'].includes(safeViewMode)) {
+      sources.push(buildReportAreaInfluenceSource('narrow_passage', 18, point, 1, locale));
+    }
+    if (noise > 58 && [COMPOSITE_BURDEN_VIEW, 'sensory', 'cognitive', 'psychological', 'vitality'].includes(safeViewMode)) {
+      sources.push(buildReportAreaInfluenceSource('noise_environment', (noise - 55) * 1.25, point, noise, locale));
+    }
+    const lightingDeviation = Math.max((250 - lighting) / 35, (lighting - 800) / 120, 0);
+    if (lightingDeviation > 0 && [COMPOSITE_BURDEN_VIEW, 'sensory', 'cognitive', 'psychological', 'vitality'].includes(safeViewMode)) {
+      sources.push(buildReportAreaInfluenceSource('lighting_environment', lightingDeviation * 10, point, lighting, locale));
+    }
+    return sources
+      .filter((item) => Number(item.regionContribution || item.contribution || 0) > 0.5)
+      .sort((left, right) => Number(right.regionContribution || right.contribution || 0) - Number(left.regionContribution || left.contribution || 0));
+  }
+
+  function getReportRegionNodeInfluenceSources(region, viewMode = COMPOSITE_BURDEN_VIEW, locale = getReportLocale()) {
+    const nodeIndex = getReportRouteNodeInfluenceIndex(locale);
+    const regionCells = Array.isArray(region?.cells) ? region.cells : [];
+    if (!regionCells.length || !nodeIndex.items.length) {
+      return [];
+    }
+    const cellSize = Math.max(0.2, Number(state.prepared?.grid?.cellSize || 1.15));
+    const safeViewMode = getSafeViewMode(viewMode);
+    return nodeIndex.items
+      .map((item) => {
+        const inside = pointInsideReportRegion(item, regionCells, cellSize * 1.5);
+        const distanceToLabel = Math.hypot(Number(item.x || 0) - Number(region?.labelPoint?.x || 0), Number(item.y || 0) - Number(region?.labelPoint?.y || 0));
+        const nearby = distanceToLabel <= 7.5;
+        if (!inside && !nearby) {
+          return null;
+        }
+        const verticalWeight = ['elevator', 'escalator', 'stair'].includes(item.kind) ? 1.25 : 0.75;
+        const viewWeight = safeViewMode === 'locomotor' || safeViewMode === 'vitality'
+          ? 1.25
+          : safeViewMode === 'cognitive'
+            ? 1.05
+            : safeViewMode === COMPOSITE_BURDEN_VIEW
+              ? 0.95
+              : 0.55;
+        const proximity = inside ? 1 : clamp(1 - distanceToLabel / 8, 0, 1);
+        const contribution = proximity * verticalWeight * viewWeight * 18;
+        return {
+          ...item,
+          regionContribution: Number(contribution.toFixed(3)),
+          contribution: Number(contribution.toFixed(3)),
+          reasonLabel: locale === 'en'
+            ? `${item.categoryLabel} is close to this hot zone and may affect route choice, transfer, queueing, or movement speed.`
+            : `${item.categoryLabel}靠近该高热区，可能影响路线选择、换乘、排队或通行速度。`,
+        };
+      })
+      .filter(Boolean)
+      .filter((item) => Number(item.regionContribution || 0) > 2)
+      .sort((left, right) => Number(right.regionContribution || 0) - Number(left.regionContribution || 0))
+      .slice(0, 6);
+  }
+
+  function numberReportAreaInfluenceSources(sources = []) {
+    return sources.map((source, index) => ({
+      ...source,
+      sourceNumber: index + 1,
+      displayNumber: `A${index + 1}`,
+    }));
+  }
+
+  function numberReportInfluenceSourceGroups(groups = []) {
+    let areaIndex = 0;
+    return groups.map((group) => ({
+      ...group,
+      sources: (group.sources || []).map((source) => {
+        if (source?.sourceType !== 'area') {
+          return source;
+        }
+        areaIndex += 1;
+        return {
+          ...source,
+          id: `${source.id}:${group.index}`,
+          sourceNumber: areaIndex,
+          displayNumber: `A${areaIndex}`,
+        };
+      }),
+    }));
+  }
+
+  function getReportRegionInfluenceSources(region, pressurePoints = [], viewMode = COMPOSITE_BURDEN_VIEW, locale = getReportLocale()) {
+    const pressureSources = getReportRegionInfluencingPressurePoints(region, pressurePoints, viewMode)
+      .map((point) => ({
+        ...point,
+        sourceType: 'pressure',
+        displayNumber: String(point.reportPressureNumber || point.pressureNumber || ''),
+        reasonLabel: point.reasonLabel || point.description || point.categoryLabel || point.name,
+      }));
+    const nodeSources = getReportRegionNodeInfluenceSources(region, viewMode, locale);
+    const areaSources = getReportRegionAreaInfluenceSources(region, viewMode, locale);
+    return [...pressureSources, ...nodeSources, ...areaSources]
+      .sort((left, right) => Number(right.regionContribution || right.contribution || 0) - Number(left.regionContribution || left.contribution || 0))
+      .slice(0, 10);
+  }
+
+  function getUniqueReportInfluenceSources(sourceGroups = []) {
+    const unique = new Map();
+    sourceGroups.flatMap((group) => Array.isArray(group?.sources) ? group.sources : []).forEach((source) => {
+      const key = `${source?.sourceType || 'pressure'}:${source?.id || source?.name || source?.displayNumber || ''}`;
+      if (key && !unique.has(key)) {
+        unique.set(key, source);
+      }
+    });
+    return Array.from(unique.values()).sort((left, right) => (
+      Number(right.regionContribution || right.contribution || 0) - Number(left.regionContribution || left.contribution || 0)
+    ));
+  }
+
   function getUniqueReportPressurePoints(pressureGroups = []) {
     const unique = new Map();
     pressureGroups.flatMap((group) => Array.isArray(group?.points) ? group.points : []).forEach((point) => {
@@ -10926,11 +11229,11 @@
   function buildEvidenceBasedRegionIssueAdvice(region, viewMode, locale = getReportLocale(), regionPressurePoints = []) {
     const zh = locale !== 'en';
     const index = region?.index || 1;
-    const dominantPressure = Array.isArray(regionPressurePoints) && regionPressurePoints.length ? regionPressurePoints[0] : null;
-    const pressureName = dominantPressure?.name || '';
+    const dominantSource = Array.isArray(regionPressurePoints) && regionPressurePoints.length ? regionPressurePoints[0] : null;
+    const sourceName = dominantSource?.name || '';
     const regionDescriptor = getReportRegionDescriptor(region, locale);
     const regionIntensity = getReportRegionIntensity(region, locale);
-    const sourceText = pressureName || (zh ? '该区域的通行状态' : 'the local movement state');
+    const sourceText = buildReportInfluenceSourceCauseText(regionPressurePoints, locale);
     if (viewMode === 'sensory') {
       return {
         index,
@@ -10938,8 +11241,8 @@
           ? `高热区${index}在${regionDescriptor}出现${regionIntensity}感知负担，主要与${sourceText}有关。`
           : `Hot zone ${index} shows ${regionIntensity} perception burden in ${regionDescriptor}, mainly associated with ${sourceText}.`,
         advice: zh
-          ? `优先复核${pressureName || '该区域'}的亮度、噪音、朝向和信息密度，降低突兀刺激并保留必要识别信息。`
-          : `Review ${pressureName || 'this area'} for brightness, noise, orientation, and information density; reduce abrupt stimulus while keeping essential cues readable.`,
+          ? `优先复核${sourceName || '该区域'}的亮度、噪音、朝向、遮挡和信息密度，降低突兀刺激并保留必要识别信息。`
+          : `Review ${sourceName || 'this area'} for brightness, noise, orientation, occlusion, and information density; reduce abrupt stimulus while keeping essential cues readable.`,
         peakMetric: Number(region?.peakMetric || 0),
       };
     }
@@ -10986,8 +11289,8 @@
           ? `高热区${index}在${regionDescriptor}疲劳带突然变宽，单位距离疲劳增长加快。`
           : `Hot zone ${index} has a sudden widening of the fatigue ribbon in ${regionDescriptor}, meaning fatigue rises faster per metre.`,
         advice: zh
-          ? `复核这段的绕行、坡度/垂直交通、拥挤和休息点间距；若${pressureName ? `受${pressureName}影响，` : ''}建议缩短连续步行或补充短暂停留点。`
-          : `Review detours, level changes, crowding, and rest spacing here; ${pressureName ? `because ${pressureName} contributes, ` : ''}shorten continuous walking or add a short recovery point.`,
+          ? `复核这段的绕行、坡度/垂直交通、拥挤和休息点间距；若${sourceName ? `受${sourceName}影响，` : ''}建议缩短连续步行或补充短暂停留点。`
+          : `Review detours, level changes, crowding, and rest spacing here; ${sourceName ? `because ${sourceName} contributes, ` : ''}shorten continuous walking or add a short recovery point.`,
         peakMetric: Number(region?.peakMetric || 0),
       };
     }
@@ -11126,7 +11429,10 @@
       ? buildReportHighHeatLabels(viewMode, transform, { ...options, highRegions })
       : '';
     const routeMarkup = options.showRoutePath === false ? '' : buildReportRoutePathMarkup(transform);
-    const overlaySvg = `<svg viewBox="${transform.viewBox.x} ${transform.viewBox.y} ${transform.viewBox.width} ${transform.viewBox.height}" preserveAspectRatio="xMidYMid meet">${highLabels}${routeMarkup}${buildReportNumberedPressurePointMarkup(transform, options.pressurePoints || [])}</svg>`;
+    const influenceMarkup = Array.isArray(options.influenceSources)
+      ? buildReportNumberedInfluenceSourceMarkup(transform, options.influenceSources)
+      : buildReportNumberedPressurePointMarkup(transform, options.pressurePoints || []);
+    const overlaySvg = `<svg viewBox="${transform.viewBox.x} ${transform.viewBox.y} ${transform.viewBox.width} ${transform.viewBox.height}" preserveAspectRatio="xMidYMid meet">${highLabels}${routeMarkup}${influenceMarkup}</svg>`;
     return `${heatMarkup}${overlaySvg}`;
   }
 
@@ -11174,7 +11480,13 @@
         index: region.index,
         points: getReportRegionInfluencingPressurePoints(region, pressurePoints, viewMode),
       }));
+      let regionInfluenceSources = highRegions.map((region) => ({
+        index: region.index,
+        sources: getReportRegionInfluenceSources(region, pressurePoints, viewMode, locale),
+      }));
+      regionInfluenceSources = numberReportInfluenceSourceGroups(regionInfluenceSources);
       const mapPressurePoints = getUniqueReportPressurePoints(regionPressurePoints);
+      const mapInfluenceSources = getUniqueReportInfluenceSources(regionInfluenceSources);
       const regionRankings = isCompositeSummary
         ? highRegions.map((region) => ({
             index: region.index,
@@ -11188,7 +11500,7 @@
             region,
             viewMode,
             locale,
-            regionPressurePoints.find((group) => Number(group.index) === Number(region.index))?.points || []
+            regionInfluenceSources.find((group) => Number(group.index) === Number(region.index))?.sources || []
           ));
       const issues = isCompositeSummary
         ? []
@@ -11208,7 +11520,7 @@
           height: 400,
           highRegions,
           highColor: viewMode === COMPOSITE_BURDEN_VIEW ? 'rgba(218, 68, 64, 0.72)' : topColor,
-          pressurePoints: mapPressurePoints,
+          influenceSources: mapInfluenceSources,
         }),
         ranking: buildDimensionSummaryEntries(
           state.scenario?.focusAgent?.profile?.capacityScores || state.focusProfile?.capacityScores || DEFAULT_CAPACITY_SCORES,
@@ -11219,9 +11531,11 @@
         regionRankings: isCompositeSummary ? regionRankings : [],
         regionIssues: isCompositeSummary ? [] : regionIssues,
         regionPressurePoints: regionPressurePoints,
+        regionInfluenceSources,
         missedSignageItems: viewMode === 'sensory' ? pressurePoints.filter((item) => item.missedSignage) : [],
         issues,
         pressurePoints: mapPressurePoints,
+        influenceSources: mapInfluenceSources,
       };
     });
   }
@@ -11276,6 +11590,17 @@
           name: point.name,
           category: point.categoryLabel || point.categoryId,
           contribution: Number(point.regionContribution || point.contribution || 0),
+        })),
+      })),
+      influenceSources: (card.regionInfluenceSources || []).map((group) => ({
+        index: group.index,
+        sources: (group.sources || []).slice(0, 8).map((source) => ({
+          number: source.displayNumber || source.reportPressureNumber || source.pressureNumber || source.sourceNumber,
+          sourceType: source.sourceType || 'pressure',
+          name: source.name,
+          category: source.categoryLabel || source.categoryId,
+          reasonLabel: source.reasonLabel || source.description || '',
+          contribution: Number(source.regionContribution || source.contribution || 0),
         })),
       })),
     }));
@@ -11353,6 +11678,17 @@
               category: point.categoryLabel || point.categoryId,
               contribution: Number(point.regionContribution || point.contribution || 0),
               burdenTypes: point.burdenTypes || [],
+            })) || [],
+          influenceSources: (card.regionInfluenceSources || [])
+            .find((group) => Number(group.index) === Number(region.index))?.sources
+            ?.slice(0, 8)
+            .map((source) => ({
+              number: source.displayNumber || source.reportPressureNumber || source.pressureNumber || source.sourceNumber,
+              sourceType: source.sourceType || 'pressure',
+              name: source.name,
+              category: source.categoryLabel || source.categoryId,
+              reasonLabel: source.reasonLabel || source.description || '',
+              contribution: Number(source.regionContribution || source.contribution || 0),
             })) || [],
         })),
       })),
@@ -11700,8 +12036,8 @@
     const locale = reportData.locale === 'en' ? 'en' : 'zh-CN';
     const methodLabel = locale === 'en' ? 'Method note' : '方法说明';
     const body = locale === 'en'
-      ? 'This report is generated from the current route simulation. The system samples the agent state along the actual walking trajectory and combines environmental stressors, crowd density, walking speed, fatigue change, and decision latency to calculate burden heatmaps. High-heat regions use the top 20% burden values in the current heatmap, clustered spatially, with the three largest regions shown. Stressor influence rankings come from effective contribution records generated during the focus-agent simulation.'
-      : '本报告基于当前路线模拟结果生成。系统沿代理人实际轨迹采样通行状态，并结合环境压力点、人群密度、步行速度、疲劳变化与决策迟滞计算各类负担热力。高热区取当前热力图负担值最高的20%区域，并按空间连续性聚类后展示面积最大的三个区域。压力点影响排序来自模拟过程中对目标代理人产生有效贡献的压力点记录。';
+      ? 'This report is generated from the current route simulation. The system samples the agent state along the actual walking trajectory and combines environmental stressors, crowd density, walking speed, fatigue change, and decision latency to calculate burden heatmaps. High-heat regions use the top 20% burden values in the current heatmap, clustered spatially, with the three largest regions shown. Influence rankings combine effective stressor contribution records with nearby facility nodes and regional factors such as crowding, queueing, slow walking, decision delay, fatigue growth, noise, and lighting.'
+      : '本报告基于当前路线模拟结果生成。系统沿代理人实际轨迹采样通行状态，并结合环境压力点、人群密度、步行速度、疲劳变化与决策迟滞计算各类负担热力。高热区取当前热力图负担值最高的20%区域，并按空间连续性聚类后展示面积最大的三个区域。影响源排序综合目标代理人的压力点贡献记录、邻近设施节点，以及人群密度、排队、步速下降、决策迟滞、疲劳增长、噪音和照度等区域因素。';
     return `
       <div class="report-method-note">
         <p><strong>${escapeHtml(methodLabel)}:</strong> ${escapeHtml(body)}</p>
@@ -11747,6 +12083,9 @@
       const getRegionPressurePoints = (index) => (
         (card.regionPressurePoints || []).find((group) => Number(group.index) === Number(index))?.points || []
       );
+      const getRegionInfluenceSources = (index) => (
+        (card.regionInfluenceSources || []).find((group) => Number(group.index) === Number(index))?.sources || getRegionPressurePoints(index)
+      );
       const buildPressureRankingMarkup = (points = [], includeMissedSignage = false) => {
         const missedItems = includeMissedSignage
           ? (card.missedSignageItems || []).filter((item) => item?.missedSignage)
@@ -11755,7 +12094,7 @@
         const rankingMarkup = ranking.length
           ? ranking.map((item) => `
               <li>
-                <span class="report-pressure-number report-pressure-number--filled" style="background:${escapeHtml(item.color)}">${escapeHtml(String(item.reportPressureNumber || item.pressureNumber || ''))}</span>
+                ${buildReportInfluenceSourceNumberBadge(item)}
                 <span>${escapeHtml(item.name)}</span>
               </li>
             `).join('')
@@ -11772,7 +12111,7 @@
         `;
       };
       const buildRegionPressureRanking = (index, includeMissedSignage = false) => {
-        const points = getRegionPressurePoints(index);
+        const points = getRegionInfluenceSources(index);
         return buildPressureRankingMarkup(points, includeMissedSignage);
       };
       const buildCompositeRegionRows = () => {
@@ -11784,7 +12123,7 @@
                 <strong>${escapeHtml(copy.burdenContributionRanking)}</strong>
                 <p>${card.ranking.slice(0, 5).map((item, index) => `${index + 1}. ${escapeHtml(item.burdenLabel)} ${escapeHtml(formatReportMetric(item.burdenScore))}`).join('<br />')}</p>
               </div>
-              ${buildPressureRankingMarkup(card.pressurePoints || [])}
+              ${buildPressureRankingMarkup(card.influenceSources || card.pressurePoints || [])}
             </div>
           `;
         }
@@ -11813,14 +12152,14 @@
         }
         const firstIssueIndex = Number(issues[0]?.index || 0);
         return issues.map((item) => {
-          const regionPoints = getRegionPressurePoints(item.index);
+          const regionSources = getRegionInfluenceSources(item.index);
           return `
             <div class="report-detail-region-row">
               <div class="report-detail-region-advice">
                 <strong>${escapeHtml(regionLabel)} ${escapeHtml(String(item.index))} · ${escapeHtml(topIssueLabel)}</strong>
                 <p>
                   <strong>${escapeHtml(phenomenonLabel)}:</strong> ${escapeHtml(item.title)}<br />
-                  <strong>${escapeHtml(causeLabel)}:</strong> ${regionPoints.length ? buildReportPressurePointReferenceListMarkup(regionPoints, 4) : escapeHtml(card.title)}<br />
+                  <strong>${escapeHtml(causeLabel)}:</strong> ${regionSources.length ? buildReportInfluenceSourceReferenceListMarkup(regionSources, 4) : escapeHtml(card.title)}<br />
                   <strong>${escapeHtml(adviceLabel)}:</strong> ${escapeHtml(item.advice || '')}<br />
                   <strong>${escapeHtml(expectedLabel)}:</strong> ${escapeHtml(locale === 'en' ? `Reduce local ${card.title} and make this route segment easier to pass.` : `降低该区域${card.title}，提升这一段路线的通过稳定性。`)}
                 </p>
@@ -11900,6 +12239,46 @@
       return '';
     }
     return items.map((point) => buildReportPressurePointReferenceMarkup(point)).join(' ');
+  }
+
+  function buildReportInfluenceSourceNumberBadge(source) {
+    if (!source) {
+      return '';
+    }
+    const label = source.displayNumber
+      || (source.sourceType === 'pressure' ? String(source.reportPressureNumber || source.pressureNumber || '') : String(source.sourceNumber || ''));
+    return `<span class="report-pressure-number report-pressure-number--filled report-influence-number report-influence-number--${escapeHtml(source.sourceType || 'pressure')}" style="background:${escapeHtml(source.color || '#c9d1d8')}">${escapeHtml(label)}</span>`;
+  }
+
+  function buildReportInfluenceSourceReferenceMarkup(source) {
+    if (!source) {
+      return '';
+    }
+    return `<span class="report-pressure-ref report-influence-ref">${buildReportInfluenceSourceNumberBadge(source)}<span>${escapeHtml(source.name || source.categoryLabel || source.id || '')}</span></span>`;
+  }
+
+  function buildReportInfluenceSourceReferenceListMarkup(sources = [], limit = 6) {
+    const items = (Array.isArray(sources) ? sources : []).slice(0, limit);
+    if (!items.length) {
+      return '';
+    }
+    return items.map((source) => buildReportInfluenceSourceReferenceMarkup(source)).join(' ');
+  }
+
+  function buildReportInfluenceSourceCauseText(sources = [], locale = getReportLocale()) {
+    const primary = Array.isArray(sources) && sources.length ? sources[0] : null;
+    if (!primary) {
+      return locale === 'en' ? 'local route conditions' : '该区域的通行状态';
+    }
+    if (primary.reasonLabel) {
+      return primary.reasonLabel;
+    }
+    if (primary.sourceType === 'node') {
+      return locale === 'en'
+        ? `${primary.name} and its nearby transfer, queueing, or route-choice condition`
+        : `${primary.name}及其附近的换乘、排队或路线选择状态`;
+    }
+    return primary.name || primary.categoryLabel || (locale === 'en' ? 'the main influence source' : '主要影响源');
   }
 
   function buildReportFrontMarkupList(items = []) {
@@ -12607,8 +12986,14 @@
       .report-decision-dot { fill:#111; stroke:#111; stroke-width:0.18; }
       .report-pressure-dot { stroke:#111; stroke-width:0.2; }
       .report-pressure-marker text { fill:#111; font-size:2.1px; text-anchor:middle; dominant-baseline:central; font-weight:900; stroke:none; }
+      .report-node-marker circle { stroke:#111; stroke-width:0.32; fill-opacity:0.9; }
+      .report-area-marker circle { stroke:#111; stroke-width:0.24; fill-opacity:0.26; stroke-dasharray:1.2 0.8; }
+      .report-node-marker text, .report-area-marker text { fill:#111; font-size:2.2px; text-anchor:middle; dominant-baseline:central; font-weight:900; stroke:none; }
       .report-pressure-number { display:inline-grid; place-items:center; min-width:14px; height:14px; margin-right:4px; border-radius:999px; border:1px solid #111; font-size:8px; font-weight:800; }
       .report-pressure-number--filled { width:14px; min-width:14px; color:#111; font-size:9px; font-weight:900; line-height:1; }
+      .report-influence-number { font-size:8px; padding:0 1px; }
+      .report-influence-number--area { color:#111; }
+      .report-influence-number--node { color:#111; }
       .report-pressure-ref { display:inline-flex; align-items:center; gap:1mm; margin:0 1mm 0.8mm 0; vertical-align:middle; font-weight:800; white-space:nowrap; }
       .report-pressure-ref .report-pressure-number { margin-right:0; }
       .report-heat-raster { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
