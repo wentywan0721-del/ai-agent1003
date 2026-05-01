@@ -14,7 +14,7 @@ const {
   getLlmProviderConfig,
 } = require('./llm-decision-plan.js');
 
-const HEATMAP_ENGINE_VERSION = 'node-cache-v47';
+const HEATMAP_ENGINE_VERSION = 'node-cache-v48';
 const BACKGROUND_FIELD_ENGINE_VERSION = 'background-field-v27';
 const BACKGROUND_FIELD_BUCKET_CROWD_COUNTS = Object.freeze([500, 1000, 1500, 2000]);
 const BACKGROUND_FIELD_FRAME_STEP_SECONDS = 0.42;
@@ -292,6 +292,7 @@ function serializePlaybackResult(playback, meta = {}) {
     heat: {
       traceSnapshots: Array.isArray(playback?.traceSnapshots) ? playback.traceSnapshots.map((item) => ({ ...item })) : [],
       pressureContributionLog: Array.isArray(playback?.pressureContributionLog) ? playback.pressureContributionLog.map((item) => ({ ...item })) : [],
+      influenceContributionLog: Array.isArray(playback?.influenceContributionLog) ? playback.influenceContributionLog.map((item) => ({ ...item })) : [],
       pressureRange: playback?.pressureRange ? { ...playback.pressureRange } : { min: 0, max: 0 },
       duration: Number(playback?.duration || 0),
       startTime: Number(playback?.startTime || 0),

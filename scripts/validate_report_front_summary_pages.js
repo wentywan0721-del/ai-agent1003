@@ -27,7 +27,7 @@ assert(
 );
 
 assert(
-  indexHtml.includes('./src/app.js?v=20260429-report-layout-a4'),
+  indexHtml.includes('./src/app.js?v=20260429-report-llm-detail-fix'),
   'Expected index.html to load the current report-layout app.js cache-busted URL'
 );
 

@@ -28,8 +28,8 @@ assert(
 assert(
   coreJs.includes('pressureContributionLog: Array.isArray(workingScenario.focusPressureContributionLog)')
     && runnerJs.includes('pressureContributionLog: Array.isArray(playback?.pressureContributionLog)')
-    && runnerJs.includes("const HEATMAP_ENGINE_VERSION = 'node-cache-v47';")
-    && serverJs.includes("const EXPECTED_HEATMAP_ENGINE_VERSION = 'node-cache-v47';"),
+    && runnerJs.includes("const HEATMAP_ENGINE_VERSION = 'node-cache-v48';")
+    && serverJs.includes("const EXPECTED_HEATMAP_ENGINE_VERSION = 'node-cache-v48';"),
   'Expected playback serialization and cache version to include the new contribution log'
 );
 
@@ -62,11 +62,11 @@ assert(
 
 assert(
   appJs.includes('function buildEvidenceBasedRegionIssueAdvice(')
-    && appJs.includes('dominantPressure')
+    && appJs.includes('sourceText')
     && appJs.includes('regionIntensity')
     && appJs.includes('regionDescriptor')
-    && appJs.includes('regionPressurePoints.find((group) => Number(group.index) === Number(region.index))?.points || []'),
-  'Expected detailed burden issue/advice text to be generated per high-heat region from burden type, region intensity, and influencing pressure points'
+    && appJs.includes('regionInfluenceSources.find((group) => Number(group.index) === Number(region.index))?.sources || []'),
+  'Expected detailed burden issue/advice text to be generated per high-heat region from burden type, region intensity, and unified influence sources'
 );
 
 assert(

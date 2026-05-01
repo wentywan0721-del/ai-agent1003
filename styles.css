@@ -548,7 +548,7 @@ select {
   margin-top: 14px;
   padding: 13px 14px;
   display: grid;
-  grid-template-columns: 42px 1fr auto;
+  grid-template-columns: 28px 1fr;
   align-items: center;
   gap: 12px;
   border: 1px solid rgba(76, 200, 255, 0.2);
@@ -568,13 +568,12 @@ select {
 }
 
 .settings-spatial-editor-entry__icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
-  background: rgba(56, 210, 235, 0.12);
-  border: 1px solid rgba(56, 210, 235, 0.24);
+  background: transparent;
+  border: 0;
 }
 
 .settings-spatial-editor-entry__icon svg {
@@ -603,17 +602,6 @@ select {
   font-size: 10.5px;
   line-height: 1.35;
   color: rgba(223, 236, 242, 0.62);
-}
-
-.settings-spatial-editor-entry__arrow {
-  color: #70ddff;
-  font-size: 16px;
-  transform: translateX(0);
-  transition: transform 180ms ease;
-}
-
-.settings-spatial-editor-entry:hover .settings-spatial-editor-entry__arrow {
-  transform: translateX(3px);
 }
 
 .settings-route-fields {
@@ -1067,7 +1055,7 @@ select {
 }
 
 .settings-card--route-stage .route-modal-node-label {
-  fill: rgba(103, 111, 120, 0.96);
+  fill: rgba(8, 12, 16, 0.96);
   font-size: 1.38px;
   font-weight: 600;
   paint-order: stroke fill;
@@ -1101,6 +1089,8 @@ select {
 .spatial-editor-panel {
   display: grid;
   gap: 18px;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  align-content: stretch;
   overflow: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(146, 163, 178, 0.55) transparent;
@@ -1178,6 +1168,82 @@ select {
   white-space: nowrap;
 }
 
+.spatial-editor-field {
+  width: 100%;
+  height: 36px;
+  min-height: 36px;
+  border: 1px solid rgba(72, 83, 101, 0.5);
+  border-radius: 10px;
+  background: rgba(20, 26, 37, 0.78);
+  color: hsl(210 20% 92%);
+  font-size: 12px;
+  line-height: 34px;
+  padding: 0 12px;
+  outline: none;
+}
+
+.spatial-editor-field:focus {
+  border-color: rgba(56, 210, 235, 0.34);
+  box-shadow: 0 0 0 3px rgba(56, 210, 235, 0.08);
+  background: rgba(20, 26, 37, 0.78);
+}
+
+.spatial-editor-field:disabled {
+  color: rgba(223, 236, 242, 0.42);
+  border-color: rgba(126, 164, 193, 0.16);
+  background: rgba(255, 255, 255, 0.025);
+  cursor: not-allowed;
+}
+
+.spatial-editor-field--number {
+  min-width: 0;
+  text-align: right;
+}
+
+.spatial-editor-field--select {
+  appearance: none;
+  cursor: pointer;
+  min-height: 32px;
+  padding: 0 34px 0 10px;
+  border-color: rgba(56, 210, 235, 0.42);
+  background-color: rgba(20, 26, 37, 0.78);
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(56, 210, 235, 0.92) 50%),
+    linear-gradient(135deg, rgba(56, 210, 235, 0.92) 50%, transparent 50%);
+  background-position:
+    calc(100% - 12px) calc(50% - 2px),
+    calc(100% - 7px) calc(50% - 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  font-weight: 500;
+}
+
+.spatial-editor-field--select:focus {
+  border-color: rgba(56, 210, 235, 0.78);
+  box-shadow: none;
+  background-color: rgba(20, 26, 37, 0.78);
+}
+
+.spatial-editor-field--select option {
+  color: #ffffff;
+  background: #141a25;
+}
+
+.spatial-editor-coordinate-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  color: rgba(223, 236, 242, 0.72);
+}
+
+#spatial-editor-object-coord {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
+  gap: 8px;
+  white-space: normal;
+}
+
 .spatial-editor-parameter-list {
   margin-top: 14px;
   display: grid;
@@ -1198,8 +1264,52 @@ select {
   accent-color: #4cc8ff;
 }
 
+.spatial-editor-parameter-row.is-disabled {
+  opacity: 0.48;
+}
+
+.spatial-editor-parameter-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 58px;
+  gap: 8px;
+  align-items: center;
+}
+
+.spatial-editor-parameter-control input[type="range"] {
+  accent-color: #4cc8ff;
+}
+
+.spatial-editor-parameter-value {
+  height: 36px;
+  border: 1px solid rgba(72, 83, 101, 0.5);
+  border-radius: 10px;
+  background: rgba(20, 26, 37, 0.78);
+  color: hsl(210 20% 92%);
+  font-size: 12px;
+  text-align: center;
+  outline: none;
+}
+
+.spatial-editor-parameter-value:focus {
+  border-color: rgba(56, 210, 235, 0.34);
+  box-shadow: 0 0 0 3px rgba(56, 210, 235, 0.08);
+  background: rgba(20, 26, 37, 0.78);
+}
+
+.spatial-editor-parameter-value:disabled {
+  color: rgba(223, 236, 242, 0.38);
+  background: rgba(255, 255, 255, 0.025);
+}
+
 .spatial-editor-action-stack {
   display: grid;
+  gap: 8px;
+}
+
+.spatial-editor-panel-actions {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
@@ -1220,8 +1330,27 @@ select {
   color: #ffffff;
 }
 
+.spatial-editor-panel-actions button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(76, 200, 255, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(238, 247, 250, 0.8);
+  cursor: pointer;
+  font-size: 11px;
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.spatial-editor-panel-actions button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(76, 200, 255, 0.42);
+  background: rgba(76, 200, 255, 0.14);
+  color: #ffffff;
+}
+
 .spatial-editor-status {
-  margin-top: 10px;
+  margin-top: -12px;
   color: rgba(223, 236, 242, 0.58);
   font-size: 10.5px;
   line-height: 1.55;
@@ -1297,7 +1426,13 @@ select {
   border: 0;
   border-radius: inherit;
   overflow: hidden;
-  background: transparent;
+  background-color: rgba(9, 20, 28, 0.74);
+  background-image:
+    linear-gradient(rgba(112, 221, 255, 0.08) 0.4px, transparent 0.4px),
+    linear-gradient(90deg, rgba(112, 221, 255, 0.08) 0.4px, transparent 0.4px);
+  background-size: 14px 14px;
+  background-position: 0 0;
+  touch-action: none;
 }
 
 .spatial-editor-map {
@@ -1305,6 +1440,43 @@ select {
   height: 100%;
   display: block;
   touch-action: none;
+  pointer-events: none;
+}
+
+.spatial-editor-interaction-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  cursor: crosshair;
+  touch-action: none;
+  background: transparent;
+}
+
+.spatial-editor-hit-plane {
+  fill: rgba(255, 255, 255, 0.001);
+  pointer-events: all;
+}
+
+.spatial-editor-stage .walkable-shape {
+  fill: none;
+  stroke: rgba(226, 233, 238, 0.78);
+  stroke-width: 0.5px;
+}
+
+.spatial-editor-stage .obstacle-shape {
+  fill: none;
+  stroke: rgba(226, 233, 238, 0.62);
+  stroke-width: 0.5px;
+}
+
+.spatial-editor-stage .spatial-editor-boundary--active-walkable {
+  stroke: #70ddff;
+  stroke-width: 0.8px;
+}
+
+.spatial-editor-stage .spatial-editor-boundary--active-obstacle {
+  stroke: #f2c54d;
+  stroke-width: 0.8px;
 }
 
 .spatial-editor-map__grid {
@@ -1355,6 +1527,11 @@ select {
   stroke-width: 0.22px;
 }
 
+.spatial-editor-object--node.active [data-editor-shape] {
+  stroke: #ffffff;
+  stroke-width: 0.72px;
+}
+
 .spatial-editor-object--pressure [data-editor-shape] {
   stroke: rgba(18, 20, 23, 0.72);
   stroke-width: 0.24px;
@@ -1362,6 +1539,11 @@ select {
 
 .spatial-editor-pressure-point {
   opacity: 0.96;
+}
+
+.spatial-editor-pressure-hit {
+  fill: rgba(255, 255, 255, 0.001);
+  pointer-events: all;
 }
 
 .spatial-editor-object--pressure-warm [data-editor-shape] {
@@ -1375,9 +1557,36 @@ select {
   stroke-width: 2;
 }
 
+.spatial-editor-object--boundary-point [data-editor-shape] {
+  fill: rgba(20, 26, 37, 0.94);
+  stroke: #ffffff;
+  stroke-width: 0.6px;
+}
+
+.spatial-editor-object--boundary-point.active [data-editor-shape] {
+  fill: #ffffff;
+  stroke: #70ddff;
+  stroke-width: 0.75px;
+}
+
+.spatial-editor-boundary-hit {
+  fill: rgba(255, 255, 255, 0.001);
+  pointer-events: all;
+}
+
 .spatial-editor-object.active [data-editor-shape] {
   stroke-width: 0.5px;
   filter: drop-shadow(0 0 10px rgba(76, 200, 255, 0.65));
+}
+
+.spatial-editor-object--node.active [data-editor-shape] {
+  stroke: #ffffff;
+  stroke-width: 0.72px;
+}
+
+.spatial-editor-object--pressure.active [data-editor-shape] {
+  stroke: #ffffff;
+  stroke-width: 0.72px;
 }
 
 .spatial-editor-object text {
@@ -1406,6 +1615,21 @@ select {
   border-color: rgba(76, 200, 255, 0.5);
   background: rgba(76, 200, 255, 0.18);
   color: #ffffff;
+}
+
+.spatial-editor-bottom-bar .spatial-editor-primary-action {
+  border: 0;
+  background: hsl(190 90% 50%) !important;
+  color: hsl(220 20% 7%) !important;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 0 15px rgba(56, 210, 235, 0.15), inset 0 0 15px rgba(56, 210, 235, 0.05);
+}
+
+.spatial-editor-bottom-bar .spatial-editor-primary-action:hover {
+  transform: translateY(-1px);
+  background: rgba(26, 219, 245, 0.92) !important;
+  color: hsl(220 20% 7%) !important;
 }
 
 @media (max-width: 1180px) {
@@ -2343,6 +2567,33 @@ input[type="number"]:focus,
 input[type="text"]:focus {
   border-color: rgba(104, 222, 255, 0.58);
   box-shadow: 0 0 0 3px rgba(104, 222, 255, 0.12);
+}
+
+.spatial-editor-screen .spatial-editor-field,
+.spatial-editor-screen .spatial-editor-field:focus,
+.spatial-editor-screen .spatial-editor-parameter-value,
+.spatial-editor-screen .spatial-editor-parameter-value:focus {
+  background: rgba(20, 26, 37, 0.92);
+  background-image: none;
+  color: hsl(210 20% 92%);
+}
+
+.spatial-editor-screen .spatial-editor-field--select,
+.spatial-editor-screen .spatial-editor-field--select:focus {
+  background-color: rgba(20, 26, 37, 0.92);
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(56, 210, 235, 0.92) 50%),
+    linear-gradient(135deg, rgba(56, 210, 235, 0.92) 50%, transparent 50%);
+  background-position:
+    calc(100% - 12px) calc(50% - 2px),
+    calc(100% - 7px) calc(50% - 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.spatial-editor-screen .spatial-editor-field:disabled,
+.spatial-editor-screen .spatial-editor-parameter-value:disabled {
+  background: rgba(255, 255, 255, 0.025);
 }
 
 .field-error {

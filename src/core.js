@@ -1181,6 +1181,11 @@
       movementMainCause,
       wallFollowStrength,
       nodeType,
+      nearestNodeId: nearestNode?.node?.id || nearestNode?.node?.semanticId || nearestNode?.semanticId || null,
+      nearestNodeLabel: nearestNode?.node?.label || nearestNode?.node?.name || nearestNode?.node?.semanticId || nearestNode?.semanticId || null,
+      nearestNodeX: Number(safeNumber(nearestNode?.node?.x, safeNumber(point?.x, 0)).toFixed(3)),
+      nearestNodeY: Number(safeNumber(nearestNode?.node?.y, safeNumber(point?.y, 0)).toFixed(3)),
+      nearestNodeDistance: Number(safeNumber(nearestNode?.distance, Number.NaN).toFixed(3)),
       wallDistance: Number(wallDistance.toFixed(3)),
       facilityEligibility,
     };
@@ -3273,6 +3278,11 @@
         movementSpeedFactor: Number(safeNumber(locomotorState.movementSpeedFactor, safeNumber(locomotorState.speedFactor, 1)).toFixed(3)),
         wallFollowStrength: Number(safeNumber(locomotorState.wallFollowStrength, 0).toFixed(3)),
         nodeType: locomotorState.nodeType || 'generic',
+        nearestNodeId: locomotorState.nearestNodeId || null,
+        nearestNodeLabel: locomotorState.nearestNodeLabel || null,
+        nearestNodeX: Number(safeNumber(locomotorState.nearestNodeX, 0).toFixed(3)),
+        nearestNodeY: Number(safeNumber(locomotorState.nearestNodeY, 0).toFixed(3)),
+        nearestNodeDistance: Number(safeNumber(locomotorState.nearestNodeDistance, Number.NaN).toFixed(3)),
         wallDistance: Number(safeNumber(locomotorState.wallDistance, 0).toFixed(3)),
         facilityEligibility: locomotorState.facilityEligibility
           ? { ...locomotorState.facilityEligibility }
@@ -8234,6 +8244,141 @@
     });
   }
 
+  function buildFormulaInfluenceContributionEntries(prepared, scenario, agent, pressureState, dimensionState) {
+    const entries = [];
+    const position = agent?.position || { x: 0, y: 0 };
+    const addEntry = (entry) => {
+      const contribution = Math.max(0, safeNumber(entry?.contribution, entry?.formulaContribution));
+      if (contribution < FOCUS_PRESSURE_CONTRIBUTION_THRESHOLD) {
+        return;
+      }
+      entries.push({
+        sourceType: entry.sourceType || 'area',
+        sourceId: entry.sourceId || entry.id || entry.componentKey,
+        id: entry.sourceId || entry.id || entry.componentKey,
+        sourceName: entry.sourceName || entry.name || entry.componentKey,
+        name: entry.sourceName || entry.name || entry.componentKey,
+        categoryLabel: entry.categoryLabel || null,
+        burdenType: entry.burdenType,
+        componentKey: entry.componentKey,
+        contribution: Number(contribution.toFixed(3)),
+        formulaContribution: Number(safeNumber(entry.formulaContribution, contribution).toFixed(3)),
+        value: Number(safeNumber(entry.value, contribution).toFixed(3)),
+        x: Number(safeNumber(entry.x, position.x).toFixed(3)),
+        y: Number(safeNumber(entry.y, position.y).toFixed(3)),
+        visible: Boolean(entry.visible ?? true),
+        inVisionRange: Boolean(entry.inVisionRange ?? true),
+        distance: Number(safeNumber(entry.distance, 0).toFixed(3)),
+      });
+    };
+    const addArea = (sourceId, sourceName, burdenType, componentKey, formulaValue, value = formulaValue) => {
+      addEntry({
+        sourceType: 'area',
+        sourceId,
+        sourceName,
+        burdenType,
+        componentKey,
+        contribution: Math.max(0, formulaValue) * 100,
+        formulaContribution: Math.max(0, formulaValue) * 100,
+        value,
+      });
+    };
+    const addPressure = (contribution, options = {}) => {
+      const serialized = serializePressureContributionSource(contribution, options);
+      if (!serialized.pressurePointId) {
+        return;
+      }
+      addEntry({
+        ...serialized,
+        sourceType: 'pressure',
+        sourceId: serialized.pressurePointId,
+        sourceName: serialized.name,
+        componentKey: serialized.sourceKind || 'pressure_contribution',
+        contribution: serialized.contribution,
+        formulaContribution: serialized.contribution,
+      });
+    };
+    (pressureState?.contributions || []).forEach((contribution) => {
+      addPressure(contribution, { burdenType: inferPressureContributionBurdenType(contribution) });
+    });
+    const locomotor = dimensionState?.burdens?.locomotor || {};
+    addArea('crowd_density', 'Local crowd density', 'locomotor', 'crowdResistance', safeNumber(locomotor.crowdResistance, 0), safeNumber(pressureState?.environment?.crowdDensityLocal, 0));
+    addArea('queue_spillover', 'Queue spillover', 'locomotor', 'queueResistance', safeNumber(locomotor.queueResistance, 0), safeNumber(agent?.queueCount, 0));
+    addArea('narrow_passage', 'Narrow passage', 'locomotor', 'narrowPassageResistance', safeNumber(locomotor.narrowPassageResistance, 0), safeNumber(locomotor.wallDistance, 0));
+    addArea('slow_walking', 'Reduced walking speed', 'locomotor', 'baseSpeedPenalty', safeNumber(locomotor.baseSpeedPenalty, 0) + safeNumber(locomotor.assistiveDeviceResistance, 0), safeNumber(agent?.currentWalkingSpeed, agent?.profile?.walkingSpeed));
+    if (safeNumber(locomotor.obstacleAvoidanceResistance, 0) > 0) {
+      addArea('narrow_passage', 'Narrow passage', 'locomotor', 'obstacleAvoidanceResistance', safeNumber(locomotor.obstacleAvoidanceResistance, 0), safeNumber(locomotor.wallDistance, 0));
+    }
+    if (safeNumber(locomotor.microJam, 0) > 0) {
+      addArea('crowd_density', 'Local crowd density', 'locomotor', 'microJam', safeNumber(locomotor.microJam, 0) / 100, safeNumber(pressureState?.environment?.crowdDensityLocal, 0));
+    }
+    const verticalContribution = safeNumber(locomotor.verticalTransferResistance, 0);
+    if (verticalContribution > 0) {
+      const nodeId = locomotor.nearestNodeId || locomotor.nodeType || 'vertical_transfer';
+      addEntry({
+        sourceType: 'node',
+        sourceId: nodeId,
+        sourceName: locomotor.nearestNodeLabel || locomotor.nodeType || 'Vertical transfer',
+        categoryLabel: locomotor.nodeType || 'node',
+        burdenType: 'locomotor',
+        componentKey: 'verticalTransferResistance',
+        contribution: verticalContribution * 100,
+        formulaContribution: verticalContribution * 100,
+        value: verticalContribution,
+        x: locomotor.nearestNodeX,
+        y: locomotor.nearestNodeY,
+        ...buildContributionVisibility(agent, { x: locomotor.nearestNodeX, y: locomotor.nearestNodeY }, locomotor.nearestNodeDistance),
+      });
+    }
+    const sensory = dimensionState?.burdens?.sensory || {};
+    addArea('noise_environment', 'Area noise level', 'sensory', 'noisePenalty', safeNumber(sensory.noisePenalty, 0), safeNumber(pressureState?.environment?.noiseLevel, 0));
+    addArea('lighting_environment', 'Area lighting comfort', 'sensory', 'lightingPenalty', safeNumber(sensory.lightingPenalty, 0), safeNumber(pressureState?.environment?.lightingLevel, 0));
+    addArea('crowd_density', 'Local crowd density', 'sensory', 'occlusionPenalty', safeNumber(sensory.occlusionPenalty, 0), safeNumber(pressureState?.environment?.crowdDensityLocal, 0));
+    addArea('decision_delay', 'Decision delay', 'sensory', 'visualClutterPenalty', safeNumber(sensory.visualClutterPenalty, 0), safeNumber(sensory.objectLoad, 0));
+    const cognitive = dimensionState?.burdens?.cognitive || {};
+    addArea('decision_delay', 'Decision delay', 'cognitive', 'branchComplexity', safeNumber(cognitive.branchComplexity, 0));
+    addArea('decision_delay', 'Decision delay', 'cognitive', 'signConflict', safeNumber(cognitive.signConflict, 0));
+    addArea('decision_delay', 'Decision delay', 'cognitive', 'pathComparisonCost', safeNumber(cognitive.pathComparisonCost, 0));
+    addArea('decision_delay', 'Decision delay', 'cognitive', 'distractorLoad', safeNumber(cognitive.distractorLoad, 0));
+    addArea('noise_environment', 'Area noise level', 'cognitive', 'noisePenalty', safeNumber(cognitive.noisePenalty, 0), safeNumber(pressureState?.environment?.noiseLevel, 0));
+    addArea('lighting_environment', 'Area lighting comfort', 'cognitive', 'lightingPenalty', safeNumber(cognitive.lightingPenalty, 0), safeNumber(pressureState?.environment?.lightingLevel, 0));
+    addArea('crowd_density', 'Local crowd density', 'cognitive', 'crowdPenalty', safeNumber(cognitive.crowdPenalty, 0), safeNumber(pressureState?.environment?.crowdDensityLocal, 0));
+    addArea('queue_spillover', 'Queue spillover', 'cognitive', 'queueUncertainty', safeNumber(cognitive.queueUncertainty, 0), safeNumber(agent?.queueCount, 0));
+    const psychological = dimensionState?.burdens?.psychological || {};
+    addArea('noise_environment', 'Area noise level', 'psychological', 'noiseStress', safeNumber(psychological.noiseStress, 0));
+    addArea('lighting_environment', 'Area lighting comfort', 'psychological', 'lightingStress', safeNumber(psychological.lightingStress, 0));
+    addArea('crowd_density', 'Local crowd density', 'psychological', 'crowdStress', safeNumber(psychological.crowdStress, 0));
+    addArea('queue_spillover', 'Queue spillover', 'psychological', 'queueStress', safeNumber(psychological.queueStress, 0));
+    addArea('decision_delay', 'Decision delay', 'psychological', 'environmentalStress', safeNumber(psychological.environmentalStress, 0));
+    const vitality = dimensionState?.burdens?.vitality || {};
+    addArea('fatigue_growth', 'Fatigue growth', 'vitality', 'fatigueRatioPercent', safeNumber(vitality.fatigueRatioPercent, 0) / 100, safeNumber(vitality.fatigueRatioPercent, 0));
+    addArea('fatigue_growth', 'Fatigue growth', 'vitality', 'fatigueRateMultiplier', Math.max(0, safeNumber(vitality.fatigueRateMultiplier, 1) - 1), safeNumber(vitality.fatigueRateMultiplier, 1));
+    addArea('slow_walking', 'Reduced walking speed', 'vitality', 'locomotorFatigueMultiplier', Math.max(0, safeNumber(vitality.locomotorFatigueMultiplier, 1) - 1), safeNumber(vitality.locomotorFatigueMultiplier, 1));
+    return entries;
+  }
+
+  function recordFocusInfluenceContributionLog(prepared, scenario, agent, pressureState, dimensionState) {
+    if (!agent?.isFocusAgent || !scenario?.heatActive || !dimensionState) {
+      return;
+    }
+    if (!Array.isArray(scenario.focusInfluenceContributionLog)) {
+      scenario.focusInfluenceContributionLog = [];
+    }
+    const entries = buildFormulaInfluenceContributionEntries(prepared, scenario, agent, pressureState, dimensionState);
+    entries.forEach((entry) => {
+      scenario.focusInfluenceContributionLog.push({
+        ...entry,
+        time: Number(safeNumber(scenario.time, 0).toFixed(3)),
+        x: Number(safeNumber(agent.position?.x, 0).toFixed(3)),
+        y: Number(safeNumber(agent.position?.y, 0).toFixed(3)),
+        sourceX: Number(safeNumber(entry.x, agent.position?.x).toFixed(3)),
+        sourceY: Number(safeNumber(entry.y, agent.position?.y).toFixed(3)),
+        progress: Number(getDisplayedAgentProgress(scenario, agent).toFixed(4)),
+      });
+    });
+    trimTraceSeriesPreservingStart(scenario.focusInfluenceContributionLog, MAX_TRACE_POINTS * 10);
+  }
+
   function recordFocusPressureContributionLog(prepared, scenario, agent, pressureState, dimensionState) {
     if (!agent?.isFocusAgent || !scenario?.heatActive || !pressureState) {
       return;
@@ -8345,6 +8490,7 @@
       pressureState: localPressure,
     });
     recordFocusPressureContributionLog(prepared, scenario, agent, localPressure, dimensionState);
+    recordFocusInfluenceContributionLog(prepared, scenario, agent, localPressure, dimensionState);
     scenario.focusTrace.push({ x: agent.position.x, y: agent.position.y });
     trimTraceSeriesPreservingStart(scenario.focusTrace, MAX_TRACE_POINTS);
     const shortRestMarker = agent.pendingShortRestMarker ? { ...agent.pendingShortRestMarker } : null;
@@ -9645,6 +9791,7 @@
     scenario.focusTrace = [];
     scenario.focusTraceSnapshots = [];
     scenario.focusPressureContributionLog = [];
+    scenario.focusInfluenceContributionLog = [];
     scenario.hotspots = [];
     scenario.suggestions = [];
     scenario.pressureImpactMap = {};
@@ -9749,6 +9896,9 @@
       traceSnapshots,
       pressureContributionLog: Array.isArray(workingScenario.focusPressureContributionLog)
         ? workingScenario.focusPressureContributionLog.map((item) => ({ ...item }))
+        : [],
+      influenceContributionLog: Array.isArray(workingScenario.focusInfluenceContributionLog)
+        ? workingScenario.focusInfluenceContributionLog.map((item) => ({ ...item }))
         : [],
       pressureRange: {
         min: pressureValues.length ? Math.min(...pressureValues) : 0,

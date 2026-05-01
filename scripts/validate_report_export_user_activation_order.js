@@ -15,10 +15,14 @@ assert(handleExportMatch, 'Expected handleExportReport function to exist');
 const handleExportBody = handleExportMatch[1];
 
 const reserveHtmlIndex = handleExportBody.indexOf('reservedHtmlFileHandle = await reserveReportHtmlFileHandle(fileName);');
-const ensureIndex = handleExportBody.indexOf('await ensureRouteAnalysisForCurrentState(reportLocale);');
+const ensureIndex = handleExportBody.indexOf('await ensureRouteAnalysisForCurrentState(reportLocale, { throwOnError: true });');
 
 assert(reserveHtmlIndex >= 0, 'Expected HTML export to reserve showSaveFilePicker before LLM analysis');
 assert(ensureIndex >= 0, 'Expected export to still refresh LLM analysis before writing the final report');
+assert(
+  handleExportBody.includes('assertReportLlmAnalysisReady(exportReportData, reportLocale);'),
+  'Expected export to block final writing when LLM report analysis is incomplete'
+);
 assert(
   reserveHtmlIndex < ensureIndex,
   'Expected browser user-activation APIs to be called before awaiting route analysis for HTML export'

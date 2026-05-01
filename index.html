@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>璁ょ煡璐熻嵎妯℃嫙鍣?/ untitled</title>
-    <link rel="stylesheet" href="styles.css?v=20260423-packedfix1" />
+  <link rel="stylesheet" href="styles.css?v=20260501-report-detail-pass1" />
   </head>
   <body>
     <button id="screen-locale-toggle" class="screen-locale-toggle" type="button">EN</button>
@@ -65,19 +65,15 @@
           <button id="settings-spatial-editor-btn" class="settings-spatial-editor-entry" type="button">
             <span class="settings-spatial-editor-entry__icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
-                <path d="M4 4h16v16H4z"></path>
-                <path d="M4 10h16"></path>
-                <path d="M10 4v16"></path>
-                <path d="M14.5 14.5l3.5-3.5 2 2-3.5 3.5-2.8.8.8-2.8z"></path>
-                <circle cx="7" cy="7" r="1.2"></circle>
-                <circle cx="17" cy="7" r="1.2"></circle>
+                <path d="M15.5 4.5l4 4"></path>
+                <path d="M4 20l4.8-1.1L19.2 8.5l-3.7-3.7L5.1 15.2z"></path>
+                <path d="M13.8 6.2l3.9 3.9"></path>
               </svg>
             </span>
             <span class="settings-spatial-editor-entry__copy">
               <strong data-i18n="spatialEditor.entryTitle">Edit Spatial Model</strong>
               <small data-i18n="spatialEditor.entryHint">Adjust boundaries, nodes, and pressure point parameters</small>
             </span>
-            <span class="settings-spatial-editor-entry__arrow" aria-hidden="true">→</span>
           </button>
 
           <div class="settings-card__divider" aria-hidden="true"></div>
@@ -176,7 +172,7 @@
           <section class="spatial-editor-panel__block">
             <h3 data-i18n="spatialEditor.modeTitle">Edit Mode</h3>
             <div class="spatial-editor-mode-grid">
-              <button class="spatial-editor-mode active" type="button" data-spatial-editor-tool="select" data-i18n="spatialEditor.toolSelect">Select</button>
+              <button class="spatial-editor-mode active" type="button" data-spatial-editor-tool="select" data-i18n="spatialEditor.toolSelect">Preview</button>
               <button class="spatial-editor-mode" type="button" data-spatial-editor-tool="boundary" data-i18n="spatialEditor.toolBoundary">Boundary</button>
               <button class="spatial-editor-mode" type="button" data-spatial-editor-tool="node" data-i18n="spatialEditor.toolNode">Node</button>
               <button class="spatial-editor-mode" type="button" data-spatial-editor-tool="pressure" data-i18n="spatialEditor.toolPressure">Pressure Point</button>
@@ -200,38 +196,26 @@
               </div>
             </dl>
             <div class="spatial-editor-parameter-list">
-              <label>
+              <label class="spatial-editor-parameter-row">
                 <span data-i18n="spatialEditor.paramNoise">Noise</span>
-                <input id="spatial-editor-noise" type="range" min="0" max="100" value="48" />
+                <div class="spatial-editor-parameter-control">
+                  <input id="spatial-editor-noise" type="range" min="0" max="100" value="0" data-spatial-editor-param="decibel" disabled />
+                  <input id="spatial-editor-noise-value" class="spatial-editor-parameter-value" type="number" min="0" max="100" step="1" value="0" data-spatial-editor-param="decibel" disabled />
+                </div>
               </label>
-              <label>
+              <label class="spatial-editor-parameter-row">
                 <span data-i18n="spatialEditor.paramLight">Lighting</span>
-                <input id="spatial-editor-light" type="range" min="0" max="100" value="62" />
-              </label>
-              <label>
-                <span data-i18n="spatialEditor.paramAds">Ad Interference</span>
-                <input id="spatial-editor-ads" type="range" min="0" max="100" value="36" />
-              </label>
-              <label>
-                <span data-i18n="spatialEditor.paramSignage">Signage Impact</span>
-                <input id="spatial-editor-signage" type="range" min="0" max="100" value="74" />
+                <div class="spatial-editor-parameter-control">
+                  <input id="spatial-editor-light" type="range" min="0" max="1600" value="0" data-spatial-editor-param="lux" disabled />
+                  <input id="spatial-editor-light-value" class="spatial-editor-parameter-value" type="number" min="0" max="1600" step="10" value="0" data-spatial-editor-param="lux" disabled />
+                </div>
               </label>
             </div>
-          </section>
-
-          <section class="spatial-editor-panel__block">
-            <h3 data-i18n="spatialEditor.versionTitle">Version & Results</h3>
-            <div class="spatial-editor-action-stack">
-              <button type="button" data-spatial-editor-action="save" data-i18n="spatialEditor.saveCurrent">Save Current Scheme</button>
-              <button type="button" data-spatial-editor-action="saveAs" data-i18n="spatialEditor.saveAs">Save as New Scheme</button>
-              <button type="button" data-spatial-editor-action="history" data-i18n="spatialEditor.viewHistory">View Simulation History</button>
-            </div>
-            <div id="spatial-editor-status" class="spatial-editor-status" data-i18n="spatialEditor.statusIdle">Prototype mode: changes are local preview only.</div>
           </section>
 
           <section class="spatial-editor-panel__block spatial-editor-result-library">
             <h3 data-i18n="spatialEditor.libraryTitle">Scheme Result Library</h3>
-            <button class="spatial-editor-result active" type="button">
+            <button class="spatial-editor-result" type="button">
               <strong data-i18n="spatialEditor.libraryItemA">Scheme A · Gate to Platform</strong>
               <span data-i18n="spatialEditor.libraryMetaA">500 ppl · balanced profile · 02:18</span>
             </button>
@@ -243,16 +227,18 @@
               <strong data-i18n="spatialEditor.libraryItemC">Scheme C · Signage Revision</strong>
               <span data-i18n="spatialEditor.libraryMetaC">1500 ppl · sensory focus · 04:10</span>
             </button>
-            <div class="spatial-editor-result-actions">
-              <button type="button" data-spatial-editor-action="openHeatmap" data-i18n="spatialEditor.openHeatmap">Open Historical Heatmap</button>
-              <button type="button" data-spatial-editor-action="copyScheme" data-i18n="spatialEditor.copyScheme">Copy as New Scheme</button>
-            </div>
           </section>
+
+          <div class="spatial-editor-panel-actions">
+            <button type="button" data-spatial-editor-action="save" data-i18n="spatialEditor.saveCurrent">Save Current Scheme</button>
+            <button type="button" data-spatial-editor-action="saveAs" data-i18n="spatialEditor.saveAs">Save as New Scheme</button>
+          </div>
+          <div id="spatial-editor-status" class="spatial-editor-status" data-i18n="spatialEditor.statusIdle">Prototype mode: changes are local preview only.</div>
         </aside>
 
         <section class="settings-card settings-card--route-stage spatial-editor-stage">
           <div class="spatial-editor-toolbar" aria-label="Spatial editor toolbar">
-            <button class="active" type="button" data-spatial-editor-tool="select" data-i18n="spatialEditor.toolbarSelect">Select</button>
+            <button class="active" type="button" data-spatial-editor-tool="selectObject" data-i18n="spatialEditor.toolbarSelect">Select</button>
             <button type="button" data-spatial-editor-tool="move" data-i18n="spatialEditor.toolbarMove">Move</button>
             <button type="button" data-spatial-editor-tool="addPressure" data-i18n="spatialEditor.toolbarAddPressure">Add Pressure Point</button>
             <button type="button" data-spatial-editor-tool="delete" data-i18n="spatialEditor.toolbarDelete">Delete</button>
@@ -262,12 +248,12 @@
 
           <div id="spatial-editor-route-map-stage" class="settings-route-map-stage spatial-editor-map-shell">
             <svg id="spatial-editor-route-map" class="settings-route-map spatial-editor-map" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Spatial model editor preview"></svg>
+            <div id="spatial-editor-interaction-layer" class="spatial-editor-interaction-layer" aria-hidden="true"></div>
           </div>
 
           <div class="spatial-editor-bottom-bar">
-            <button id="spatial-editor-return-settings-btn" type="button" data-i18n="spatialEditor.returnSettings">Return to Route Settings</button>
             <button type="button" data-spatial-editor-action="save" data-i18n="spatialEditor.saveChanges">Save Changes</button>
-            <button type="button" data-spatial-editor-action="simulate" data-i18n="spatialEditor.simulateCurrent">Start Simulation from Current Scheme</button>
+            <button class="spatial-editor-primary-action" type="button" data-spatial-editor-action="simulate" data-i18n="spatialEditor.simulateCurrent">Start Simulation from Current Scheme</button>
           </div>
         </section>
       </div>
@@ -808,7 +794,7 @@
     <script src="./data/unified-rules.js"></script>
     <script src="./src/core.js"></script>
     <script src="./src/inspector-utils.js"></script>
-    <script src="./src/app.js?v=20260429-report-layout-a4"></script>
+  <script src="./src/app.js?v=20260501-report-detail-pass1"></script>
   </body>
 </html>
 

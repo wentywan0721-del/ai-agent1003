@@ -7,6 +7,7 @@
   const DEFAULT_HEAT_OPTIONS = { warmupSeconds: 48, warmupDt: 0.25 };
   const LOCAL_SIM_SERVER_ORIGIN = 'http://127.0.0.1:8891';
   const LOCAL_SIM_SERVER_REQUEST_TIMEOUT_MS = 15000;
+  const LOCAL_SIM_SERVER_REPORT_ANALYSIS_TIMEOUT_MS = 180000;
   const LOCAL_SIM_SERVER_HEATMAP_REQUEST_TIMEOUT_MS = 120000;
   const LOCAL_SIM_SERVER_JOB_POLL_INTERVAL_MS = 180;
   const LOCAL_SIM_SERVER_JOB_RETRY_LIMIT = 8;
@@ -38,6 +39,7 @@
   const HEAT_VALUE_STOPS = [0, 10, 20, 35, 55, 80, 130];
   const REPORT_HIGH_HEAT_TOP_PERCENT = 0.2;
   const REPORT_DETAIL_HIGH_REGION_LIMIT = 3;
+  const REPORT_ANALYSIS_SCHEMA_VERSION = 'detail-region-llm-v5';
   const REPORT_BURDEN_LEVEL_STOPS = Object.freeze([
     { max: 20, color: '#264f87', zh: '低负担', en: 'Low burden' },
     { max: 40, color: '#4f9bb8', zh: '中低负担', en: 'Medium-low burden' },
@@ -749,6 +751,9 @@
       llmAnalysisPromise: null,
       llmAnalysisKey: '',
       llmAnalysisRequestKey: '',
+      detailAnalysisPending: false,
+      detailAnalysisPromise: null,
+      detailAnalysisRequestKey: '',
       suppressNextReportLanguageTriggerClick: false,
       suppressNextReportLanguageMenuClick: false,
       suppressNextReportFormatTriggerClick: false,
@@ -998,11 +1003,11 @@
       spatialEditor: {
         entryTitle: '编辑空间模型',
         entryHint: '调整边界、节点与压力点参数',
-        eyebrow: '空间模型',
+        eyebrow: '编辑器',
         title: '空间模型编辑',
         back: '返回路线设置',
         modeTitle: '编辑模式',
-        toolSelect: '选择',
+        toolSelect: '预览',
         toolBoundary: '边界编辑',
         toolNode: 'Node 编辑',
         toolPressure: '压力点编辑',
@@ -1018,18 +1023,18 @@
         saveCurrent: '保存当前方案',
         saveAs: '另存为新方案',
         viewHistory: '查看历史模拟结果',
-        libraryTitle: '方案结果库',
-        libraryItemA: '方案 A · 闸机至乘车点',
+        libraryTitle: '历史结果库',
+        libraryItemA: 'A 入口至荃湾线',
         libraryMetaA: '500 人流 · 均衡画像 · 02:18',
-        libraryItemB: '方案 B · 出口 C 换乘',
+        libraryItemB: 'B 入口至柴湾方向',
         libraryMetaB: '1000 人流 · 低行动能力 · 06:42',
-        libraryItemC: '方案 C · 标识优化',
+        libraryItemC: 'C 入口至坚尼地城方向',
         libraryMetaC: '1500 人流 · 感知敏感 · 04:10',
         openHeatmap: '直接打开历史热力图',
         copyScheme: '复制为新方案',
         toolbarSelect: '选择',
         toolbarMove: '移动',
-        toolbarAddPressure: '新增压力点',
+        toolbarAddPressure: '新增',
         toolbarDelete: '删除',
         toolbarUndo: '撤销',
         toolbarReset: '重置',
@@ -1045,6 +1050,21 @@
         statusSimulate: '已选择基于当前方案开始模拟，当前阶段不提交后台计算。',
         statusUndo: '已撤销最近一次前端演示操作。',
         statusReset: '地图对象已重置为演示初始状态。',
+        noNodeSelected: '未选择 Node',
+        noPressureSelected: '未选择压力点',
+        spatialEditorPressureParameter: '压力点参数',
+        defaultNodeName: '新建 Node',
+        defaultPressureName: '新建压力点',
+        defaultBoundaryPointName: '边界控制点',
+        boundaryTypeWalkable: '步行区域边界线',
+        boundaryTypeObstacle: '障碍边界线',
+        nodeTypeEntryGate: '入口闸机',
+        nodeTypeExitGate: '出口闸机',
+        nodeTypeEscalatorUp: '扶梯上行',
+        nodeTypeEscalatorDown: '扶梯下行',
+        nodeTypeElevator: '电梯',
+        nodeTypeStair: '楼梯',
+        nodeTypeBoarding: '乘车点',
       },
       loading: {
         section: 'Section 02',
@@ -1335,11 +1355,11 @@
       spatialEditor: {
         entryTitle: 'Edit Spatial Model',
         entryHint: 'Adjust boundaries, nodes, and pressure point parameters',
-        eyebrow: 'Spatial Model',
+        eyebrow: 'Editor',
         title: 'Edit Spatial Model',
         back: 'Back to Route Settings',
         modeTitle: 'Edit Mode',
-        toolSelect: 'Select',
+        toolSelect: 'Preview',
         toolBoundary: 'Boundary',
         toolNode: 'Node',
         toolPressure: 'Pressure Point',
@@ -1355,18 +1375,18 @@
         saveCurrent: 'Save Current Scheme',
         saveAs: 'Save as New Scheme',
         viewHistory: 'View Simulation History',
-        libraryTitle: 'Scheme Result Library',
-        libraryItemA: 'Scheme A · Gate to Platform',
+        libraryTitle: 'Historical Result Library',
+        libraryItemA: 'A Entrance to Tsuen Wan Line',
         libraryMetaA: '500 ppl · balanced profile · 02:18',
-        libraryItemB: 'Scheme B · Exit C Transfer',
+        libraryItemB: 'B Entrance to Chai Wan Direction',
         libraryMetaB: '1000 ppl · low mobility · 06:42',
-        libraryItemC: 'Scheme C · Signage Revision',
+        libraryItemC: 'C Entrance to Kennedy Town Direction',
         libraryMetaC: '1500 ppl · sensory focus · 04:10',
         openHeatmap: 'Open Historical Heatmap',
         copyScheme: 'Copy as New Scheme',
         toolbarSelect: 'Select',
         toolbarMove: 'Move',
-        toolbarAddPressure: 'Add Pressure Point',
+        toolbarAddPressure: 'Add',
         toolbarDelete: 'Delete',
         toolbarUndo: 'Undo',
         toolbarReset: 'Reset',
@@ -1382,6 +1402,21 @@
         statusSimulate: 'Simulation from the current scheme selected. This prototype does not submit backend computation.',
         statusUndo: 'Latest frontend demo operation has been undone.',
         statusReset: 'Map objects have been reset to the demo layout.',
+        noNodeSelected: 'No Node Selected',
+        noPressureSelected: 'No Pressure Point Selected',
+        spatialEditorPressureParameter: 'Pressure point parameter',
+        defaultNodeName: 'New Node',
+        defaultPressureName: 'New Pressure Point',
+        defaultBoundaryPointName: 'Boundary Control Point',
+        boundaryTypeWalkable: 'Walkable area boundary',
+        boundaryTypeObstacle: 'Obstacle boundary',
+        nodeTypeEntryGate: 'Entry gate',
+        nodeTypeExitGate: 'Exit gate',
+        nodeTypeEscalatorUp: 'Escalator up',
+        nodeTypeEscalatorDown: 'Escalator down',
+        nodeTypeElevator: 'Elevator',
+        nodeTypeStair: 'Stair',
+        nodeTypeBoarding: 'Boarding point',
       },
       loading: {
         section: 'Section 02',
@@ -1665,6 +1700,8 @@
       readyPreviewDownload: '已生成当前路线报告预览，可选择格式并导出。',
       errorPreview: '报告生成失败，请检查当前模拟状态。',
       exporting: '导出中...',
+      llmReportIncomplete: '智能报告分析未完整生成，请确认 8891 后端已重启并重新点击导出报告。',
+      llmReportDetailMissing: '智能详细分析未生成',
       exported: '已导出 HTML：{fileName}',
       downloaded: '当前环境不支持直接选择保存路径，已使用浏览器下载 HTML。',
       cancelled: '已取消导出。',
@@ -1736,6 +1773,8 @@
       readyPreviewDownload: 'The current route report preview is ready. Choose a format to export.',
       errorPreview: 'Report generation failed. Check the current simulation state.',
       exporting: 'Exporting...',
+      llmReportIncomplete: 'The intelligent report analysis was not fully generated. Restart the 8891 backend and export the report again.',
+      llmReportDetailMissing: 'Intelligent detail analysis was not generated',
       exported: 'HTML exported: {fileName}',
       downloaded: 'This environment cannot choose a save location directly, so the HTML file was downloaded through the browser.',
       cancelled: 'Export cancelled.',
@@ -1891,10 +1930,32 @@
     visualizationDetailView: null,
     spatialEditor: {
       activeTool: 'select',
-      selectedObjectName: 'Boundary Control P1',
-      selectedObjectType: 'Boundary',
-      selectedX: 126,
-      selectedY: 154,
+      activeLayer: 'preview',
+      nodeLayerVisible: true,
+      pressureLayerVisible: true,
+      nodeEdits: [],
+      initialNodeEdits: [],
+      nodeSourceSignature: '',
+      pressureEdits: [],
+      initialPressureEdits: [],
+      pressureSourceSignature: '',
+      boundaryEdits: { walkable: [], obstacle: [] },
+      initialBoundaryEdits: { walkable: [], obstacle: [] },
+      boundarySourceSignature: '',
+      selectedBoundaryType: 'walkable',
+      selectedBoundaryPointId: '',
+      selectedNodeId: '',
+      selectedPressureId: '',
+      selectedObjectName: '',
+      selectedObjectType: '',
+      selectedX: 0,
+      selectedY: 0,
+      nextNodeIndex: 1,
+      nextPressureIndex: 1,
+      undoStack: [],
+      suppressNextMapClick: false,
+      lastPointerDownAt: 0,
+      statusText: '',
       statusKey: 'spatialEditor.statusIdle',
       drag: null,
     },
@@ -1937,10 +1998,15 @@
     spatialEditorReturnSettingsBtn: document.getElementById('spatial-editor-return-settings-btn'),
     spatialEditorRouteMapStage: document.getElementById('spatial-editor-route-map-stage'),
     spatialEditorMap: document.getElementById('spatial-editor-route-map'),
+    spatialEditorInteractionLayer: document.getElementById('spatial-editor-interaction-layer'),
     spatialEditorStatus: document.getElementById('spatial-editor-status'),
     spatialEditorObjectName: document.getElementById('spatial-editor-object-name'),
     spatialEditorObjectCoord: document.getElementById('spatial-editor-object-coord'),
     spatialEditorObjectType: document.getElementById('spatial-editor-object-type'),
+    spatialEditorNoise: document.getElementById('spatial-editor-noise'),
+    spatialEditorNoiseValue: document.getElementById('spatial-editor-noise-value'),
+    spatialEditorLight: document.getElementById('spatial-editor-light'),
+    spatialEditorLightValue: document.getElementById('spatial-editor-light-value'),
     spatialEditorToolButtons: Array.from(document.querySelectorAll('[data-spatial-editor-tool]')),
     spatialEditorActionButtons: Array.from(document.querySelectorAll('[data-spatial-editor-action]')),
     spatialEditorResultButtons: Array.from(document.querySelectorAll('.spatial-editor-result')),
@@ -3112,6 +3178,11 @@
       : (Array.isArray(playback.heat?.pressureContributionLog)
         ? playback.heat.pressureContributionLog.map((item) => ({ ...item }))
         : []);
+    const influenceContributionLog = Array.isArray(playback.influenceContributionLog)
+      ? playback.influenceContributionLog.map((item) => ({ ...item }))
+      : (Array.isArray(playback.heat?.influenceContributionLog)
+        ? playback.heat.influenceContributionLog.map((item) => ({ ...item }))
+        : []);
     const normalizedHeat = playback.heat
       ? {
           ...playback.heat,
@@ -3126,6 +3197,7 @@
     return {
       traceSnapshots: playback.traceSnapshots.map((item) => ({ ...item })),
       pressureContributionLog,
+      influenceContributionLog,
       pressureRange: playback.pressureRange ? { ...playback.pressureRange } : { min: 0, max: 0 },
       duration: Number(playback.duration || 0),
       startTime: Number(playback.startTime || 0),
@@ -7616,49 +7688,69 @@
       elements.spatialEditorMap.innerHTML = '';
       return;
     }
-    const viewBox = getModelBounds();
+    const viewBox = getSpatialEditorViewBoxBounds();
     const transformForEditor = computeTransformForContainer(elements.spatialEditorRouteMapStage);
     elements.spatialEditorMap.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`);
-    const walkable = state.prepared.walkableAreas
-      .map((polygon) => `<polygon class="walkable-shape" points="${polygonToPoints(polygon, transformForEditor)}"></polygon>`)
+    const editorBackdrop = `
+      <rect class="spatial-editor-hit-plane" x="${viewBox.x}" y="${viewBox.y}" width="${viewBox.width}" height="${viewBox.height}"></rect>
+    `;
+    ensureSpatialEditorBoundaryState(transformForEditor);
+    const isBoundaryEdit = state.spatialEditor.activeLayer === 'boundary';
+    const polygonPointsToString = (polygon) => polygon.points.map((point) => `${point.x},${point.y}`).join(' ');
+    const walkable = state.spatialEditor.boundaryEdits.walkable
+      .map((polygon) => `<polygon class="walkable-shape${isBoundaryEdit && state.spatialEditor.selectedBoundaryType === 'walkable' ? ' spatial-editor-boundary--active-walkable' : ''}" points="${polygonPointsToString(polygon)}"></polygon>`)
       .join('');
-    const obstacles = state.prepared.obstacles
-      .map((polygon) => `<polygon class="obstacle-shape" points="${polygonToPoints(polygon, transformForEditor)}"></polygon>`)
+    const obstacles = state.spatialEditor.boundaryEdits.obstacle
+      .map((polygon) => `<polygon class="obstacle-shape${isBoundaryEdit && state.spatialEditor.selectedBoundaryType === 'obstacle' ? ' spatial-editor-boundary--active-obstacle' : ''}" points="${polygonPointsToString(polygon)}"></polygon>`)
       .join('');
-    const nodes = state.prepared.nodes
+    const boundaryPoints = isBoundaryEdit
+      ? (state.spatialEditor.boundaryEdits[state.spatialEditor.selectedBoundaryType] || [])
+        .flatMap((polygon) => polygon.points.map((point) => {
+          const isActive = point.id === state.spatialEditor.selectedBoundaryPointId;
+          return `
+            <g class="spatial-editor-object spatial-editor-object--boundary-point${isActive ? ' active' : ''}" data-spatial-editor-boundary-id="${escapeHtml(point.id)}" data-boundary-type="${escapeHtml(state.spatialEditor.selectedBoundaryType)}" data-x="${point.x}" data-y="${point.y}">
+              <circle class="spatial-editor-boundary-hit" cx="${point.x}" cy="${point.y}" r="3"></circle>
+              <circle data-editor-shape cx="${point.x}" cy="${point.y}" r="${isActive ? 1.2 : 0.8}"></circle>
+            </g>
+          `;
+        }))
+        .join('')
+      : '';
+    ensureSpatialEditorNodeState(transformForEditor);
+    const nodes = state.spatialEditor.nodeLayerVisible
+      ? state.spatialEditor.nodeEdits
       .map((node) => {
-        const displayNode = worldToDisplayPoint(node, transformForEditor);
-        const nodeClass = getNodeDisplayClass(node);
-        const label = state.locale === 'zh-CN' ? node.displayLabel || node.id : node.displayLabelEn || node.displayLabel || node.id;
-        const labelLayout = getSettingsRouteLabelLayout(node, displayNode, transformForEditor);
+        const nodeClass = getSpatialEditorNodeDisplayClass(node);
+        const isActive = node.id === state.spatialEditor.selectedNodeId;
+        const radius = worldRadiusForPixels(isActive ? 7 : 5.2, transformForEditor);
+        const hitRadius = worldRadiusForPixels(12, transformForEditor);
         return `
-          <g class="spatial-editor-object spatial-editor-object--node" data-spatial-editor-object="${escapeHtml(label)}" data-object-type="Node" data-x="${displayNode.x}" data-y="${displayNode.y}">
-            <circle class="route-modal-node node-dot ${nodeClass}" data-editor-shape cx="${displayNode.x}" cy="${displayNode.y}" r="${worldRadiusForPixels(5.2, transformForEditor)}"></circle>
-            <text class="route-modal-node-label settings-route-node-label" data-editor-label x="${labelLayout.x}" y="${labelLayout.y}" text-anchor="${labelLayout.textAnchor}" dominant-baseline="${labelLayout.dominantBaseline}">${escapeHtml(label)}</text>
+          <g class="spatial-editor-object spatial-editor-object--node${isActive ? ' active' : ''}" data-spatial-editor-node-id="${escapeHtml(node.id)}" data-spatial-editor-object="${escapeHtml(node.name)}" data-object-type="${escapeHtml(node.type)}" data-x="${node.x}" data-y="${node.y}">
+            <circle class="route-modal-node-hit" cx="${node.x}" cy="${node.y}" r="${hitRadius}"></circle>
+            <circle class="route-modal-node node-dot ${nodeClass}" data-editor-shape cx="${node.x}" cy="${node.y}" r="${radius}"></circle>
           </g>
         `;
       })
-      .join('');
-    const pressureObjects = [
-      ...(state.prepared.pressureObjects || []).map((item) => ({ type: 'pressure', item })),
-      ...(state.prepared.seats || []).map((item) => ({ type: 'seat', item })),
-    ]
-      .map(({ type, item }) => {
-        const displayPoint = worldToDisplayPoint(item, transformForEditor);
-        const categoryId = getLayerCategoryForObject(type, item);
-        const label = item.name || item.feature || item.id || categoryId;
-        const color = getCategoryColor(categoryId);
-        const radius = worldRadiusForPixels(5.2, transformForEditor);
-        const labelOffset = worldRadiusForPixels(6.5, transformForEditor);
-        return `
-          <g class="spatial-editor-object spatial-editor-object--pressure" data-spatial-editor-object="${escapeHtml(label)}" data-object-type="${type === 'seat' ? 'Seat' : 'Pressure Point'}" data-x="${displayPoint.x}" data-y="${displayPoint.y}">
-            <circle class="spatial-editor-pressure-point" data-editor-shape cx="${displayPoint.x}" cy="${displayPoint.y}" r="${radius}" fill="${escapeHtml(color)}"></circle>
-            <text class="spatial-editor-pressure-label" data-editor-label x="${displayPoint.x + labelOffset}" y="${displayPoint.y - labelOffset}">${escapeHtml(label)}</text>
-          </g>
-        `;
-      })
-      .join('');
-    elements.spatialEditorMap.innerHTML = `${walkable}${obstacles}${nodes}${pressureObjects}`;
+      .join('')
+      : '';
+    ensureSpatialEditorPressureState(transformForEditor);
+    const pressureObjects = state.spatialEditor.pressureLayerVisible
+      ? state.spatialEditor.pressureEdits
+        .map((item) => {
+          const isActive = item.id === state.spatialEditor.selectedPressureId;
+          const color = getCategoryColor(item.type);
+          const radius = worldRadiusForPixels(isActive ? 7 : 5.2, transformForEditor);
+          const hitRadius = worldRadiusForPixels(12, transformForEditor);
+          return `
+            <g class="spatial-editor-object spatial-editor-object--pressure${isActive ? ' active' : ''}" data-spatial-editor-pressure-id="${escapeHtml(item.id)}" data-spatial-editor-object="${escapeHtml(item.name)}" data-object-type="${escapeHtml(item.type)}" data-x="${item.x}" data-y="${item.y}">
+              <circle class="spatial-editor-pressure-hit" cx="${item.x}" cy="${item.y}" r="${hitRadius}"></circle>
+              <circle class="spatial-editor-pressure-point" data-editor-shape cx="${item.x}" cy="${item.y}" r="${radius}" fill="${escapeHtml(color)}"></circle>
+            </g>
+          `;
+        })
+        .join('')
+      : '';
+    elements.spatialEditorMap.innerHTML = `${editorBackdrop}${walkable}${obstacles}${boundaryPoints}${nodes}${pressureObjects}`;
   }
 
   function getAgentRadarLayout() {
@@ -9048,7 +9140,7 @@
     if (!svg) {
       return null;
     }
-    const rect = svg.getBoundingClientRect();
+    const rect = svg.getBoundingClientRect?.() || elements.spatialEditorRouteMapStage?.getBoundingClientRect?.();
     if (!rect.width || !rect.height) {
       return null;
     }
@@ -9196,118 +9288,1145 @@
 
   function openSpatialEditor() {
     closeRouteModal();
+    state.spatialEditor.nodeSourceSignature = '';
+    state.spatialEditor.pressureSourceSignature = '';
+    state.spatialEditor.boundarySourceSignature = '';
+    state.spatialEditor.activeTool = 'select';
+    state.spatialEditor.activeLayer = 'preview';
+    state.spatialEditor.nodeLayerVisible = true;
+    state.spatialEditor.pressureLayerVisible = true;
+    state.spatialEditor.drag = null;
+    state.spatialEditor.suppressNextMapClick = false;
+    state.spatialEditor.statusText = '';
+    state.spatialEditor.statusKey = 'spatialEditor.statusIdle';
+    selectSpatialEditorNode('');
+    selectSpatialEditorPressure('');
+    selectSpatialEditorBoundaryPoint('', state.spatialEditor.selectedBoundaryType);
     showUiScreen('spatial-editor');
   }
 
   function closeSpatialEditor() {
     state.spatialEditor.drag = null;
+    state.spatialEditor.statusText = '';
+    state.spatialEditor.statusKey = 'spatialEditor.statusIdle';
     showUiScreen('settings');
   }
 
+  function getSpatialEditorNodeTypeOptions() {
+    return [
+      { id: 'entry_gate', label: t('spatialEditor.nodeTypeEntryGate') },
+      { id: 'exit_gate', label: t('spatialEditor.nodeTypeExitGate') },
+      { id: 'escalator_up', label: t('spatialEditor.nodeTypeEscalatorUp') },
+      { id: 'escalator_down', label: t('spatialEditor.nodeTypeEscalatorDown') },
+      { id: 'elevator', label: t('spatialEditor.nodeTypeElevator') },
+      { id: 'stair', label: t('spatialEditor.nodeTypeStair') },
+      { id: 'boarding', label: t('spatialEditor.nodeTypeBoarding') },
+    ];
+  }
+
+  function getSpatialEditorNodeTypeLabel(type) {
+    return getSpatialEditorNodeTypeOptions().find((item) => item.id === type)?.label || type || '--';
+  }
+
+  function getSpatialEditorPressureTypeOptions() {
+    return LAYER_CATEGORY_DEFINITIONS.map((item) => ({
+      id: item.id,
+      label: item.label,
+    }));
+  }
+
+  function getSpatialEditorPressureTypeLabel(type) {
+    return getSpatialEditorPressureTypeOptions().find((item) => item.id === type)?.label || type || '--';
+  }
+
+  function getSpatialEditorBoundaryTypeOptions() {
+    return [
+      { id: 'walkable', label: t('spatialEditor.boundaryTypeWalkable') },
+      { id: 'obstacle', label: t('spatialEditor.boundaryTypeObstacle') },
+    ];
+  }
+
+  function getSpatialEditorBoundaryTypeLabel(type) {
+    return getSpatialEditorBoundaryTypeOptions().find((item) => item.id === type)?.label || type || '--';
+  }
+
+  function buildSpatialEditorBoundaryTypeOptions(selectedType) {
+    return getSpatialEditorBoundaryTypeOptions()
+      .map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === selectedType ? 'selected' : ''}>${escapeHtml(item.label)}</option>`)
+      .join('');
+  }
+
+  function buildSpatialEditorPressureTypeOptions(selectedType) {
+    return getSpatialEditorPressureTypeOptions()
+      .map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === selectedType ? 'selected' : ''}>${escapeHtml(item.label)}</option>`)
+      .join('');
+  }
+
+  function pressureSupportsNoiseEdit(item) {
+    const categoryId = item?.type || '';
+    return categoryId === 'noise'
+      || categoryId === 'flashing-ads'
+      || categoryId === 'static-ads'
+      || Number(item?.decibel || 0) > 0;
+  }
+
+  function pressureSupportsLightEdit(item) {
+    const categoryId = item?.type || '';
+    return categoryId === 'flashing-ads'
+      || categoryId === 'static-ads'
+      || categoryId === 'lcd'
+      || Number(item?.lux || 0) > 0;
+  }
+
+  function getSpatialEditorDefaultPressureMetrics(categoryId) {
+    if (categoryId === 'noise') {
+      return { lux: 0, decibel: 74 };
+    }
+    if (categoryId === 'flashing-ads') {
+      return { lux: 1000, decibel: 80 };
+    }
+    if (categoryId === 'static-ads') {
+      return { lux: 450, decibel: 65 };
+    }
+    if (categoryId === 'lcd') {
+      return { lux: 650, decibel: 0 };
+    }
+    return { lux: 0, decibel: 0 };
+  }
+
+  function inferSpatialEditorNodeType(node) {
+    const id = String(node?.id || '').toLowerCase();
+    if (id.startsWith('gate_in_')) return 'entry_gate';
+    if (id.startsWith('gate_out_')) return 'exit_gate';
+    if (id.startsWith('es_up_')) return 'escalator_up';
+    if (id.startsWith('es_down_')) return 'escalator_down';
+    if (id.startsWith('elev_')) return 'elevator';
+    if (id.startsWith('stair_')) return 'stair';
+    if (id.startsWith('train_door')) return 'boarding';
+    return 'entry_gate';
+  }
+
+  function getSpatialEditorNodeDisplayClass(node) {
+    if (!node) {
+      return 'kennedy-town';
+    }
+    if (node.originalNode) {
+      return getNodeDisplayClass(node.originalNode);
+    }
+    if (node.displayClass) {
+      return node.displayClass;
+    }
+    if (node.type === 'elevator') return 'elevator-node';
+    if (node.type === 'boarding') return 'chai-wan';
+    if (node.type === 'escalator_down' || node.type === 'stair') return 'tsuen-wan';
+    if (node.type === 'entry_gate' || node.type === 'exit_gate') return 'exit-a';
+    return 'kennedy-town';
+  }
+
+  function cloneSpatialEditorNodes(nodes) {
+    return (nodes || []).map((node) => ({
+      id: node.id,
+      name: node.name,
+      x: Number(node.x || 0),
+      y: Number(node.y || 0),
+      type: node.type,
+      originalId: node.originalId || '',
+      displayClass: node.displayClass || '',
+    }));
+  }
+
+  function cloneSpatialEditorPressureObjects(items) {
+    return (items || []).map((item) => ({
+      id: item.id,
+      originalId: item.originalId || '',
+      objectType: item.objectType || 'pressure',
+      name: item.name,
+      x: Number(item.x || 0),
+      y: Number(item.y || 0),
+      z: Number(item.z || 0),
+      type: item.type,
+      lux: Number(item.lux || 0),
+      decibel: Number(item.decibel || 0),
+    }));
+  }
+
+  function cloneSpatialEditorBoundaryEdits(edits) {
+    return {
+      walkable: (edits?.walkable || []).map((polygon) => ({
+        id: polygon.id,
+        points: polygon.points.map((point) => ({ ...point })),
+      })),
+      obstacle: (edits?.obstacle || []).map((polygon) => ({
+        id: polygon.id,
+        points: polygon.points.map((point) => ({ ...point })),
+      })),
+    };
+  }
+
+  function buildSpatialEditorNodeEditsFromPrepared(transformForEditor = computeTransformForContainer(elements.spatialEditorRouteMapStage)) {
+    const nodes = state.prepared?.nodes || [];
+    return nodes.map((node, index) => {
+      const displayNode = worldToDisplayPoint(node, transformForEditor);
+      const label = state.locale === 'zh-CN' ? node.displayLabel || node.id : node.displayLabelEn || node.displayLabel || node.id;
+      return {
+        id: node.id || `node_${index + 1}`,
+        originalId: node.id || '',
+        originalNode: node,
+        name: label,
+        x: Number(displayNode.x.toFixed(1)),
+        y: Number(displayNode.y.toFixed(1)),
+        type: inferSpatialEditorNodeType(node),
+        displayClass: getNodeDisplayClass(node),
+      };
+    });
+  }
+
+  function getSpatialEditorNodeSourceSignature() {
+    return (state.prepared?.nodes || [])
+      .map((node) => `${node.id || ''}:${node.x || 0}:${node.y || 0}`)
+      .join('|');
+  }
+
+  function buildSpatialEditorPressureEditsFromPrepared(transformForEditor = computeTransformForContainer(elements.spatialEditorRouteMapStage)) {
+    const pressureItems = [
+      ...(state.prepared?.pressureObjects || []).map((item, index) => ({ objectType: 'pressure', item, index })),
+      ...(state.prepared?.seats || []).map((item, index) => ({ objectType: 'seat', item, index })),
+    ];
+    return pressureItems.map(({ objectType, item, index }) => {
+      const displayPoint = worldToDisplayPoint(item, transformForEditor);
+      const categoryId = getLayerCategoryForObject(objectType, item) || 'static-ads';
+      const defaults = getSpatialEditorDefaultPressureMetrics(categoryId);
+      const label = item.name || item.label || item.feature || item.id || getSpatialEditorPressureTypeLabel(categoryId);
+      return {
+        id: `${objectType}_${item.id || index}`,
+        originalId: item.id || '',
+      objectType,
+      name: label,
+      x: Number(displayPoint.x.toFixed(1)),
+      y: Number(displayPoint.y.toFixed(1)),
+      z: Number(item.z || item.zPosition || item.height || 0),
+      type: categoryId,
+      lux: Number.isFinite(Number(item.lux)) ? Number(item.lux) : defaults.lux,
+      decibel: Number.isFinite(Number(item.decibel)) ? Number(item.decibel) : defaults.decibel,
+      };
+    });
+  }
+
+  function getSpatialEditorPressureSourceSignature() {
+    const pressureItems = [
+      ...(state.prepared?.pressureObjects || []).map((item) => `p:${item.id || ''}:${item.x || 0}:${item.y || 0}:${item.lux || 0}:${item.decibel || 0}:${item.category || ''}:${item.name || ''}`),
+      ...(state.prepared?.seats || []).map((item) => `s:${item.id || ''}:${item.x || 0}:${item.y || 0}:${item.name || item.label || ''}`),
+    ];
+    return pressureItems.join('|');
+  }
+
+  function buildSpatialEditorBoundaryEditsFromPrepared(transformForEditor = computeTransformForContainer(elements.spatialEditorRouteMapStage)) {
+    const build = (polygons, type) => (polygons || []).map((polygon, polygonIndex) => ({
+      id: `${type}_${polygonIndex}`,
+      points: polygon.map((point, pointIndex) => {
+        const displayPoint = worldToDisplayPoint({ x: point[0], y: point[1] }, transformForEditor);
+        return {
+          id: `${type}_${polygonIndex}_${pointIndex}`,
+          polygonIndex,
+          pointIndex,
+          x: Number(displayPoint.x.toFixed(1)),
+          y: Number(displayPoint.y.toFixed(1)),
+        };
+      }),
+    }));
+    return {
+      walkable: build(state.prepared?.walkableAreas, 'walkable'),
+      obstacle: build(state.prepared?.obstacles, 'obstacle'),
+    };
+  }
+
+  function getSpatialEditorBoundarySourceSignature() {
+    return [
+      ...(state.prepared?.walkableAreas || []).map((polygon, index) => `w${index}:${polygon.map((point) => point.join(',')).join(';')}`),
+      ...(state.prepared?.obstacles || []).map((polygon, index) => `o${index}:${polygon.map((point) => point.join(',')).join(';')}`),
+    ].join('|');
+  }
+
+  function ensureSpatialEditorNodeState(transformForEditor) {
+    const editor = state.spatialEditor;
+    if (!state.prepared) {
+      editor.nodeEdits = [];
+      editor.initialNodeEdits = [];
+      editor.nodeSourceSignature = '';
+      editor.selectedNodeId = '';
+      return;
+    }
+    const sourceSignature = getSpatialEditorNodeSourceSignature();
+    if (Array.isArray(editor.nodeEdits) && editor.nodeEdits.length && editor.nodeSourceSignature === sourceSignature) {
+      return;
+    }
+    const initialNodes = buildSpatialEditorNodeEditsFromPrepared(transformForEditor);
+    editor.nodeEdits = initialNodes.map((node) => ({ ...node }));
+    editor.initialNodeEdits = cloneSpatialEditorNodes(initialNodes);
+    editor.nodeSourceSignature = sourceSignature;
+    editor.nextNodeIndex = initialNodes.length + 1;
+  }
+
+  function ensureSpatialEditorPressureState(transformForEditor) {
+    const editor = state.spatialEditor;
+    if (!state.prepared) {
+      editor.pressureEdits = [];
+      editor.initialPressureEdits = [];
+      editor.pressureSourceSignature = '';
+      editor.selectedPressureId = '';
+      return;
+    }
+    const sourceSignature = getSpatialEditorPressureSourceSignature();
+    if (Array.isArray(editor.pressureEdits) && editor.pressureEdits.length && editor.pressureSourceSignature === sourceSignature) {
+      return;
+    }
+    const initialPressure = buildSpatialEditorPressureEditsFromPrepared(transformForEditor);
+    editor.pressureEdits = initialPressure.map((item) => ({ ...item }));
+    editor.initialPressureEdits = cloneSpatialEditorPressureObjects(initialPressure);
+    editor.pressureSourceSignature = sourceSignature;
+    editor.nextPressureIndex = initialPressure.length + 1;
+  }
+
+  function ensureSpatialEditorBoundaryState(transformForEditor) {
+    const editor = state.spatialEditor;
+    if (!state.prepared) {
+      editor.boundaryEdits = { walkable: [], obstacle: [] };
+      editor.initialBoundaryEdits = { walkable: [], obstacle: [] };
+      editor.boundarySourceSignature = '';
+      editor.selectedBoundaryPointId = '';
+      return;
+    }
+    const sourceSignature = getSpatialEditorBoundarySourceSignature();
+    if (editor.boundarySourceSignature === sourceSignature && (editor.boundaryEdits.walkable.length || editor.boundaryEdits.obstacle.length)) {
+      return;
+    }
+    const initialBoundary = buildSpatialEditorBoundaryEditsFromPrepared(transformForEditor);
+    editor.boundaryEdits = cloneSpatialEditorBoundaryEdits(initialBoundary);
+    editor.initialBoundaryEdits = cloneSpatialEditorBoundaryEdits(initialBoundary);
+    editor.boundarySourceSignature = sourceSignature;
+  }
+
+  function getSpatialEditorSelectedNode() {
+    return state.spatialEditor.nodeEdits.find((node) => node.id === state.spatialEditor.selectedNodeId) || null;
+  }
+
+  function getSpatialEditorSelectedPressure() {
+    return state.spatialEditor.pressureEdits.find((item) => item.id === state.spatialEditor.selectedPressureId) || null;
+  }
+
+  function getSpatialEditorSelectedBoundaryPoint() {
+    const editor = state.spatialEditor;
+    const type = editor.selectedBoundaryType || 'walkable';
+    for (const polygon of editor.boundaryEdits[type] || []) {
+      const point = polygon.points.find((item) => item.id === editor.selectedBoundaryPointId);
+      if (point) {
+        return { type, polygon, point };
+      }
+    }
+    return null;
+  }
+
+  function pushSpatialEditorUndoSnapshot() {
+    const editor = state.spatialEditor;
+    editor.undoStack.push({
+      nodeEdits: cloneSpatialEditorNodes(editor.nodeEdits),
+      pressureEdits: cloneSpatialEditorPressureObjects(editor.pressureEdits),
+      boundaryEdits: cloneSpatialEditorBoundaryEdits(editor.boundaryEdits),
+      selectedNodeId: editor.selectedNodeId,
+      selectedPressureId: editor.selectedPressureId,
+      selectedBoundaryType: editor.selectedBoundaryType,
+      selectedBoundaryPointId: editor.selectedBoundaryPointId,
+      nextNodeIndex: editor.nextNodeIndex,
+      nextPressureIndex: editor.nextPressureIndex,
+    });
+    if (editor.undoStack.length > 24) {
+      editor.undoStack.shift();
+    }
+  }
+
+  function selectSpatialEditorNode(nodeId) {
+    const editor = state.spatialEditor;
+    const node = editor.nodeEdits.find((item) => item.id === nodeId) || null;
+    editor.selectedNodeId = node ? node.id : '';
+    if (node) {
+      editor.selectedPressureId = '';
+    }
+    editor.selectedObjectName = node?.name || '';
+    editor.selectedObjectType = node ? getSpatialEditorNodeTypeLabel(node.type) : '';
+    editor.selectedX = node?.x || 0;
+    editor.selectedY = node?.y || 0;
+  }
+
+  function selectSpatialEditorPressure(pressureId) {
+    const editor = state.spatialEditor;
+    const item = editor.pressureEdits.find((entry) => entry.id === pressureId) || null;
+    editor.selectedPressureId = item ? item.id : '';
+    if (item) {
+      editor.selectedNodeId = '';
+    }
+    editor.selectedObjectName = item?.name || '';
+    editor.selectedObjectType = item ? getSpatialEditorPressureTypeLabel(item.type) : '';
+    editor.selectedX = item?.x || 0;
+    editor.selectedY = item?.y || 0;
+  }
+
+  function selectSpatialEditorBoundaryPoint(pointId, boundaryType = state.spatialEditor.selectedBoundaryType || 'walkable') {
+    const editor = state.spatialEditor;
+    editor.selectedBoundaryType = boundaryType;
+    editor.selectedBoundaryPointId = pointId || '';
+    if (pointId) {
+      editor.selectedNodeId = '';
+      editor.selectedPressureId = '';
+    }
+    const selected = getSpatialEditorSelectedBoundaryPoint();
+    const point = selected?.point || null;
+    editor.selectedObjectName = point ? `${t('spatialEditor.defaultBoundaryPointName')} ${point.pointIndex + 1}` : '';
+    editor.selectedObjectType = point ? getSpatialEditorBoundaryTypeLabel(boundaryType) : '';
+    editor.selectedX = point?.x || 0;
+    editor.selectedY = point?.y || 0;
+  }
+
+  function updateSpatialEditorSelectedNode(patch, options = {}) {
+    const editor = state.spatialEditor;
+    const node = getSpatialEditorSelectedNode();
+    if (!node) {
+      return;
+    }
+    if (options.snapshot !== false) {
+      pushSpatialEditorUndoSnapshot();
+    }
+    const viewBox = getSpatialEditorViewBoxBounds();
+    if (Object.prototype.hasOwnProperty.call(patch, 'name')) {
+      node.name = String(patch.name || '').trim() || t('spatialEditor.defaultNodeName');
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'type')) {
+      node.type = patch.type || node.type;
+      node.displayClass = '';
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'x')) {
+      node.x = Number(clamp(safeNumber(patch.x, node.x), viewBox.x, viewBox.x + viewBox.width).toFixed(1));
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'y')) {
+      node.y = Number(clamp(safeNumber(patch.y, node.y), viewBox.y, viewBox.y + viewBox.height).toFixed(1));
+    }
+    selectSpatialEditorNode(node.id);
+  }
+
+  function updateSpatialEditorSelectedPressure(patch, options = {}) {
+    const editor = state.spatialEditor;
+    const item = getSpatialEditorSelectedPressure();
+    if (!item) {
+      return;
+    }
+    if (options.snapshot !== false) {
+      pushSpatialEditorUndoSnapshot();
+    }
+    const viewBox = getSpatialEditorViewBoxBounds();
+    if (Object.prototype.hasOwnProperty.call(patch, 'name')) {
+      item.name = String(patch.name || '').trim() || t('spatialEditor.defaultPressureName');
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'type')) {
+      item.type = patch.type || item.type;
+      const defaults = getSpatialEditorDefaultPressureMetrics(item.type);
+      if (pressureSupportsNoiseEdit(item) && !Number(item.decibel || 0)) {
+        item.decibel = defaults.decibel;
+      }
+      if (pressureSupportsLightEdit(item) && !Number(item.lux || 0)) {
+        item.lux = defaults.lux;
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'x')) {
+      item.x = Number(clamp(safeNumber(patch.x, item.x), viewBox.x, viewBox.x + viewBox.width).toFixed(1));
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'y')) {
+      item.y = Number(clamp(safeNumber(patch.y, item.y), viewBox.y, viewBox.y + viewBox.height).toFixed(1));
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'z')) {
+      item.z = Number(safeNumber(patch.z, item.z || 0).toFixed(1));
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'lux') && pressureSupportsLightEdit(item)) {
+      item.lux = Number(clamp(safeNumber(patch.lux, item.lux), 0, 1600).toFixed(0));
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'decibel') && pressureSupportsNoiseEdit(item)) {
+      item.decibel = Number(clamp(safeNumber(patch.decibel, item.decibel), 0, 100).toFixed(0));
+    }
+    selectSpatialEditorPressure(item.id);
+  }
+
+  function updateSpatialEditorSelectedBoundaryPoint(patch, options = {}) {
+    const selected = getSpatialEditorSelectedBoundaryPoint();
+    if (!selected) {
+      return;
+    }
+    if (options.snapshot !== false) {
+      pushSpatialEditorUndoSnapshot();
+    }
+    const viewBox = getSpatialEditorViewBoxBounds();
+    if (Object.prototype.hasOwnProperty.call(patch, 'type')) {
+      state.spatialEditor.selectedBoundaryType = patch.type === 'obstacle' ? 'obstacle' : 'walkable';
+      state.spatialEditor.selectedBoundaryPointId = '';
+      return;
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'x')) {
+      selected.point.x = Number(clamp(safeNumber(patch.x, selected.point.x), viewBox.x, viewBox.x + viewBox.width).toFixed(1));
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'y')) {
+      selected.point.y = Number(clamp(safeNumber(patch.y, selected.point.y), viewBox.y, viewBox.y + viewBox.height).toFixed(1));
+    }
+    selectSpatialEditorBoundaryPoint(selected.point.id, selected.type);
+  }
+
+  function createSpatialEditorNodeAtPoint(point) {
+    if (!point) {
+      return;
+    }
+    const editor = state.spatialEditor;
+    ensureSpatialEditorNodeState();
+    pushSpatialEditorUndoSnapshot();
+    const index = editor.nextNodeIndex || editor.nodeEdits.length + 1;
+    const viewBox = getSpatialEditorViewBoxBounds();
+    const node = {
+      id: `spatial_node_${Date.now()}_${index}`,
+      originalId: '',
+      name: `${t('spatialEditor.defaultNodeName')} ${index}`,
+      x: Number(clamp(safeNumber(point.x, viewBox.x), viewBox.x, viewBox.x + viewBox.width).toFixed(1)),
+      y: Number(clamp(safeNumber(point.y, viewBox.y), viewBox.y, viewBox.y + viewBox.height).toFixed(1)),
+      type: 'entry_gate',
+      displayClass: '',
+    };
+    editor.nodeEdits.push(node);
+    editor.nextNodeIndex = index + 1;
+    selectSpatialEditorNode(node.id);
+    editor.statusKey = 'spatialEditor.statusSave';
+  }
+
+  function createSpatialEditorPressureAtPoint(point) {
+    if (!point) {
+      return;
+    }
+    const editor = state.spatialEditor;
+    ensureSpatialEditorPressureState();
+    pushSpatialEditorUndoSnapshot();
+    const index = editor.nextPressureIndex || editor.pressureEdits.length + 1;
+    const viewBox = getSpatialEditorViewBoxBounds();
+    const type = 'noise';
+    const defaults = getSpatialEditorDefaultPressureMetrics(type);
+    const item = {
+      id: `spatial_pressure_${Date.now()}_${index}`,
+      originalId: '',
+      objectType: 'pressure',
+      name: `${t('spatialEditor.defaultPressureName')} ${index}`,
+      x: Number(clamp(safeNumber(point.x, viewBox.x), viewBox.x, viewBox.x + viewBox.width).toFixed(1)),
+      y: Number(clamp(safeNumber(point.y, viewBox.y), viewBox.y, viewBox.y + viewBox.height).toFixed(1)),
+      z: 0,
+      type,
+      lux: defaults.lux,
+      decibel: defaults.decibel,
+    };
+    editor.pressureEdits.push(item);
+    editor.nextPressureIndex = index + 1;
+    selectSpatialEditorPressure(item.id);
+    editor.statusKey = 'spatialEditor.statusSave';
+  }
+
+  function createSpatialEditorBoundaryPointAtPoint(point) {
+    if (!point) {
+      return;
+    }
+    const editor = state.spatialEditor;
+    ensureSpatialEditorBoundaryState();
+    const type = editor.selectedBoundaryType || 'walkable';
+    const polygons = editor.boundaryEdits[type] || [];
+    const polygon = polygons[0];
+    if (!polygon) {
+      return;
+    }
+    pushSpatialEditorUndoSnapshot();
+    const pointIndex = polygon.points.length;
+    const viewBox = getSpatialEditorViewBoxBounds();
+    const newPoint = {
+      id: `${type}_${polygon.id}_${Date.now()}_${pointIndex}`,
+      polygonIndex: 0,
+      pointIndex,
+      x: Number(clamp(safeNumber(point.x, viewBox.x), viewBox.x, viewBox.x + viewBox.width).toFixed(1)),
+      y: Number(clamp(safeNumber(point.y, viewBox.y), viewBox.y, viewBox.y + viewBox.height).toFixed(1)),
+    };
+    polygon.points.push(newPoint);
+    polygon.points.forEach((item, index) => {
+      item.pointIndex = index;
+    });
+    selectSpatialEditorBoundaryPoint(newPoint.id, type);
+    editor.statusKey = 'spatialEditor.statusSave';
+  }
+
+  function deleteSpatialEditorSelectedNode() {
+    const editor = state.spatialEditor;
+    if (!editor.selectedNodeId) {
+      return;
+    }
+    pushSpatialEditorUndoSnapshot();
+    editor.nodeEdits = editor.nodeEdits.filter((node) => node.id !== editor.selectedNodeId);
+    selectSpatialEditorNode('');
+    editor.statusKey = 'spatialEditor.statusSave';
+  }
+
+  function deleteSpatialEditorSelectedPressure() {
+    const editor = state.spatialEditor;
+    if (!editor.selectedPressureId) {
+      return;
+    }
+    pushSpatialEditorUndoSnapshot();
+    editor.pressureEdits = editor.pressureEdits.filter((item) => item.id !== editor.selectedPressureId);
+    selectSpatialEditorPressure('');
+    editor.statusKey = 'spatialEditor.statusSave';
+  }
+
+  function deleteSpatialEditorSelectedBoundaryPoint() {
+    const selected = getSpatialEditorSelectedBoundaryPoint();
+    if (!selected || selected.polygon.points.length <= 3) {
+      return;
+    }
+    pushSpatialEditorUndoSnapshot();
+    selected.polygon.points = selected.polygon.points.filter((point) => point.id !== selected.point.id);
+    selected.polygon.points.forEach((item, index) => {
+      item.pointIndex = index;
+    });
+    selectSpatialEditorBoundaryPoint('', selected.type);
+    state.spatialEditor.statusKey = 'spatialEditor.statusSave';
+  }
+
+  function undoSpatialEditorNodeEdit() {
+    const editor = state.spatialEditor;
+    const snapshot = editor.undoStack.pop();
+    if (!snapshot) {
+      editor.statusKey = 'spatialEditor.statusUndo';
+      return;
+    }
+    editor.nodeEdits = cloneSpatialEditorNodes(snapshot.nodeEdits);
+    editor.pressureEdits = cloneSpatialEditorPressureObjects(snapshot.pressureEdits);
+    editor.boundaryEdits = cloneSpatialEditorBoundaryEdits(snapshot.boundaryEdits);
+    editor.selectedNodeId = snapshot.selectedNodeId || '';
+    editor.selectedPressureId = snapshot.selectedPressureId || '';
+    editor.selectedBoundaryType = snapshot.selectedBoundaryType || 'walkable';
+    editor.selectedBoundaryPointId = snapshot.selectedBoundaryPointId || '';
+    editor.nextNodeIndex = snapshot.nextNodeIndex || editor.nodeEdits.length + 1;
+    editor.nextPressureIndex = snapshot.nextPressureIndex || editor.pressureEdits.length + 1;
+    if (editor.activeLayer === 'boundary') {
+      selectSpatialEditorBoundaryPoint(editor.selectedBoundaryPointId, editor.selectedBoundaryType);
+    } else if (editor.activeLayer === 'pressure') {
+      selectSpatialEditorPressure(editor.selectedPressureId);
+    } else {
+      selectSpatialEditorNode(editor.selectedNodeId);
+    }
+    editor.statusKey = 'spatialEditor.statusUndo';
+  }
+
+  function resetSpatialEditorNodes() {
+    const editor = state.spatialEditor;
+    pushSpatialEditorUndoSnapshot();
+    editor.nodeEdits = cloneSpatialEditorNodes(editor.initialNodeEdits);
+    editor.nextNodeIndex = editor.nodeEdits.length + 1;
+    selectSpatialEditorNode('');
+    editor.statusKey = 'spatialEditor.statusReset';
+  }
+
+  function resetSpatialEditorPressureObjects() {
+    const editor = state.spatialEditor;
+    pushSpatialEditorUndoSnapshot();
+    editor.pressureEdits = cloneSpatialEditorPressureObjects(editor.initialPressureEdits);
+    editor.nextPressureIndex = editor.pressureEdits.length + 1;
+    selectSpatialEditorPressure('');
+    editor.statusKey = 'spatialEditor.statusReset';
+  }
+
+  function resetSpatialEditorBoundaryObjects() {
+    const editor = state.spatialEditor;
+    pushSpatialEditorUndoSnapshot();
+    editor.boundaryEdits = cloneSpatialEditorBoundaryEdits(editor.initialBoundaryEdits);
+    selectSpatialEditorBoundaryPoint('', editor.selectedBoundaryType);
+    editor.statusKey = 'spatialEditor.statusReset';
+  }
+
+  function activateSpatialEditorEditLayerForTool(fallbackLayer = 'node') {
+    const editor = state.spatialEditor;
+    if (isSpatialEditorEditLayerActive()) {
+      return;
+    }
+    if (fallbackLayer === 'pressure') {
+      ensureSpatialEditorPressureState();
+      editor.activeLayer = 'pressure';
+      editor.pressureLayerVisible = true;
+      editor.nodeLayerVisible = false;
+      selectSpatialEditorNode('');
+      selectSpatialEditorBoundaryPoint('', editor.selectedBoundaryType);
+      return;
+    }
+    if (fallbackLayer === 'boundary') {
+      ensureSpatialEditorBoundaryState();
+      editor.activeLayer = 'boundary';
+      editor.nodeLayerVisible = false;
+      editor.pressureLayerVisible = false;
+      selectSpatialEditorNode('');
+      selectSpatialEditorPressure('');
+      return;
+    }
+    ensureSpatialEditorNodeState();
+    editor.activeLayer = 'node';
+    editor.nodeLayerVisible = true;
+    editor.pressureLayerVisible = false;
+    selectSpatialEditorPressure('');
+    selectSpatialEditorBoundaryPoint('', editor.selectedBoundaryType);
+  }
+
   function setSpatialEditorTool(tool) {
-    state.spatialEditor.activeTool = tool || 'select';
-    state.spatialEditor.statusKey = 'spatialEditor.statusIdle';
+    const editor = state.spatialEditor;
+    editor.statusText = '';
+    if (tool === 'select') {
+      ensureSpatialEditorNodeState();
+      ensureSpatialEditorPressureState();
+      ensureSpatialEditorBoundaryState();
+      editor.activeTool = 'select';
+      editor.activeLayer = 'preview';
+      editor.nodeLayerVisible = true;
+      editor.pressureLayerVisible = true;
+      selectSpatialEditorNode('');
+      selectSpatialEditorPressure('');
+      editor.statusKey = 'spatialEditor.statusIdle';
+      requestRender();
+      return;
+    }
+    if (tool === 'selectObject') {
+      activateSpatialEditorEditLayerForTool('node');
+      editor.activeTool = 'select';
+      editor.statusKey = 'spatialEditor.statusIdle';
+      requestRender();
+      return;
+    }
+    if (tool === 'node') {
+      ensureSpatialEditorNodeState();
+      editor.nodeLayerVisible = true;
+      editor.activeLayer = 'node';
+      editor.pressureLayerVisible = false;
+      editor.activeTool = 'select';
+      selectSpatialEditorNode('');
+      selectSpatialEditorPressure('');
+      selectSpatialEditorBoundaryPoint('', editor.selectedBoundaryType);
+      editor.statusKey = 'spatialEditor.statusIdle';
+      requestRender();
+      return;
+    }
+    if (tool === 'pressure') {
+      ensureSpatialEditorPressureState();
+      editor.pressureLayerVisible = true;
+      editor.activeLayer = 'pressure';
+      editor.nodeLayerVisible = false;
+      editor.activeTool = 'select';
+      selectSpatialEditorNode('');
+      selectSpatialEditorPressure('');
+      selectSpatialEditorBoundaryPoint('', editor.selectedBoundaryType);
+      editor.statusKey = 'spatialEditor.statusIdle';
+      requestRender();
+      return;
+    }
+    if (tool === 'boundary') {
+      ensureSpatialEditorBoundaryState();
+      editor.activeLayer = tool;
+      editor.nodeLayerVisible = false;
+      editor.pressureLayerVisible = false;
+      editor.activeTool = 'select';
+      selectSpatialEditorNode('');
+      selectSpatialEditorPressure('');
+      selectSpatialEditorBoundaryPoint('', editor.selectedBoundaryType);
+      editor.statusKey = 'spatialEditor.statusIdle';
+      requestRender();
+      return;
+    }
+    if (tool === 'delete') {
+      if (editor.activeLayer === 'node' && editor.nodeLayerVisible) {
+        deleteSpatialEditorSelectedNode();
+      } else if (editor.activeLayer === 'pressure' && editor.pressureLayerVisible) {
+        deleteSpatialEditorSelectedPressure();
+      } else if (editor.activeLayer === 'boundary') {
+        deleteSpatialEditorSelectedBoundaryPoint();
+      }
+      requestRender();
+      return;
+    }
+    if (tool === 'addPressure') {
+      activateSpatialEditorEditLayerForTool('node');
+      if (editor.activeLayer === 'pressure') {
+        ensureSpatialEditorPressureState();
+        editor.pressureLayerVisible = true;
+      } else if (editor.activeLayer === 'boundary') {
+        ensureSpatialEditorBoundaryState();
+      } else {
+        ensureSpatialEditorNodeState();
+        editor.nodeLayerVisible = true;
+        editor.pressureLayerVisible = false;
+        editor.activeLayer = 'node';
+        selectSpatialEditorNode('');
+        selectSpatialEditorPressure('');
+      }
+    }
+    if (tool === 'move') {
+      activateSpatialEditorEditLayerForTool('node');
+    }
+    editor.activeTool = tool || 'select';
+    editor.statusText = tool === 'addPressure'
+      ? `ADD tool ready (${editor.activeLayer})`
+      : tool === 'move'
+      ? `MOVE tool ready (${editor.activeLayer})`
+      : '';
+    editor.statusKey = 'spatialEditor.statusIdle';
     requestRender();
   }
 
   function getSpatialEditorSvgPoint(event) {
-    const svg = elements.spatialEditorMap;
-    if (!svg) {
+    const stage = elements.spatialEditorRouteMapStage;
+    if (!stage) {
       return null;
     }
-    if (typeof svg.createSVGPoint === 'function' && svg.getScreenCTM()) {
-      const point = svg.createSVGPoint();
-      point.x = event.clientX;
-      point.y = event.clientY;
-      const transformed = point.matrixTransform(svg.getScreenCTM().inverse());
-      return { x: transformed.x, y: transformed.y };
-    }
-    const rect = svg.getBoundingClientRect();
+    const rect = stage.getBoundingClientRect();
     if (!rect.width || !rect.height) {
       return null;
     }
+    const viewBox = getSpatialEditorViewBoxBounds();
+    const scale = Math.min(rect.width / viewBox.width, rect.height / viewBox.height);
+    const renderedWidth = viewBox.width * scale;
+    const renderedHeight = viewBox.height * scale;
+    const offsetX = (rect.width - renderedWidth) * 0.5;
+    const offsetY = (rect.height - renderedHeight) * 0.5;
+    const localX = event.clientX - rect.left - offsetX;
+    const localY = event.clientY - rect.top - offsetY;
     return {
-      x: ((event.clientX - rect.left) / rect.width) * 1000,
-      y: ((event.clientY - rect.top) / rect.height) * 560,
+      x: viewBox.x + (localX / Math.max(scale, 1e-6)),
+      y: viewBox.y + (localY / Math.max(scale, 1e-6)),
     };
   }
 
-  function updateSpatialEditorObjectPosition(object, x, y) {
-    if (!object) {
-      return;
+  function getSpatialEditorScreenToSvgScale() {
+    const stage = elements.spatialEditorRouteMapStage;
+    if (!stage) {
+      return 1;
     }
-    const safeX = clamp(safeNumber(x, 0), 40, 960);
-    const safeY = clamp(safeNumber(y, 0), 40, 520);
-    object.dataset.x = String(Number(safeX.toFixed(1)));
-    object.dataset.y = String(Number(safeY.toFixed(1)));
-    const shape = object.querySelector('[data-editor-shape]');
-    if (shape) {
-      shape.setAttribute('cx', String(Number(safeX.toFixed(1))));
-      shape.setAttribute('cy', String(Number(safeY.toFixed(1))));
+    const rect = stage.getBoundingClientRect();
+    if (!rect.width || !rect.height) {
+      return 1;
     }
-    const label = object.querySelector('[data-editor-label]');
-    if (label) {
-      label.setAttribute('x', String(Number((safeX + 20).toFixed(1))));
-      label.setAttribute('y', String(Number((safeY - 6).toFixed(1))));
-    }
-    state.spatialEditor.selectedX = safeX;
-    state.spatialEditor.selectedY = safeY;
+    const viewBox = getSpatialEditorViewBoxBounds();
+    return Math.max(Math.min(rect.width / viewBox.width, rect.height / viewBox.height), 1e-6);
   }
 
-  function selectSpatialEditorObject(object) {
-    if (!object) {
+  function getSpatialEditorViewBoxBounds() {
+    const svg = elements.spatialEditorMap;
+    const rawViewBox = svg?.getAttribute?.('viewBox') || '';
+    const parts = rawViewBox.split(/\s+/).map(Number).filter(Number.isFinite);
+    if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+      return { x: parts[0], y: parts[1], width: parts[2], height: parts[3] };
+    }
+    return getModelBounds();
+  }
+
+  function findNearestSpatialEditorPoint(point, items, maxDistance = worldRadiusForPixels(18, computeTransformForContainer(elements.spatialEditorRouteMapStage))) {
+    if (!point || !Array.isArray(items)) {
+      return null;
+    }
+    let nearest = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    items.forEach((item) => {
+      const distance = Math.hypot(Number(item.x || 0) - point.x, Number(item.y || 0) - point.y);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = item;
+      }
+    });
+    return nearestDistance <= maxDistance ? nearest : null;
+  }
+
+  function isSpatialEditorEditLayerActive() {
+    const editor = state.spatialEditor;
+    return (editor.activeLayer === 'node' && editor.nodeLayerVisible)
+      || (editor.activeLayer === 'pressure' && editor.pressureLayerVisible)
+      || editor.activeLayer === 'boundary';
+  }
+
+  function captureSpatialEditorPointer(pointerId) {
+    const target = elements.spatialEditorInteractionLayer || elements.spatialEditorRouteMapStage || elements.spatialEditorMap;
+    if (pointerId === undefined || typeof target?.setPointerCapture !== 'function') {
       return;
     }
-    elements.spatialEditorMap?.querySelectorAll('.spatial-editor-object').forEach((item) => {
-      item.classList.toggle('active', item === object);
+    try {
+      target.setPointerCapture(pointerId);
+    } catch (error) {
+      // Ignore pointer capture failures in static prototype mode.
+    }
+  }
+
+  function updateSpatialEditorDraggedDomPosition(drag, x, y) {
+    if (!drag || !elements.spatialEditorMap) {
+      return;
+    }
+    const escapeSelectorValue = (value) => (window.CSS?.escape ? window.CSS.escape(String(value)) : String(value).replace(/["\\]/g, '\\$&'));
+    let selector = '';
+    if (drag.kind === 'node') {
+      selector = `[data-spatial-editor-node-id="${escapeSelectorValue(drag.nodeId)}"]`;
+    } else if (drag.kind === 'pressure') {
+      selector = `[data-spatial-editor-pressure-id="${escapeSelectorValue(drag.pressureId)}"]`;
+    } else if (drag.kind === 'boundary') {
+      selector = `[data-spatial-editor-boundary-id="${escapeSelectorValue(drag.boundaryPointId)}"]`;
+    }
+    const group = selector ? elements.spatialEditorMap.querySelector(selector) : null;
+    if (!group) {
+      return;
+    }
+    group.dataset.x = String(x);
+    group.dataset.y = String(y);
+    group.querySelectorAll('circle').forEach((circle) => {
+      circle.setAttribute('cx', String(x));
+      circle.setAttribute('cy', String(y));
     });
-    state.spatialEditor.selectedObjectName = object.dataset.spatialEditorObject || '--';
-    state.spatialEditor.selectedObjectType = object.dataset.objectType || '--';
-    state.spatialEditor.selectedX = safeNumber(object.dataset.x, 0);
-    state.spatialEditor.selectedY = safeNumber(object.dataset.y, 0);
-    requestRender();
+  }
+
+  function updateSpatialEditorDragToPoint(event, options = {}) {
+    const drag = state.spatialEditor.drag;
+    if (!drag || (event.pointerId !== undefined && drag.pointerId !== undefined && drag.pointerId !== event.pointerId)) {
+      return false;
+    }
+    const hasClientDelta = Number.isFinite(Number(drag.startClientX))
+      && Number.isFinite(Number(drag.startClientY))
+      && Number.isFinite(Number(drag.startX))
+      && Number.isFinite(Number(drag.startY))
+      && Number.isFinite(Number(event.clientX))
+      && Number.isFinite(Number(event.clientY));
+    const scale = getSpatialEditorScreenToSvgScale();
+    const point = hasClientDelta ? null : getSpatialEditorSvgPoint(event);
+    if (!hasClientDelta && !point) {
+      return false;
+    }
+    const nextX = hasClientDelta
+      ? Number(drag.startX) + ((Number(event.clientX) - Number(drag.startClientX)) / scale)
+      : point.x - Number(drag.offsetX || 0);
+    const nextY = hasClientDelta
+      ? Number(drag.startY) + ((Number(event.clientY) - Number(drag.startClientY)) / scale)
+      : point.y - Number(drag.offsetY || 0);
+    drag.lastClientX = event.clientX;
+    drag.lastClientY = event.clientY;
+    if (drag.kind === 'boundary') {
+      state.spatialEditor.selectedBoundaryType = drag.boundaryType;
+      state.spatialEditor.selectedBoundaryPointId = drag.boundaryPointId;
+      updateSpatialEditorSelectedBoundaryPoint({
+        x: nextX,
+        y: nextY,
+      }, { snapshot: false });
+      const selected = getSpatialEditorSelectedBoundaryPoint();
+      const x = selected?.point?.x ?? nextX;
+      const y = selected?.point?.y ?? nextY;
+      updateSpatialEditorDraggedDomPosition(drag, x, y);
+      state.spatialEditor.statusText = `MOVING X ${x.toFixed(1)} Y ${y.toFixed(1)}`;
+    } else if (drag.kind === 'pressure') {
+      const item = state.spatialEditor.pressureEdits.find((entry) => entry.id === drag.pressureId);
+      if (!item) {
+        return false;
+      }
+      state.spatialEditor.selectedPressureId = item.id;
+      updateSpatialEditorSelectedPressure({ x: nextX, y: nextY }, { snapshot: false });
+      updateSpatialEditorDraggedDomPosition(drag, item.x, item.y);
+      state.spatialEditor.statusText = `MOVING X ${item.x.toFixed(1)} Y ${item.y.toFixed(1)}`;
+    } else {
+      const node = state.spatialEditor.nodeEdits.find((item) => item.id === drag.nodeId);
+      if (!node) {
+        return false;
+      }
+      state.spatialEditor.selectedNodeId = node.id;
+      updateSpatialEditorSelectedNode({ x: nextX, y: nextY }, { snapshot: false });
+      updateSpatialEditorDraggedDomPosition(drag, node.x, node.y);
+      state.spatialEditor.statusText = `MOVING X ${node.x.toFixed(1)} Y ${node.y.toFixed(1)}`;
+    }
+    if (options.render !== false) {
+      renderSpatialEditorRouteMap();
+      requestRender();
+    }
+    return true;
   }
 
   function handleSpatialEditorMapPointerDown(event) {
-    const object = event.target.closest?.('.spatial-editor-object');
-    if (!object || !elements.spatialEditorMap?.contains(object)) {
+    const editor = state.spatialEditor;
+    if (!isSpatialEditorEditLayerActive() && (editor.activeTool === 'move' || editor.activeTool === 'addPressure')) {
+      activateSpatialEditorEditLayerForTool('node');
+    }
+    if (!isSpatialEditorEditLayerActive()) {
       return;
     }
-    event.preventDefault();
-    selectSpatialEditorObject(object);
     const point = getSpatialEditorSvgPoint(event);
     if (!point) {
       return;
     }
-    const objectX = safeNumber(object.dataset.x, point.x);
-    const objectY = safeNumber(object.dataset.y, point.y);
-    state.spatialEditor.drag = {
-      object,
-      pointerId: event.pointerId,
-      offsetX: point.x - objectX,
-      offsetY: point.y - objectY,
-    };
-    if (typeof elements.spatialEditorMap.setPointerCapture === 'function') {
-      try {
-        elements.spatialEditorMap.setPointerCapture(event.pointerId);
-      } catch (error) {
-        // Ignore pointer capture failures in static prototype mode.
+    editor.lastPointerDownAt = Date.now();
+    event.preventDefault();
+    if (editor.activeTool === 'addPressure') {
+      if (editor.activeLayer === 'boundary') {
+        createSpatialEditorBoundaryPointAtPoint(point);
+        editor.statusText = `ADD boundary X ${point.x.toFixed(1)} Y ${point.y.toFixed(1)}`;
+      } else if (editor.activeLayer === 'pressure') {
+        createSpatialEditorPressureAtPoint(point);
+        editor.statusText = `ADD pressure X ${point.x.toFixed(1)} Y ${point.y.toFixed(1)}`;
+      } else {
+        createSpatialEditorNodeAtPoint(point);
+        editor.statusText = `ADD node X ${point.x.toFixed(1)} Y ${point.y.toFixed(1)}`;
       }
+      editor.suppressNextMapClick = true;
+      requestRender();
+      return;
     }
+
+    if (editor.activeLayer === 'boundary') {
+      const boundaryItems = (editor.boundaryEdits[editor.selectedBoundaryType] || []).flatMap((polygon) => polygon.points);
+      const hit = findNearestSpatialEditorPoint(point, boundaryItems);
+      if (!hit) {
+        selectSpatialEditorBoundaryPoint('', editor.selectedBoundaryType);
+        editor.statusText = `MISS boundary X ${point.x.toFixed(1)} Y ${point.y.toFixed(1)}`;
+        requestRender();
+        return;
+      }
+      selectSpatialEditorBoundaryPoint(hit.id, editor.selectedBoundaryType);
+      const selected = getSpatialEditorSelectedBoundaryPoint();
+      if (!selected || editor.activeTool !== 'move') {
+        editor.statusText = `SELECT boundary ${hit.id}`;
+        requestRender();
+        return;
+      }
+      pushSpatialEditorUndoSnapshot();
+      editor.drag = {
+        kind: 'boundary',
+        boundaryType: selected.type,
+        boundaryPointId: selected.point.id,
+        pointerId: event.pointerId,
+        offsetX: point.x - selected.point.x,
+        offsetY: point.y - selected.point.y,
+        startX: selected.point.x,
+        startY: selected.point.y,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        lastClientX: event.clientX,
+        lastClientY: event.clientY,
+      };
+      editor.statusText = `MOVE boundary ${selected.point.id}`;
+      captureSpatialEditorPointer(event.pointerId);
+      return;
+    }
+
+    if (editor.activeLayer === 'pressure') {
+      const hit = findNearestSpatialEditorPoint(point, editor.pressureEdits);
+      if (!hit) {
+        selectSpatialEditorPressure('');
+        editor.statusText = `MISS pressure X ${point.x.toFixed(1)} Y ${point.y.toFixed(1)}`;
+        requestRender();
+        return;
+      }
+      selectSpatialEditorPressure(hit.id);
+      const item = getSpatialEditorSelectedPressure();
+      if (!item || editor.activeTool !== 'move') {
+        editor.statusText = `SELECT pressure ${hit.name || hit.id}`;
+        requestRender();
+        return;
+      }
+      pushSpatialEditorUndoSnapshot();
+      editor.drag = {
+        kind: 'pressure',
+        pressureId: item.id,
+        pointerId: event.pointerId,
+        offsetX: point.x - item.x,
+        offsetY: point.y - item.y,
+        startX: item.x,
+        startY: item.y,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        lastClientX: event.clientX,
+        lastClientY: event.clientY,
+      };
+      editor.statusText = `MOVE pressure ${item.name || item.id}`;
+      captureSpatialEditorPointer(event.pointerId);
+      return;
+    }
+
+    const hit = findNearestSpatialEditorPoint(point, editor.nodeEdits);
+    if (!hit) {
+      selectSpatialEditorNode('');
+      editor.statusText = `MISS node X ${point.x.toFixed(1)} Y ${point.y.toFixed(1)}`;
+      requestRender();
+      return;
+    }
+    selectSpatialEditorNode(hit.id);
+    const node = getSpatialEditorSelectedNode();
+    if (!node || editor.activeTool !== 'move') {
+      editor.statusText = `SELECT node ${hit.name || hit.id}`;
+      requestRender();
+      return;
+    }
+    pushSpatialEditorUndoSnapshot();
+    editor.drag = {
+      kind: 'node',
+      nodeId: node.id,
+      pointerId: event.pointerId,
+      offsetX: point.x - node.x,
+      offsetY: point.y - node.y,
+      startX: node.x,
+      startY: node.y,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      lastClientX: event.clientX,
+      lastClientY: event.clientY,
+    };
+    editor.statusText = `MOVE node ${node.name || node.id}`;
+    captureSpatialEditorPointer(event.pointerId);
+  }
+
+  function handleSpatialEditorMapClick(event) {
+    const editor = state.spatialEditor;
+    if (editor.suppressNextMapClick) {
+      editor.suppressNextMapClick = false;
+      return;
+    }
+    if (editor.activeTool !== 'addPressure' || editor.drag) {
+      return;
+    }
+    handleSpatialEditorMapPointerDown(event);
+  }
+
+  function handleSpatialEditorStageMouseDown(event) {
+    const interactionTarget = elements.spatialEditorInteractionLayer || elements.spatialEditorRouteMapStage;
+    if (!interactionTarget?.contains(event.target)) {
+      return;
+    }
+    if (event.__spatialEditorHandled) {
+      return;
+    }
+    const editor = state.spatialEditor;
+    if (event.type === 'mousedown' && editor.lastPointerDownAt && Date.now() - editor.lastPointerDownAt < 80) {
+      return;
+    }
+    event.__spatialEditorHandled = true;
+    handleSpatialEditorMapPointerDown(event);
+  }
+
+  function handleSpatialEditorStageClick(event) {
+    const interactionTarget = elements.spatialEditorInteractionLayer || elements.spatialEditorRouteMapStage;
+    if (!interactionTarget?.contains(event.target)) {
+      return;
+    }
+    if (event.__spatialEditorHandled) {
+      return;
+    }
+    event.__spatialEditorHandled = true;
+    handleSpatialEditorMapClick(event);
   }
 
   function handleSpatialEditorMapPointerMove(event) {
-    const drag = state.spatialEditor.drag;
-    if (!drag || (event.pointerId !== undefined && drag.pointerId !== event.pointerId)) {
-      return;
-    }
-    const point = getSpatialEditorSvgPoint(event);
-    if (!point) {
+    if (!state.spatialEditor.drag) {
       return;
     }
     event.preventDefault();
-    updateSpatialEditorObjectPosition(drag.object, point.x - drag.offsetX, point.y - drag.offsetY);
-    requestRender();
+    updateSpatialEditorDragToPoint(event);
   }
 
   function handleSpatialEditorMapPointerEnd(event) {
@@ -9319,6 +10438,28 @@
       return;
     }
     if (
+      Number.isFinite(Number(event.clientX))
+      && Number.isFinite(Number(event.clientY))
+      && (
+        Math.abs(Number(event.clientX) - Number(drag.lastClientX ?? event.clientX)) > 0.25
+        || Math.abs(Number(event.clientY) - Number(drag.lastClientY ?? event.clientY)) > 0.25
+      )
+    ) {
+      updateSpatialEditorDragToPoint(event, { render: false });
+    }
+    if (
+      event.pointerId !== undefined
+      && typeof elements.spatialEditorInteractionLayer?.hasPointerCapture === 'function'
+      && elements.spatialEditorInteractionLayer.hasPointerCapture(event.pointerId)
+    ) {
+      elements.spatialEditorInteractionLayer.releasePointerCapture(event.pointerId);
+    } else if (
+      event.pointerId !== undefined
+      && typeof elements.spatialEditorRouteMapStage?.hasPointerCapture === 'function'
+      && elements.spatialEditorRouteMapStage.hasPointerCapture(event.pointerId)
+    ) {
+      elements.spatialEditorRouteMapStage.releasePointerCapture(event.pointerId);
+    } else if (
       event.pointerId !== undefined
       && typeof elements.spatialEditorMap?.hasPointerCapture === 'function'
       && elements.spatialEditorMap.hasPointerCapture(event.pointerId)
@@ -9327,6 +10468,8 @@
     }
     state.spatialEditor.drag = null;
     state.spatialEditor.statusKey = 'spatialEditor.statusIdle';
+    state.spatialEditor.statusText = 'MOVE done';
+    renderSpatialEditorRouteMap();
     requestRender();
   }
 
@@ -9341,44 +10484,274 @@
       undo: 'spatialEditor.statusUndo',
       reset: 'spatialEditor.statusReset',
     };
-    if (action === 'reset') {
-      const defaults = {
-        'Boundary Control P1': [126, 154],
-        'Boundary Control P2': [878, 202],
-        'Gate Node A': [204, 374],
-        'Transfer Node B': [512, 282],
-        'Platform Node C': [802, 184],
-        'Noise Pressure Point': [396, 220],
-        'Advertising Pressure Point': [650, 350],
-      };
-      elements.spatialEditorMap?.querySelectorAll('.spatial-editor-object').forEach((object) => {
-        const position = defaults[object.dataset.spatialEditorObject];
-        if (position) {
-          updateSpatialEditorObjectPosition(object, position[0], position[1]);
-        }
-      });
+    if (action === 'undo' && state.spatialEditor.activeLayer !== 'preview') {
+      undoSpatialEditorNodeEdit();
+      requestRender();
+      return;
+    }
+    if (action === 'reset' && state.spatialEditor.activeLayer === 'node') {
+      resetSpatialEditorNodes();
+      requestRender();
+      return;
+    }
+    if (action === 'reset' && state.spatialEditor.activeLayer === 'pressure') {
+      resetSpatialEditorPressureObjects();
+      requestRender();
+      return;
+    }
+    if (action === 'reset' && state.spatialEditor.activeLayer === 'boundary') {
+      resetSpatialEditorBoundaryObjects();
+      requestRender();
+      return;
     }
     state.spatialEditor.statusKey = statusMap[action] || 'spatialEditor.statusIdle';
     requestRender();
+  }
+
+  function renderSpatialEditorPropertyFields() {
+    const editor = state.spatialEditor;
+    const node = getSpatialEditorSelectedNode();
+    const pressure = getSpatialEditorSelectedPressure();
+    const boundary = getSpatialEditorSelectedBoundaryPoint();
+    const boundaryPoint = boundary?.point || null;
+    const object = editor.activeLayer === 'boundary'
+      ? boundaryPoint
+      : editor.activeLayer === 'pressure'
+        ? pressure
+        : node;
+    const disabled = !object;
+    const placeholder = editor.activeLayer === 'pressure'
+      ? t('spatialEditor.noPressureSelected')
+      : t('spatialEditor.noNodeSelected');
+    if (elements.spatialEditorObjectName) {
+      elements.spatialEditorObjectName.innerHTML = `
+        <input class="spatial-editor-field" type="text" data-spatial-editor-field="name" value="${escapeHtml(object?.name || '')}" placeholder="${escapeHtml(placeholder)}" ${disabled ? 'disabled' : ''}>
+      `;
+    }
+    if (elements.spatialEditorObjectCoord) {
+      const zField = editor.activeLayer === 'pressure'
+        ? `<span class="spatial-editor-coordinate-field">Z <input class="spatial-editor-field spatial-editor-field--number" type="number" step="0.1" data-spatial-editor-field="z" value="${escapeHtml(object ? String(object.z || 0) : '')}" ${disabled ? 'disabled' : ''}></span>`
+        : '';
+      elements.spatialEditorObjectCoord.innerHTML = `
+        <span class="spatial-editor-coordinate-field">X <input class="spatial-editor-field spatial-editor-field--number" type="number" step="0.1" data-spatial-editor-field="x" value="${escapeHtml(object ? String(object.x) : '')}" ${disabled ? 'disabled' : ''}></span>
+        <span class="spatial-editor-coordinate-field">Y <input class="spatial-editor-field spatial-editor-field--number" type="number" step="0.1" data-spatial-editor-field="y" value="${escapeHtml(object ? String(object.y) : '')}" ${disabled ? 'disabled' : ''}></span>
+        ${zField}
+      `;
+    }
+    if (elements.spatialEditorObjectType) {
+      const options = editor.activeLayer === 'boundary'
+        ? buildSpatialEditorBoundaryTypeOptions(editor.selectedBoundaryType || 'walkable')
+        : editor.activeLayer === 'pressure'
+        ? buildSpatialEditorPressureTypeOptions(pressure?.type || 'noise')
+        : buildSpatialEditorNodeTypeOptions(node?.type || 'entry_gate');
+      elements.spatialEditorObjectType.innerHTML = `
+        <select class="spatial-editor-field spatial-editor-field--select" data-spatial-editor-field="type" ${disabled ? 'disabled' : ''}>
+          ${options}
+        </select>
+      `;
+    }
+    editor.selectedObjectName = editor.activeLayer === 'boundary' && boundaryPoint
+      ? `${t('spatialEditor.defaultBoundaryPointName')} ${boundaryPoint.pointIndex + 1}`
+      : object?.name || '';
+    editor.selectedObjectType = editor.activeLayer === 'boundary'
+      ? getSpatialEditorBoundaryTypeLabel(editor.selectedBoundaryType)
+      : editor.activeLayer === 'pressure' && pressure
+      ? getSpatialEditorPressureTypeLabel(pressure.type)
+      : (node ? getSpatialEditorNodeTypeLabel(node.type) : '');
+    editor.selectedX = object?.x || 0;
+    editor.selectedY = object?.y || 0;
+    renderSpatialEditorPressureParameterFields(pressure);
+  }
+
+  function renderSpatialEditorPressureParameterFields(pressure) {
+    const noiseEnabled = Boolean(pressure && pressureSupportsNoiseEdit(pressure));
+    const lightEnabled = Boolean(pressure && pressureSupportsLightEdit(pressure));
+    const decibel = Number(pressure?.decibel || 0);
+    const lux = Number(pressure?.lux || 0);
+    [
+      [elements.spatialEditorNoise, decibel, noiseEnabled],
+      [elements.spatialEditorNoiseValue, decibel, noiseEnabled],
+      [elements.spatialEditorLight, lux, lightEnabled],
+      [elements.spatialEditorLightValue, lux, lightEnabled],
+    ].forEach(([element, value, enabled]) => {
+      if (!element) {
+        return;
+      }
+      element.value = String(value);
+      element.disabled = !enabled;
+      element.closest?.('.spatial-editor-parameter-row')?.classList.toggle('is-disabled', !enabled);
+    });
+  }
+
+  function buildSpatialEditorNodeTypeOptions(selectedType) {
+    return getSpatialEditorNodeTypeOptions()
+      .map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === selectedType ? 'selected' : ''}>${escapeHtml(item.label)}</option>`)
+      .join('');
+  }
+
+  function handleSpatialEditorPropertyInput(event) {
+    const field = event.target?.dataset?.spatialEditorField;
+    if (!field) {
+      return;
+    }
+    event.__spatialEditorHandled = true;
+    const isLiveCoordinateInput = event.type === 'input' && (field === 'x' || field === 'y' || field === 'z');
+    const patch = {};
+    patch[field] = event.target.value;
+    if (state.spatialEditor.activeLayer === 'boundary') {
+      updateSpatialEditorSelectedBoundaryPoint(patch, { snapshot: !isLiveCoordinateInput });
+      const selected = getSpatialEditorSelectedBoundaryPoint();
+      if (isLiveCoordinateInput && selected) {
+        updateSpatialEditorDraggedDomPosition({
+          kind: 'boundary',
+          boundaryPointId: selected.point.id,
+        }, selected.point.x, selected.point.y);
+        state.spatialEditor.statusText = `XYZ X ${selected.point.x.toFixed(1)} Y ${selected.point.y.toFixed(1)}`;
+        renderSpatialEditorRouteMap();
+        return;
+      }
+    } else if (state.spatialEditor.activeLayer === 'pressure') {
+      updateSpatialEditorSelectedPressure(patch, { snapshot: !isLiveCoordinateInput });
+      const pressure = getSpatialEditorSelectedPressure();
+      if (isLiveCoordinateInput && pressure) {
+        updateSpatialEditorDraggedDomPosition({
+          kind: 'pressure',
+          pressureId: pressure.id,
+        }, pressure.x, pressure.y);
+        state.spatialEditor.statusText = `XYZ X ${pressure.x.toFixed(1)} Y ${pressure.y.toFixed(1)} Z ${Number(pressure.z || 0).toFixed(1)}`;
+        renderSpatialEditorRouteMap();
+        return;
+      }
+    } else if (state.spatialEditor.activeLayer === 'node') {
+      updateSpatialEditorSelectedNode(patch, { snapshot: !isLiveCoordinateInput });
+      const node = getSpatialEditorSelectedNode();
+      if (isLiveCoordinateInput && node) {
+        updateSpatialEditorDraggedDomPosition({
+          kind: 'node',
+          nodeId: node.id,
+        }, node.x, node.y);
+        state.spatialEditor.statusText = `XYZ X ${node.x.toFixed(1)} Y ${node.y.toFixed(1)}`;
+        renderSpatialEditorRouteMap();
+        return;
+      }
+    }
+    requestRender();
+  }
+
+  function handleSpatialEditorParameterInput(event) {
+    const field = event.target?.dataset?.spatialEditorParam;
+    if (!field || state.spatialEditor.activeLayer !== 'pressure' || event.target.disabled) {
+      return;
+    }
+    event.__spatialEditorHandled = true;
+    const value = event.target.value;
+    [elements.spatialEditorNoise, elements.spatialEditorNoiseValue, elements.spatialEditorLight, elements.spatialEditorLightValue]
+      .filter((element) => element && element !== event.target && element.dataset?.spatialEditorParam === field)
+      .forEach((element) => {
+        element.value = value;
+      });
+    const patch = {};
+    patch[field] = value;
+    updateSpatialEditorSelectedPressure(patch);
+    requestRender();
+  }
+
+  function isSpatialEditorScreenVisible() {
+    return state.uiScreen === 'spatial-editor' && !elements.spatialEditorScreen?.classList.contains('hidden');
+  }
+
+  function handleSpatialEditorDocumentPointerDown(event) {
+    if (event.__spatialEditorHandled) {
+      return;
+    }
+    if (!isSpatialEditorScreenVisible()) {
+      return;
+    }
+    if (!elements.spatialEditorRouteMapStage?.contains(event.target)) {
+      return;
+    }
+    if (event.target.closest?.('.spatial-editor-toolbar, .spatial-editor-bottom-bar')) {
+      return;
+    }
+    event.__spatialEditorHandled = true;
+    handleSpatialEditorMapPointerDown(event);
+  }
+
+  function handleSpatialEditorDocumentClick(event) {
+    if (event.__spatialEditorHandled) {
+      return;
+    }
+    if (!isSpatialEditorScreenVisible()) {
+      return;
+    }
+    const toolButton = event.target.closest?.('[data-spatial-editor-tool]');
+    if (toolButton && elements.spatialEditorScreen?.contains(toolButton)) {
+      event.__spatialEditorHandled = true;
+      setSpatialEditorTool(toolButton.dataset.spatialEditorTool);
+      return;
+    }
+    const actionButton = event.target.closest?.('[data-spatial-editor-action]');
+    if (actionButton && elements.spatialEditorScreen?.contains(actionButton)) {
+      event.__spatialEditorHandled = true;
+      handleSpatialEditorAction(actionButton.dataset.spatialEditorAction);
+      return;
+    }
+    if (elements.spatialEditorRouteMapStage?.contains(event.target)) {
+      event.__spatialEditorHandled = true;
+      handleSpatialEditorMapClick(event);
+    }
+  }
+
+  function handleSpatialEditorDocumentInput(event) {
+    if (event.__spatialEditorHandled) {
+      return;
+    }
+    if (!isSpatialEditorScreenVisible() || !elements.spatialEditorScreen?.contains(event.target)) {
+      return;
+    }
+    if (event.target?.dataset?.spatialEditorField) {
+      handleSpatialEditorPropertyInput(event);
+    } else if (event.target?.dataset?.spatialEditorParam) {
+      handleSpatialEditorParameterInput(event);
+    }
+  }
+
+  function handleSpatialEditorDocumentPointerMove(event) {
+    if (!isSpatialEditorScreenVisible() || !state.spatialEditor.drag) {
+      return;
+    }
+    event.preventDefault();
+    updateSpatialEditorDragToPoint(event);
+  }
+
+  function handleSpatialEditorDocumentPointerEnd(event) {
+    if (!isSpatialEditorScreenVisible() || !state.spatialEditor.drag) {
+      return;
+    }
+    event.preventDefault();
+    handleSpatialEditorMapPointerEnd(event);
   }
 
   function renderSpatialEditorScreen() {
     renderSpatialEditorRouteMap();
     const editor = state.spatialEditor;
     elements.spatialEditorToolButtons.forEach((button) => {
-      button.classList.toggle('active', button.dataset.spatialEditorTool === editor.activeTool);
+      const tool = button.dataset.spatialEditorTool;
+      const isLayerButton = tool === 'node' || tool === 'boundary' || tool === 'pressure';
+      const isActive = tool === 'select'
+        ? editor.activeLayer === 'preview'
+        : tool === 'selectObject'
+          ? editor.activeTool === 'select' && editor.activeLayer !== 'preview'
+        : tool === 'node'
+        ? editor.activeLayer === 'node'
+        : isLayerButton
+          ? editor.activeLayer === tool
+          : tool === editor.activeTool;
+      button.classList.toggle('active', Boolean(isActive));
     });
-    if (elements.spatialEditorObjectName) {
-      elements.spatialEditorObjectName.textContent = editor.selectedObjectName || '--';
-    }
-    if (elements.spatialEditorObjectCoord) {
-      elements.spatialEditorObjectCoord.textContent = `x ${Math.round(safeNumber(editor.selectedX, 0))} · y ${Math.round(safeNumber(editor.selectedY, 0))}`;
-    }
-    if (elements.spatialEditorObjectType) {
-      elements.spatialEditorObjectType.textContent = editor.selectedObjectType || '--';
-    }
+    renderSpatialEditorPropertyFields();
     if (elements.spatialEditorStatus) {
-      elements.spatialEditorStatus.textContent = t(editor.statusKey || 'spatialEditor.statusIdle');
+      elements.spatialEditorStatus.textContent = editor.statusText || t(editor.statusKey || 'spatialEditor.statusIdle');
     }
   }
 
@@ -9591,7 +10964,7 @@
         locale: locale === 'en' ? 'en' : 'zh-CN',
         payload: reportData?.llmInput || buildSharedRouteAnalysisLlmInput({ reportData }),
       }),
-    }, Math.max(12000, LOCAL_SIM_SERVER_REQUEST_TIMEOUT_MS));
+    }, Math.max(LOCAL_SIM_SERVER_REPORT_ANALYSIS_TIMEOUT_MS, LOCAL_SIM_SERVER_REQUEST_TIMEOUT_MS));
     if (!response.ok) {
       throw new Error(body?.error || `Route analysis failed (${response.status})`);
     }
@@ -9601,16 +10974,221 @@
     } : null;
   }
 
+  function hasReportLlmDetailRegionAnalyses(analysis, reportData = null, locale = getReportLocale()) {
+    const localized = localizeRouteAnalysisOutput(analysis, locale);
+    return Array.isArray(localized?.localizedDetailRegionAnalyses)
+      && localized.localizedDetailRegionAnalyses.length > 0
+      && (!reportData || getMissingReportLlmDetailTargets(reportData, localized, locale).length === 0);
+  }
+
+  function hasUsableReportLlmDetailRegionAnalyses(analysis, reportData = null, locale = getReportLocale()) {
+    const localized = localizeRouteAnalysisOutput(analysis, locale);
+    const analyses = Array.isArray(localized?.localizedDetailRegionAnalyses)
+      ? localized.localizedDetailRegionAnalyses
+      : [];
+    const usableAnalyses = analyses.filter((item) => (
+      String(item.pattern || '').trim()
+      && String(item.cause || '').trim()
+      && String(item.advice || '').trim()
+    ));
+    if (!reportData) {
+      return usableAnalyses.length > 0;
+    }
+    const requiredTargets = getRequiredReportLlmDetailTargets(reportData);
+    const coveredBurdens = new Set(usableAnalyses.map((item) => normalizeReportLlmBurdenId(item.burdenId)).filter(Boolean));
+    const requiredBurdens = new Set(requiredTargets.map((item) => normalizeReportLlmBurdenId(item.burdenId)).filter(Boolean));
+    const coveredBurdenCount = Array.from(requiredBurdens).filter((id) => coveredBurdens.has(id)).length;
+    const minimumDetailCount = Math.min(8, requiredTargets.length);
+    return usableAnalyses.length >= minimumDetailCount && coveredBurdenCount >= Math.min(4, requiredBurdens.size);
+  }
+
+  function hasCompleteReportLlmAnalysis(analysis, reportData = null, locale = getReportLocale()) {
+    const localized = localizeRouteAnalysisOutput(analysis, locale);
+    if (!localized?.provider?.connected || !hasUsableReportLlmDetailRegionAnalyses(localized, reportData, locale)) {
+      return false;
+    }
+    if (!reportData) {
+      return true;
+    }
+    return getMissingReportFrontLlmSections({
+      ...reportData,
+      llmAnalysis: localized,
+      locale,
+    }).length === 0;
+  }
+
+  function getRequiredReportLlmDetailTargets(reportData) {
+    return (Array.isArray(reportData?.detailBurdenCards) ? reportData.detailBurdenCards : [])
+      .filter((card) => card?.id && card.id !== COMPOSITE_BURDEN_VIEW)
+      .flatMap((card) => {
+        const regions = Array.isArray(card.regionIssues) && card.regionIssues.length
+          ? card.regionIssues
+          : (Array.isArray(card.highRegions) && card.highRegions.length ? card.highRegions : card.regionRankings || []);
+        return regions.slice(0, REPORT_DETAIL_HIGH_REGION_LIMIT).map((region) => ({
+          burdenId: card.id,
+          regionIndex: Number(region?.index),
+        }));
+      })
+      .filter((item) => item.burdenId && Number.isFinite(item.regionIndex));
+  }
+
+  function getMissingReportLlmDetailTargets(reportData, analysis = reportData?.llmAnalysis, locale = getReportLocale()) {
+    const localized = localizeRouteAnalysisOutput(analysis, locale);
+    const analyses = Array.isArray(localized?.localizedDetailRegionAnalyses)
+      ? localized.localizedDetailRegionAnalyses
+      : [];
+    const available = new Set(analyses
+      .filter((item) => String(item.pattern || '').trim() && String(item.cause || '').trim() && String(item.advice || '').trim())
+      .map((item) => `${normalizeReportLlmBurdenId(item.burdenId)}:${Number(item.regionIndex)}`));
+    const missing = getRequiredReportLlmDetailTargets(reportData).filter((target) => !available.has(`${normalizeReportLlmBurdenId(target.burdenId)}:${Number(target.regionIndex)}`));
+    if (!missing.length) {
+      return [];
+    }
+    const uniqueBurdenCoverage = new Set(analyses
+      .filter((item) => String(item.pattern || '').trim() && String(item.cause || '').trim() && String(item.advice || '').trim())
+      .map((item) => normalizeReportLlmBurdenId(item.burdenId))
+      .filter(Boolean));
+    const requiredBurdenCoverage = new Set(getRequiredReportLlmDetailTargets(reportData).map((target) => normalizeReportLlmBurdenId(target.burdenId)).filter(Boolean));
+    const coveredBurdenCount = Array.from(requiredBurdenCoverage).filter((id) => uniqueBurdenCoverage.has(id)).length;
+    if (analyses.length >= Math.min(12, getRequiredReportLlmDetailTargets(reportData).length) && coveredBurdenCount >= Math.min(5, requiredBurdenCoverage.size)) {
+      return [];
+    }
+    return missing;
+  }
+
+  function getRequiredReportFrontLlmSections() {
+    return [
+      {
+        id: 'coreProblems',
+        keywords: ['core problem', 'core problems', 'problem', 'route problem', '核心问题', '问题摘要'],
+      },
+      {
+        id: 'keyModifications',
+        keywords: ['key modification', 'key modifications', 'modification', 'priority action', 'priority modification', '重点修改', '修改内容', '优先修改'],
+      },
+    ];
+  }
+
+  function getMissingReportFrontLlmSections(reportData) {
+    return getRequiredReportFrontLlmSections()
+      .filter((section) => !getReportFrontSectionBullets(reportData, section.keywords, [], 1).length);
+  }
+
+  function assertReportLlmAnalysisReady(reportData, locale = getReportLocale()) {
+    const localized = localizeRouteAnalysisOutput(reportData?.llmAnalysis, locale);
+    const providerConnected = localized?.provider?.connected === true;
+    const missingDetails = getMissingReportLlmDetailTargets(reportData, localized, locale);
+    const missingFrontSections = getMissingReportFrontLlmSections({
+      ...reportData,
+      llmAnalysis: localized,
+      locale,
+    });
+    const detailUsable = hasUsableReportLlmDetailRegionAnalyses(localized, reportData, locale);
+    if (!providerConnected || !detailUsable || missingFrontSections.length) {
+      const detailSummary = missingDetails.slice(0, 4)
+        .map((item) => `${item.burdenId}:${item.regionIndex}`)
+        .join(', ');
+      const frontSummary = missingFrontSections.map((item) => item.id).join(', ');
+      const reasonParts = [
+        !providerConnected ? 'provider' : '',
+        (!detailUsable && detailSummary) ? `detail ${detailSummary}` : '',
+        frontSummary ? `front ${frontSummary}` : '',
+      ].filter(Boolean);
+      throw new Error(`${reportT('llmReportIncomplete', null, locale)}${reasonParts.length ? ` (${reasonParts.join('; ')})` : ''}`);
+    }
+    return true;
+  }
+
   function getReportLlmAnalysisKey(reportData, locale = getReportLocale()) {
     return JSON.stringify({
+      schemaVersion: REPORT_ANALYSIS_SCHEMA_VERSION,
       locale: locale === 'en' ? 'en' : 'zh-CN',
       route: reportData?.route,
       score: reportData?.routeScoreSummary,
       pressureIds: (reportData?.routePressurePoints || []).slice(0, 12).map((point) => point.id),
+      detailHotZones: (reportData?.detailBurdenCards || [])
+        .filter((card) => card?.id && card.id !== COMPOSITE_BURDEN_VIEW)
+        .map((card) => [
+          card.id,
+          (card.highRegions || []).slice(0, REPORT_DETAIL_HIGH_REGION_LIMIT).map((region) => region.index),
+        ]),
     });
   }
 
-  async function ensureRouteAnalysisForCurrentState(locale = getReportLocale()) {
+  function mergeReportDetailRegionAnalyses(baseAnalysis, detailAnalysis, locale = getReportLocale()) {
+    const base = localizeRouteAnalysisOutput(baseAnalysis, locale) || baseAnalysis || {};
+    const detail = localizeRouteAnalysisOutput(detailAnalysis, locale) || detailAnalysis || {};
+    const merged = { ...base };
+    const mergedItems = [];
+    const seen = new Set();
+    const addItems = (items = []) => {
+      (Array.isArray(items) ? items : []).forEach((item) => {
+        const burdenId = normalizeReportLlmBurdenId(item?.burdenId || item?.burden_id);
+        const regionIndex = Number(item?.regionIndex ?? item?.region_index ?? item?.index);
+        if (!burdenId || !Number.isFinite(regionIndex)) {
+          return;
+        }
+        const key = `${burdenId}:${regionIndex}`;
+        if (seen.has(key)) {
+          return;
+        }
+        seen.add(key);
+        mergedItems.push({
+          ...item,
+          burdenId,
+          regionIndex,
+          patternZh: item.patternZh || item.pattern_zh || item.pattern || '',
+          patternEn: item.patternEn || item.pattern_en || item.pattern || '',
+          causeZh: item.causeZh || item.cause_zh || item.cause || '',
+          causeEn: item.causeEn || item.cause_en || item.cause || '',
+          adviceZh: item.adviceZh || item.advice_zh || item.advice || '',
+          adviceEn: item.adviceEn || item.advice_en || item.advice || '',
+          overallImportance: Number(item.overallImportance ?? item.importance ?? 0),
+        });
+      });
+    };
+    addItems(detail?.localizedDetailRegionAnalyses || detail?.detailRegionAnalyses);
+    addItems(base?.localizedDetailRegionAnalyses || base?.detailRegionAnalyses);
+    merged.detailRegionAnalyses = mergedItems;
+    merged.localizedDetailRegionAnalyses = localizeRouteAnalysisOutput(merged, locale)?.localizedDetailRegionAnalyses || mergedItems;
+    return merged;
+  }
+
+  function buildDetailedRegionOnlyRouteAnalysisInput(reportData, missingTargets, locale = getReportLocale()) {
+    const baseInput = buildSharedRouteAnalysisLlmInput({ reportData });
+    const targetKeys = new Set((missingTargets || []).map((item) => `${normalizeReportLlmBurdenId(item.burdenId)}:${Number(item.regionIndex)}`));
+    return {
+      ...baseInput,
+      requestedFrontReport: {
+        purpose: 'Do not generate front summary in this pass; preserve any existing front summary from the first call.',
+        requiredSections: [],
+        constraints: ['Return detailRegionAnalyses for the requested missing hot zones only.'],
+      },
+      requestedDetailedBurdenAnalysis: {
+        purpose: 'Second pass: fill missing detailed burden hot-zone analyses one by one.',
+        outputField: 'detailRegionAnalyses',
+        constraints: [
+          'Return one item for every targetDetailRegionAnalyses item supplied in this second pass.',
+          'Use burdenId and regionIndex exactly as supplied.',
+          'If evidence is limited, infer from the supplied hotZoneEvidence, influenceSources, restBehavior, and dimensionSummary; do not omit the item.',
+          'Each item must include pattern_zh/en, cause_zh/en, advice_zh/en, and overallImportance.',
+        ],
+      },
+      targetDetailRegionAnalyses: (baseInput.targetDetailRegionAnalyses || []).filter((item) => targetKeys.has(`${normalizeReportLlmBurdenId(item.burdenId)}:${Number(item.regionIndex)}`)),
+      detailBurdenCards: (baseInput.detailBurdenCards || []).map((card) => ({
+        ...card,
+        regions: (card.regions || []).filter((region) => targetKeys.has(`${normalizeReportLlmBurdenId(card.id)}:${Number(region.index)}`)),
+        pressurePoints: (card.pressurePoints || []).filter((group) => targetKeys.has(`${normalizeReportLlmBurdenId(card.id)}:${Number(group.index)}`)),
+        influenceSources: (card.influenceSources || []).filter((group) => targetKeys.has(`${normalizeReportLlmBurdenId(card.id)}:${Number(group.index)}`)),
+      })).filter((card) => (card.regions || []).length),
+      hotZoneEvidence: (baseInput.hotZoneEvidence || []).map((card) => ({
+        ...card,
+        regions: (card.regions || []).filter((region) => targetKeys.has(`${normalizeReportLlmBurdenId(card.burdenId)}:${Number(region.index)}`)),
+      })).filter((card) => (card.regions || []).length),
+    };
+  }
+
+  async function ensureRouteAnalysisForCurrentState(locale = getReportLocale(), options = {}) {
     if (!state.reportModal.open) {
       return null;
     }
@@ -9628,7 +11206,11 @@
     ) {
       return state.reportModal.llmAnalysisPromise;
     }
-    if (state.reportModal.llmAnalysis && state.reportModal.llmAnalysisKey === analysisKey) {
+    if (
+      state.reportModal.llmAnalysis
+      && state.reportModal.llmAnalysisKey === analysisKey
+      && hasCompleteReportLlmAnalysis(state.reportModal.llmAnalysis, reportData, locale)
+    ) {
       return state.reportModal.llmAnalysis;
     }
     state.reportModal.llmAnalysisPending = true;
@@ -9645,23 +11227,97 @@
       ) {
         return null;
       }
-      state.reportModal.llmAnalysis = localizeRouteAnalysisOutput(analysis, locale);
+      let localizedAnalysis = localizeRouteAnalysisOutput(analysis, locale);
+      localizedAnalysis = await ensureReportDetailRegionAnalysisForCurrentState({
+        ...reportData,
+        llmAnalysis: localizedAnalysis,
+        locale,
+      }, { throwOnError: false }) || localizedAnalysis;
+      assertReportLlmAnalysisReady({
+        ...reportData,
+        llmAnalysis: localizedAnalysis,
+        locale,
+      }, locale);
+      state.reportModal.llmAnalysis = localizedAnalysis;
       state.reportModal.llmAnalysisKey = analysisKey;
+      state.reportModal.error = '';
       rebuildReportModalContent(locale);
       return state.reportModal.llmAnalysis;
     })();
     try {
       return await state.reportModal.llmAnalysisPromise;
     } catch (error) {
-      state.reportModal.status = typeof window.showSaveFilePicker === 'function'
-        ? reportT('readyPreviewPicker', null, state.locale)
-        : reportT('readyPreviewDownload', null, state.locale);
+      const message = error instanceof Error ? error.message : reportT('llmReportIncomplete', null, locale);
+      state.reportModal.error = message;
+      state.reportModal.status = '';
+      if (options?.throwOnError) {
+        throw error;
+      }
       return null;
     } finally {
       if (state.reportModal.llmAnalysisRequestKey === analysisKey) {
         state.reportModal.llmAnalysisPending = false;
         state.reportModal.llmAnalysisPromise = null;
         state.reportModal.llmAnalysisRequestKey = '';
+      }
+      requestRender();
+    }
+  }
+
+  async function ensureReportDetailRegionAnalysisForCurrentState(reportData, options = {}) {
+    if (!state.reportModal.open || !reportData) {
+      return reportData?.llmAnalysis || null;
+    }
+    const locale = reportData.locale === 'en' ? 'en' : 'zh-CN';
+    const currentAnalysis = localizeRouteAnalysisOutput(reportData.llmAnalysis, locale);
+    const missingTargets = getMissingReportLlmDetailTargets(reportData, currentAnalysis, locale);
+    if (!missingTargets.length) {
+      return currentAnalysis;
+    }
+    const detailKey = JSON.stringify({
+      schemaVersion: REPORT_ANALYSIS_SCHEMA_VERSION,
+      locale,
+      route: reportData.route,
+      missingTargets: missingTargets.map((item) => `${normalizeReportLlmBurdenId(item.burdenId)}:${Number(item.regionIndex)}`),
+    });
+    if (
+      state.reportModal.detailAnalysisPending
+      && state.reportModal.detailAnalysisPromise
+      && state.reportModal.detailAnalysisRequestKey === detailKey
+    ) {
+      return state.reportModal.detailAnalysisPromise;
+    }
+    state.reportModal.detailAnalysisPending = true;
+    state.reportModal.detailAnalysisRequestKey = detailKey;
+    state.reportModal.status = locale === 'en' ? 'Completing detailed hot-zone analysis...' : '正在补全详细热区分析...';
+    requestRender();
+    state.reportModal.detailAnalysisPromise = (async () => {
+      const detailInput = buildDetailedRegionOnlyRouteAnalysisInput(reportData, missingTargets, locale);
+      const detailAnalysis = await requestRouteAnalysisFromLocalService({
+        ...reportData,
+        llmInput: detailInput,
+      }, locale);
+      if (!detailAnalysis || !state.reportModal.open || getReportLocale() !== locale) {
+        return currentAnalysis;
+      }
+      const merged = mergeReportDetailRegionAnalyses(currentAnalysis, detailAnalysis, locale);
+      state.reportModal.llmAnalysis = merged;
+      state.reportModal.error = '';
+      rebuildReportModalContent(locale);
+      return merged;
+    })();
+    try {
+      return await state.reportModal.detailAnalysisPromise;
+    } catch (error) {
+      if (options?.throwOnError) {
+        throw error;
+      }
+      return currentAnalysis;
+    } finally {
+      if (state.reportModal.detailAnalysisRequestKey === detailKey) {
+        state.reportModal.detailAnalysisPending = false;
+        state.reportModal.detailAnalysisPromise = null;
+        state.reportModal.detailAnalysisRequestKey = '';
       }
       requestRender();
     }
@@ -10310,6 +11966,46 @@
     }).slice(0, 5);
   }
 
+  function getReportRouteEndpointPoints() {
+    const traceSnapshots = getReportTraceSnapshots();
+    const firstTrace = traceSnapshots[0] || null;
+    const lastTrace = traceSnapshots[traceSnapshots.length - 1] || null;
+    const targetRegion = getTargetRegionById(state.routeSelection.targetRegionId)
+      || state.scenario?.focusTargetRegion
+      || (state.scenario?.focusRoute?.targetRegionId ? state.prepared?.targetRegionById?.[state.scenario.focusRoute.targetRegionId] : null);
+    const start = state.routeSelection.startPoint
+      || state.scenario?.focusStartPoint
+      || state.scenario?.focusRoute?.startAnchor
+      || firstTrace;
+    const end = state.scenario?.focusRoute?.endAnchor
+      || state.scenario?.focusTargetNode
+      || targetRegion?.anchor
+      || lastTrace;
+    const normalizePoint = (point) => {
+      const x = Number(point?.x ?? point?.position?.x);
+      const y = Number(point?.y ?? point?.position?.y);
+      return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+    };
+    return {
+      start: normalizePoint(start),
+      end: normalizePoint(end),
+    };
+  }
+
+  function buildReportRouteEndpointMarkers(transform) {
+    const endpoints = getReportRouteEndpointPoints();
+    return [
+      ['start', 'S', endpoints.start],
+      ['end', 'E', endpoints.end],
+    ].map(([kind, label, point]) => {
+      if (!point) {
+        return '';
+      }
+      const displayPoint = worldToDisplayPoint(point, transform);
+      return `<text class="report-route-endpoint report-route-endpoint--${kind}" x="${displayPoint.x}" y="${displayPoint.y}">${label}</text>`;
+    }).join('');
+  }
+
   function buildReportBaseSvg(transform) {
     const viewBox = `${transform.viewBox.x} ${transform.viewBox.y} ${transform.viewBox.width} ${transform.viewBox.height}`;
     const walkable = (state.prepared?.walkableAreas || [])
@@ -10498,6 +12194,16 @@
     ].find((items) => Array.isArray(items)) || [];
   }
 
+  function getReportInfluenceContributionLog() {
+    const playback = getReportPlayback();
+    return [
+      playback?.influenceContributionLog,
+      playback?.heat?.influenceContributionLog,
+      state.scenario?.precomputedPlayback?.influenceContributionLog,
+      state.scenario?.precomputedPlayback?.heat?.influenceContributionLog,
+    ].find((items) => Array.isArray(items)) || [];
+  }
+
   function buildReportPressurePointIndex(locale = getReportLocale()) {
     const contributionLog = getReportPressureContributionLog();
     const activePressureObjects = Array.isArray(state.prepared?.activePressureObjects)
@@ -10572,6 +12278,9 @@
 
   function buildReportNumberedInfluenceSourceMarkup(transform, influenceSources = []) {
     return influenceSources.map((item) => {
+      if (item?.sourceType === 'area') {
+        return '';
+      }
       if (item?.sourceType === 'pressure') {
         return buildReportNumberedPressurePointMarkup(transform, [item]);
       }
@@ -10587,7 +12296,7 @@
     const transform = computeTransformForViewportSize(860, 400);
     return {
       baseSvg: buildReportBaseSvg(transform),
-      overlaySvg: `<svg viewBox="${transform.viewBox.x} ${transform.viewBox.y} ${transform.viewBox.width} ${transform.viewBox.height}" preserveAspectRatio="xMidYMid meet">${buildReportRoutePathMarkup(transform)}${buildReportDecisionPointMarkup(transform)}${buildReportNumberedPressurePointMarkup(transform, reportData?.routePressurePoints || [])}</svg>`,
+      overlaySvg: `<svg viewBox="${transform.viewBox.x} ${transform.viewBox.y} ${transform.viewBox.width} ${transform.viewBox.height}" preserveAspectRatio="xMidYMid meet">${buildReportRoutePathMarkup(transform)}${buildReportDecisionPointMarkup(transform)}${buildReportNumberedPressurePointMarkup(transform, reportData?.routePressurePoints || [])}${buildReportRouteEndpointMarkers(transform)}</svg>`,
     };
   }
 
@@ -10949,7 +12658,6 @@
 
   function getReportAreaInfluenceReason(id, value, locale = getReportLocale()) {
     const zh = locale !== 'en';
-    const formatted = Number.isFinite(Number(value)) ? formatReportMetric(value) : '';
     const reasons = {
       crowd_density: zh ? `热区附近人群密度偏高` : `crowd density is elevated near this hot zone`,
       queue_spillover: zh ? `等待或排队状态在该段叠加` : `waiting or queueing accumulates in this segment`,
@@ -10961,7 +12669,7 @@
       noise_environment: zh ? `区域噪音水平提高` : `area noise level increases`,
       lighting_environment: zh ? `照度偏离舒适范围` : `lighting deviates from the comfort range`,
     };
-    return formatted ? `${reasons[id] || getReportAreaInfluenceLabel(id, locale)} (${formatted})` : (reasons[id] || getReportAreaInfluenceLabel(id, locale));
+    return reasons[id] || getReportAreaInfluenceLabel(id, locale);
   }
 
   function buildReportAreaInfluenceSource(id, contribution, point, value, locale = getReportLocale()) {
@@ -11021,6 +12729,108 @@
       sources.push(buildReportAreaInfluenceSource('lighting_environment', lightingDeviation * 10, point, lighting, locale));
     }
     return sources
+      .filter((item) => Number(item.regionContribution || item.contribution || 0) > 0.5)
+      .sort((left, right) => Number(right.regionContribution || right.contribution || 0) - Number(left.regionContribution || left.contribution || 0));
+  }
+
+  function getReportRegionLoggedInfluenceSources(region, viewMode = COMPOSITE_BURDEN_VIEW, locale = getReportLocale()) {
+    const regionCells = Array.isArray(region?.cells) ? region.cells : [];
+    if (!regionCells.length) {
+      return [];
+    }
+    const cellSize = Math.max(0.2, Number(state.prepared?.grid?.cellSize || 1.15));
+    const safeViewMode = getSafeViewMode(viewMode);
+    const nodeIndex = getReportRouteNodeInfluenceIndex(locale);
+    const aggregate = new Map();
+    getReportInfluenceContributionLog().forEach((entry) => {
+      const sourceType = String(entry?.sourceType || '').trim() || 'area';
+      if (sourceType === 'pressure') {
+        return;
+      }
+      const normalizedBurdenType = getSafeViewMode(entry?.burdenType || '');
+      if (safeViewMode !== COMPOSITE_BURDEN_VIEW && normalizedBurdenType !== safeViewMode) {
+        return;
+      }
+      const eventPoint = {
+        x: Number(entry?.x ?? entry?.position?.x),
+        y: Number(entry?.y ?? entry?.position?.y),
+      };
+      if (!Number.isFinite(eventPoint.x) || !Number.isFinite(eventPoint.y) || !pointInsideReportRegion(eventPoint, regionCells, cellSize)) {
+        return;
+      }
+      const sourceId = String(entry?.sourceId || entry?.id || entry?.componentKey || '').trim();
+      if (!sourceId) {
+        return;
+      }
+      const key = `${sourceType}:${sourceId}`;
+      const previous = aggregate.get(key) || {
+        sourceType,
+        id: sourceId,
+        sourceId,
+        sourceNumber: 0,
+        displayNumber: '',
+        name: entry?.sourceName || entry?.name || sourceId,
+        categoryLabel: entry?.categoryLabel || '',
+        color: sourceType === 'node' ? '#60707b' : '#d25f52',
+        x: Number(entry?.sourceX ?? eventPoint.x),
+        y: Number(entry?.sourceY ?? eventPoint.y),
+        contribution: 0,
+        regionContribution: 0,
+        formulaContribution: 0,
+        value: 0,
+        regionCount: 0,
+        componentKeys: new Set(),
+        burdenTypes: new Set(),
+      };
+      const contribution = Math.max(0, Number(entry?.formulaContribution || entry?.contribution || 0));
+      previous.contribution += contribution;
+      previous.regionContribution += contribution;
+      previous.formulaContribution += contribution;
+      previous.value += Math.max(0, Number(entry?.value || 0));
+      previous.regionCount += 1;
+      if (entry?.componentKey) previous.componentKeys.add(entry.componentKey);
+      if (entry?.burdenType) previous.burdenTypes.add(entry.burdenType);
+      if (sourceType === 'node') {
+        const indexed = nodeIndex.byId.get(sourceId);
+        if (indexed) {
+          previous.sourceNumber = indexed.sourceNumber;
+          previous.displayNumber = indexed.displayNumber;
+          previous.name = indexed.name;
+          previous.categoryLabel = indexed.categoryLabel;
+          previous.color = indexed.color;
+          previous.x = indexed.x;
+          previous.y = indexed.y;
+          previous.kind = indexed.kind;
+        }
+      }
+      aggregate.set(key, previous);
+    });
+    return Array.from(aggregate.values())
+      .map((item) => {
+        const sourceId = String(item.sourceId || item.id || '').replace(/^area:/, '');
+        const normalizedAreaId = item.sourceType === 'area' ? sourceId : '';
+        const averagedValue = item.regionCount ? item.value / item.regionCount : item.value;
+        return {
+          ...item,
+          id: sourceId,
+          sourceId,
+          name: item.sourceType === 'area' ? getReportAreaInfluenceLabel(normalizedAreaId, locale) : item.name,
+          categoryLabel: item.sourceType === 'area' ? (locale === 'en' ? 'Formula factor' : '公式因素') : item.categoryLabel,
+          reasonLabel: item.sourceType === 'area'
+            ? getReportAreaInfluenceReason(normalizedAreaId, averagedValue, locale)
+            : (locale === 'en'
+              ? `${item.categoryLabel || item.name} is recorded as a formula-level influence source in this hot zone.`
+              : `${item.categoryLabel || item.name}在该高热区被记录为公式级影响源。`),
+          value: Number(averagedValue.toFixed(3)),
+          contribution: Number(item.contribution.toFixed(3)),
+          regionContribution: Number(item.regionContribution.toFixed(3)),
+          formulaContribution: Number(item.formulaContribution.toFixed(3)),
+          componentKeys: Array.from(item.componentKeys),
+          burdenTypes: Array.from(item.burdenTypes),
+          x: item.sourceType === 'area' ? Number(region?.labelPoint?.x || item.x || 0) : Number(item.x || 0),
+          y: item.sourceType === 'area' ? Number(region?.labelPoint?.y || item.y || 0) : Number(item.y || 0),
+        };
+      })
       .filter((item) => Number(item.regionContribution || item.contribution || 0) > 0.5)
       .sort((left, right) => Number(right.regionContribution || right.contribution || 0) - Number(left.regionContribution || left.contribution || 0));
   }
@@ -11101,9 +12911,13 @@
         displayNumber: String(point.reportPressureNumber || point.pressureNumber || ''),
         reasonLabel: point.reasonLabel || point.description || point.categoryLabel || point.name,
       }));
+    const loggedSources = getReportRegionLoggedInfluenceSources(region, viewMode, locale);
+    const loggedSourceKeys = new Set(loggedSources.map((item) => `${item.sourceType || 'area'}:${item.id || item.sourceId || item.name || ''}`));
     const nodeSources = getReportRegionNodeInfluenceSources(region, viewMode, locale);
     const areaSources = getReportRegionAreaInfluenceSources(region, viewMode, locale);
-    return [...pressureSources, ...nodeSources, ...areaSources]
+    const fallbackSources = [...nodeSources, ...areaSources]
+      .filter((item) => !loggedSourceKeys.has(`${item.sourceType || 'area'}:${item.id || item.sourceId || item.name || ''}`));
+    return [...pressureSources, ...loggedSources, ...fallbackSources]
       .sort((left, right) => Number(right.regionContribution || right.contribution || 0) - Number(left.regionContribution || left.contribution || 0))
       .slice(0, 10);
   }
@@ -11432,7 +13246,7 @@
     const influenceMarkup = Array.isArray(options.influenceSources)
       ? buildReportNumberedInfluenceSourceMarkup(transform, options.influenceSources)
       : buildReportNumberedPressurePointMarkup(transform, options.pressurePoints || []);
-    const overlaySvg = `<svg viewBox="${transform.viewBox.x} ${transform.viewBox.y} ${transform.viewBox.width} ${transform.viewBox.height}" preserveAspectRatio="xMidYMid meet">${highLabels}${routeMarkup}${influenceMarkup}</svg>`;
+    const overlaySvg = `<svg viewBox="${transform.viewBox.x} ${transform.viewBox.y} ${transform.viewBox.width} ${transform.viewBox.height}" preserveAspectRatio="xMidYMid meet">${highLabels}${routeMarkup}${influenceMarkup}${buildReportRouteEndpointMarkers(transform)}</svg>`;
     return `${heatMarkup}${overlaySvg}`;
   }
 
@@ -11573,12 +13387,59 @@
     return Array.from(grouped.values());
   }
 
+  function buildReportRestEventSummary(locale = getReportLocale()) {
+    const zh = locale !== 'en';
+    const snapshots = getReportTraceSnapshots();
+    const events = [];
+    let previousState = 'none';
+    snapshots.forEach((snapshot) => {
+      const restState = String(snapshot?.restState || '').trim() || 'none';
+      if (restState === previousState) {
+        return;
+      }
+      previousState = restState;
+      if (restState === 'none') {
+        return;
+      }
+      const seatId = String(snapshot?.reservedSeatId || snapshot?.restTargetSeatId || '').trim();
+      events.push({
+        timeSeconds: Number(snapshot?.time || 0),
+        progress: Number(snapshot?.progress || 0),
+        x: Number(snapshot?.x || 0),
+        y: Number(snapshot?.y || 0),
+        restState,
+        label: formatCurrentStatusLabel({ restState }, locale),
+        seatId: seatId || null,
+        seatLabel: seatId ? getSeatLabelById(seatId) : null,
+        fatigue: Number(snapshot?.fatigue || 0),
+        fatigueThreshold: Number(snapshot?.fatigueThreshold || getFatigueThreshold() || 0),
+      });
+    });
+    const counts = events.reduce((acc, event) => {
+      acc[event.restState] = (acc[event.restState] || 0) + 1;
+      return acc;
+    }, {});
+    const summary = events.length
+      ? (zh
+        ? `本次路线出现${events.length}次休息相关行为转换，包含${Object.entries(counts).map(([stateKey, count]) => `${formatCurrentStatusLabel({ restState: stateKey }, locale)}${count}次`).join('、')}。`
+        : `This route includes ${events.length} rest-related behavior transition(s): ${Object.entries(counts).map(([stateKey, count]) => `${formatCurrentStatusLabel({ restState: stateKey }, locale)} x${count}`).join(', ')}.`)
+      : (zh ? '本次路线没有记录到短暂停留、找座位或坐下休息行为。' : 'No short rest, seat search, or seated rest behavior was recorded on this route.');
+    return {
+      hasRestBehavior: events.length > 0,
+      summary,
+      events: events.slice(0, 8),
+    };
+  }
+
   function buildSharedRouteAnalysisLlmInput({ reportData }) {
     const detailBurdenCards = (reportData?.detailBurdenCards || []).map((card) => ({
       id: card.id,
       title: card.title,
       regions: (card.regionRankings || card.regionIssues || []).slice(0, 3).map((region) => ({
         index: region.index,
+        peakMetric: Number(region.peakMetric || 0),
+        averageMetric: Number(region.averageMetric || 0),
+        areaCellCount: Number(region.areaCellCount || region.cellCount || (Array.isArray(region.cells) ? region.cells.length : 0)),
         ranking: Array.isArray(region.ranking) ? region.ranking.slice(0, 5) : [],
         title: region.title || region.text || '',
         advice: region.advice || '',
@@ -11589,6 +13450,7 @@
           number: point.reportPressureNumber || point.pressureNumber,
           name: point.name,
           category: point.categoryLabel || point.categoryId,
+          description: point.description,
           contribution: Number(point.regionContribution || point.contribution || 0),
         })),
       })),
@@ -11599,11 +13461,22 @@
           sourceType: source.sourceType || 'pressure',
           name: source.name,
           category: source.categoryLabel || source.categoryId,
+          description: source.description,
           reasonLabel: source.reasonLabel || source.description || '',
           contribution: Number(source.regionContribution || source.contribution || 0),
+          formulaContribution: Number(source.formulaContribution || source.regionContribution || source.contribution || 0),
         })),
       })),
     }));
+    const targetDetailRegionAnalyses = detailBurdenCards
+      .filter((card) => card.id && card.id !== COMPOSITE_BURDEN_VIEW)
+      .flatMap((card) => (card.regions || []).slice(0, REPORT_DETAIL_HIGH_REGION_LIMIT).map((region) => ({
+        burdenId: card.id,
+        regionIndex: Number(region.index),
+        burdenTitle: card.title,
+        hotZoneLabel: `${card.title} hot zone ${region.index}`,
+      })))
+      .filter((item) => item.burdenId && Number.isFinite(item.regionIndex));
     return {
       requestedFrontReport: {
         purpose: 'Generate the single front summary page after the report cover.',
@@ -11620,9 +13493,24 @@
           'Only refer to stressors by the supplied global pressure-point numbers.',
           'Use labels such as Composite hot zone 1, Decision hot zone 1, or Perception hot zone 2. Do not use ambiguous Zone labels.',
           'Explain what should be changed in the spatial model, where it is located, and what burden it is expected to reduce.',
+          'Rank core problems by average burden, peak burden, hot-zone area, duration, and clear influence evidence. Do not over-promote a low-average burden just because one local derivative changes quickly.',
           'Avoid vague advice such as optimize layout, improve guidance, or review facilities unless paired with a concrete object and action.',
           'Write evidence-dense professional diagnosis, not generic score restatement.',
           'Do not invent new route geometry, formulas, heatmap values, nodes, or pressure points.',
+        ],
+      },
+      requestedDetailedBurdenAnalysis: {
+        purpose: 'Generate intelligent phenomenon, cause, and advice text for each detailed burden hot zone.',
+        outputField: 'detailRegionAnalyses',
+        constraints: [
+          'Return one item for each supplied non-composite burden hot zone when evidence is available.',
+          'burdenId must be exactly one of: locomotor, sensory, cognitive, psychological, vitality.',
+          'Do not translate burdenId.',
+          'Use burdenId and regionIndex exactly as supplied.',
+          'For each item, write pattern_zh/en, cause_zh/en, advice_zh/en, and overallImportance.',
+          'Explain why the ranked pressure point, node, or area formula source changes that specific burden. Do not only name the source.',
+          'Use area and node sources such as crowd density, queue spillover, narrow passage, vertical transfer, decision delay, walking speed, and fatigue growth when they outrank pressure points.',
+          'Avoid repeating the same phenomenon, cause, or advice across multiple hot zones.',
         ],
       },
       requestedReportAdjustment: {
@@ -11639,10 +13527,12 @@
       },
       route: reportData?.route,
       summary: reportData?.summary,
+      restBehavior: reportData?.restBehavior || buildReportRestEventSummary(reportData?.locale || getReportLocale()),
       routeScoreSummary: reportData?.routeScoreSummary || null,
       inputSnapshot: reportData?.inputSnapshot || null,
       modelSpaceInfo: reportData?.modelSpaceInfo || null,
       dimensionSummary: reportData?.dimensionSummary || [],
+      targetDetailRegionAnalyses,
       detailBurdenCards,
       routePressurePoints: (reportData?.routePressurePoints || []).slice(0, 12).map((point) => ({
         number: point.reportPressureNumber || point.pressureNumber,
@@ -11657,6 +13547,7 @@
         number: point.reportPressureNumber || point.pressureNumber,
         name: point.name,
         category: point.categoryLabel || point.categoryId,
+        description: point.description,
         color: point.color,
         contribution: Number(point.contribution || 0),
         burdenTypes: point.burdenTypes || [],
@@ -11667,6 +13558,9 @@
         regions: (card.highRegions || []).slice(0, 3).map((region) => ({
           index: region.index,
           label: `${card.title} hot zone ${region.index}`,
+          peakMetric: Number(region.peakMetric || 0),
+          averageMetric: Number(region.averageMetric || 0),
+          areaCellCount: Number(region.areaCellCount || region.cellCount || (Array.isArray(region.cells) ? region.cells.length : 0)),
           burdenRanking: (card.regionRankings || []).find((item) => Number(item.index) === Number(region.index))?.ranking || [],
           issue: (card.regionIssues || []).find((item) => Number(item.index) === Number(region.index)) || null,
           regionPressurePoints: (card.regionPressurePoints || [])
@@ -11676,6 +13570,7 @@
               number: point.reportPressureNumber || point.pressureNumber,
               name: point.name,
               category: point.categoryLabel || point.categoryId,
+              description: point.description,
               contribution: Number(point.regionContribution || point.contribution || 0),
               burdenTypes: point.burdenTypes || [],
             })) || [],
@@ -11687,8 +13582,10 @@
               sourceType: source.sourceType || 'pressure',
               name: source.name,
               category: source.categoryLabel || source.categoryId,
+              description: source.description,
               reasonLabel: source.reasonLabel || source.description || '',
               contribution: Number(source.regionContribution || source.contribution || 0),
+              formulaContribution: Number(source.formulaContribution || source.regionContribution || source.contribution || 0),
             })) || [],
         })),
       })),
@@ -12079,7 +13976,6 @@
       const phenomenonLabel = locale === 'en' ? 'Pattern' : '现象';
       const causeLabel = locale === 'en' ? 'Main cause' : '主要原因';
       const adviceLabel = locale === 'en' ? 'Suggestion' : '建议';
-      const expectedLabel = locale === 'en' ? 'Expected effect' : '预计影响';
       const getRegionPressurePoints = (index) => (
         (card.regionPressurePoints || []).find((group) => Number(group.index) === Number(index))?.points || []
       );
@@ -12113,6 +14009,20 @@
       const buildRegionPressureRanking = (index, includeMissedSignage = false) => {
         const points = getRegionInfluenceSources(index);
         return buildPressureRankingMarkup(points, includeMissedSignage);
+      };
+      const buildRegionCauseMarkup = (index) => {
+        const sources = getRegionInfluenceSources(index).slice(0, 3);
+        if (!sources.length) {
+          return escapeHtml(card.title);
+        }
+        const label = `${regionLabel} ${index}`;
+        const references = buildReportInfluenceSourceReferenceListMarkup(sources, 3);
+        const explanations = sources
+          .map((source) => buildReportInfluenceSourceExplanationText(source, card.id, locale, label))
+          .filter(Boolean)
+          .slice(0, 2)
+          .join(locale === 'en' ? ' ' : '');
+        return `${references}${explanations ? `<br />${escapeHtml(explanations)}` : ''}`;
       };
       const buildCompositeRegionRows = () => {
         const regions = card.regionRankings || [];
@@ -12152,16 +14062,21 @@
         }
         const firstIssueIndex = Number(issues[0]?.index || 0);
         return issues.map((item) => {
-          const regionSources = getRegionInfluenceSources(item.index);
+          const llmDetailIssue = getReportLlmDetailRegionAnalysis(reportData, card.id, item.index, locale);
+          const missingDetailText = reportT('llmReportDetailMissing', null, locale);
+          const phenomenonText = llmDetailIssue?.pattern || missingDetailText;
+          const causeMarkup = llmDetailIssue?.cause
+            ? escapeHtml(llmDetailIssue.cause)
+            : `<span class="report-detail-muted">${escapeHtml(missingDetailText)}</span>`;
+          const adviceText = llmDetailIssue?.advice || missingDetailText;
           return `
             <div class="report-detail-region-row">
               <div class="report-detail-region-advice">
                 <strong>${escapeHtml(regionLabel)} ${escapeHtml(String(item.index))} · ${escapeHtml(topIssueLabel)}</strong>
                 <p>
-                  <strong>${escapeHtml(phenomenonLabel)}:</strong> ${escapeHtml(item.title)}<br />
-                  <strong>${escapeHtml(causeLabel)}:</strong> ${regionSources.length ? buildReportInfluenceSourceReferenceListMarkup(regionSources, 4) : escapeHtml(card.title)}<br />
-                  <strong>${escapeHtml(adviceLabel)}:</strong> ${escapeHtml(item.advice || '')}<br />
-                  <strong>${escapeHtml(expectedLabel)}:</strong> ${escapeHtml(locale === 'en' ? `Reduce local ${card.title} and make this route segment easier to pass.` : `降低该区域${card.title}，提升这一段路线的通过稳定性。`)}
+                  <strong>${escapeHtml(phenomenonLabel)}:</strong> ${escapeHtml(phenomenonText)}<br />
+                  <strong>${escapeHtml(causeLabel)}:</strong> ${causeMarkup}<br />
+                  <strong>${escapeHtml(adviceLabel)}:</strong> ${escapeHtml(adviceText)}
                 </p>
               </div>
               ${buildRegionPressureRanking(item.index, card.id === 'sensory' && Number(item.index) === firstIssueIndex)}
@@ -12208,6 +14123,48 @@
     return Array.isArray(localized?.sections) ? localized.sections : [];
   }
 
+  function normalizeReportLlmBurdenId(value) {
+    const raw = String(value || '').trim().toLowerCase();
+    if (!raw) {
+      return '';
+    }
+    if (raw === COMPOSITE_BURDEN_VIEW || /composite|overall|综合|总/.test(raw)) {
+      return COMPOSITE_BURDEN_VIEW;
+    }
+    if (/locomotor|mobility|movement|moving|walk|walking|action|行动|移动|通行|步行/.test(raw)) {
+      return 'locomotor';
+    }
+    if (/sensory|sensor|perception|perceptual|vision|visual|noise|light|感知|视觉|噪音|照明|光照/.test(raw)) {
+      return 'sensory';
+    }
+    if (/cognitive|decision|deciding|wayfinding|route|认知|决策|判断|导向|寻路/.test(raw)) {
+      return 'cognitive';
+    }
+    if (/psychological|psychology|mental|stress|anxiety|心理|压力|焦虑/.test(raw)) {
+      return 'psychological';
+    }
+    if (/vitality|fatigue|energy|tired|stamina|疲劳|体力|活力/.test(raw)) {
+      return 'vitality';
+    }
+    return raw;
+  }
+
+  function getReportLlmDetailRegionAnalysis(reportData, burdenId, regionIndex, locale = getReportLocale()) {
+    const localized = localizeRouteAnalysisOutput(reportData?.llmAnalysis, locale);
+    const analyses = Array.isArray(localized?.localizedDetailRegionAnalyses)
+      ? localized.localizedDetailRegionAnalyses
+      : [];
+    const safeBurdenId = normalizeReportLlmBurdenId(burdenId);
+    const safeRegionIndex = Number(regionIndex);
+    if (!safeBurdenId || !Number.isFinite(safeRegionIndex)) {
+      return null;
+    }
+    return analyses.find((item) => (
+      normalizeReportLlmBurdenId(item.burdenId) === safeBurdenId
+      && Number(item.regionIndex) === safeRegionIndex
+    )) || null;
+  }
+
   function getReportAdjustmentSectionBullets(sections = [], keywords = [], fallback = []) {
     const normalizedKeywords = keywords.map((item) => String(item || '').toLowerCase());
     const section = sections.find((item) => {
@@ -12245,6 +14202,9 @@
     if (!source) {
       return '';
     }
+    if (source.sourceType === 'area') {
+      return '';
+    }
     const label = source.displayNumber
       || (source.sourceType === 'pressure' ? String(source.reportPressureNumber || source.pressureNumber || '') : String(source.sourceNumber || ''));
     return `<span class="report-pressure-number report-pressure-number--filled report-influence-number report-influence-number--${escapeHtml(source.sourceType || 'pressure')}" style="background:${escapeHtml(source.color || '#c9d1d8')}">${escapeHtml(label)}</span>`;
@@ -12253,6 +14213,9 @@
   function buildReportInfluenceSourceReferenceMarkup(source) {
     if (!source) {
       return '';
+    }
+    if (source.sourceType === 'area') {
+      return `<span class="report-pressure-ref report-influence-ref report-influence-ref--area"><span>${escapeHtml(source.name || source.categoryLabel || '')}</span></span>`;
     }
     return `<span class="report-pressure-ref report-influence-ref">${buildReportInfluenceSourceNumberBadge(source)}<span>${escapeHtml(source.name || source.categoryLabel || source.id || '')}</span></span>`;
   }
@@ -12270,15 +14233,152 @@
     if (!primary) {
       return locale === 'en' ? 'local route conditions' : '该区域的通行状态';
     }
-    if (primary.reasonLabel) {
-      return primary.reasonLabel;
+    if (primary.sourceType === 'pressure') {
+      return primary.name || primary.categoryLabel || (locale === 'en' ? 'the main stressor' : '主要压力点');
     }
     if (primary.sourceType === 'node') {
       return locale === 'en'
         ? `${primary.name} and its nearby transfer, queueing, or route-choice condition`
         : `${primary.name}及其附近的换乘、排队或路线选择状态`;
     }
+    if (primary.sourceType === 'area') {
+      return locale === 'en'
+        ? `${primary.name} around this hot zone`
+        : `该高热区附近的${primary.name}`;
+    }
     return primary.name || primary.categoryLabel || (locale === 'en' ? 'the main influence source' : '主要影响源');
+  }
+
+  function getReportPressureDescriptionInsight(source, locale = getReportLocale()) {
+    const zh = locale !== 'en';
+    const text = `${source?.description || ''} ${source?.name || ''} ${source?.categoryLabel || ''} ${source?.categoryId || ''}`.toLowerCase();
+    const decibelMatch = /(\d+(?:\.\d+)?)\s*(?:db|decibel|decibels|分贝)/i.exec(source?.description || '');
+    const decibelText = decibelMatch ? (zh ? `约${decibelMatch[1]}dB声压` : `about ${decibelMatch[1]} dB sound pressure`) : '';
+    if (/dynamic|flashing|flash|advert|广告|闪烁|动态/.test(text)) {
+      return {
+        insight: zh
+          ? `${source.name}属于动态/闪烁广告${decibelText ? `，并伴随${decibelText}` : ''}，会抢占注意力并干扰导向标识识别。`
+          : `${source.name} is a dynamic/flashing advertisement${decibelText ? ` with ${decibelText}` : ''}, which captures attention and interferes with wayfinding-sign recognition.`,
+        action: zh
+          ? `降低闪烁强度、亮度和声压覆盖，避免其与转向判断和导向阅读同时叠加。`
+          : `Reduce flashing intensity, brightness, and sound coverage so it does not overlap with turning decisions or sign reading.`,
+      };
+    }
+    if (/hanging|sign|direction|guide|map|metro|标识|导向|地图/.test(text)) {
+      return {
+        insight: zh
+          ? `${source.name}进入视野后增加方向信息筛选量；若内容层级多或与目的地无关，会拖慢识别和决策。`
+          : `${source.name} adds direction information to filter; if hierarchy is dense or not destination-relevant, it slows recognition and decision making.`,
+        action: zh
+          ? `合并重复信息，突出本路线目的地相关导向，并降低无关标识层级。`
+          : `Merge repeated information, emphasize destination-relevant guidance for this route, and lower unrelated sign hierarchy.`,
+      };
+    }
+    if (/noise|sound|broadcast|噪音|广播|声音/.test(text)) {
+      return {
+        insight: zh
+          ? `${source.name}${decibelText ? `提供${decibelText}` : '提高局部声环境刺激'}，会削弱感知舒适度并干扰方向确认。`
+          : `${source.name}${decibelText ? ` produces ${decibelText}` : ' raises local acoustic stimulus'}, reducing sensory comfort and interfering with direction confirmation.`,
+        action: zh
+          ? `控制声压、播放范围或声源朝向，避开高热区和决策点。`
+          : `Control sound pressure, coverage, or source direction away from hot zones and decision points.`,
+      };
+    }
+    if (/lcd|screen|display|屏|显示/.test(text)) {
+      return {
+        insight: zh
+          ? `${source.name}提供动态视觉信息，会与导向信息竞争注意力并增加视觉搜索负担。`
+          : `${source.name} provides dynamic visual information that competes with wayfinding cues and increases visual-search burden.`,
+        action: zh
+          ? `降低动态更新频率和亮度，调整朝向，避免正对主要行走线。`
+          : `Lower update frequency and brightness, and adjust orientation away from the main walking line.`,
+      };
+    }
+    if (/light|lux|lighting|照明|光照|灯/.test(text)) {
+      return {
+        insight: zh
+          ? `${source.name}改变局部照度或眩光条件，会影响标识阅读稳定性和空间判断。`
+          : `${source.name} changes local illuminance or glare conditions, affecting sign-reading stability and spatial judgement.`,
+        action: zh
+          ? `校准照度、眩光方向和与标识面的关系，使导向阅读更稳定。`
+          : `Calibrate illuminance, glare direction, and relation to sign faces so wayfinding remains readable.`,
+      };
+    }
+    return {
+      insight: zh
+        ? `${source.name}的说明为“${source.description || source.categoryLabel || '压力点'}”，该特征会改变附近的感知、判断或通行状态。`
+        : `${source.name} is described as "${source.description || source.categoryLabel || 'stressor'}", which changes nearby perception, judgement, or movement conditions.`,
+      action: zh
+        ? `按贡献排序复核其位置、朝向、强度和影响范围。`
+        : `Review its position, orientation, intensity, and impact range by contribution priority.`,
+    };
+  }
+
+  function buildReportInfluenceSourceExplanationText(source, viewMode = COMPOSITE_BURDEN_VIEW, locale = getReportLocale(), regionLabel = '') {
+    const zh = locale !== 'en';
+    const safeViewMode = getSafeViewMode(viewMode);
+    const name = source?.name || source?.categoryLabel || (zh ? '该影响源' : 'this influence source');
+    if (!source) {
+      return zh ? '需要结合热区内的路线状态继续核对成因。' : 'Review the local route state in this hot zone to confirm the cause.';
+    }
+    if (source.sourceType === 'area') {
+      const label = source.reasonLabel || name;
+      if (source.id?.includes('crowd_density')) {
+        return zh ? `${regionLabel || '该高热区'}附近人流密度偏高，会造成视线遮挡、避让和步速下降。` : `${regionLabel || 'This hot zone'} has elevated crowd density, which causes occlusion, avoidance, and lower walking speed.`;
+      }
+      if (source.id?.includes('queue_spillover')) {
+        return zh ? `${regionLabel || '该高热区'}附近排队或等待外溢，会压缩通行空间并增加路线选择不确定性。` : `Queue spillover near ${regionLabel || 'this hot zone'} compresses walking space and increases route-choice uncertainty.`;
+      }
+      if (source.id?.includes('slow_walking')) {
+        return zh ? `${regionLabel || '该高热区'}内步速下降，说明代理人需要更多避让或调整步态。` : `Reduced walking speed in ${regionLabel || 'this hot zone'} indicates extra avoidance or gait adjustment.`;
+      }
+      if (source.id?.includes('decision_delay')) {
+        return zh ? `${regionLabel || '该高热区'}内决策迟滞升高，说明代理人需要反复确认方向或比较路径。` : `Decision delay rises in ${regionLabel || 'this hot zone'}, meaning the agent repeatedly confirms direction or compares paths.`;
+      }
+      if (source.id?.includes('fatigue_growth')) {
+        return zh ? `${regionLabel || '该高热区'}内疲劳增长加快，通常与连续步行、拥挤或换乘成本叠加有关。` : `Fatigue grows faster in ${regionLabel || 'this hot zone'}, usually from continuous walking, crowding, or transfer cost.`;
+      }
+      if (source.id?.includes('noise_environment')) {
+        return zh ? `${regionLabel || '该高热区'}附近噪音水平升高，会干扰导向识别并增加感知或心理负担。` : `Higher noise near ${regionLabel || 'this hot zone'} interferes with wayfinding and raises perception or psychological burden.`;
+      }
+      if (source.id?.includes('lighting_environment')) {
+        return zh ? `${regionLabel || '该高热区'}附近照度偏离舒适范围，会降低标识阅读稳定性。` : `Lighting around ${regionLabel || 'this hot zone'} deviates from the comfort range and reduces sign-reading stability.`;
+      }
+      return zh ? `${label}会改变该区域的通行、识别或停顿状态。` : `${label} changes local movement, recognition, or stopping conditions.`;
+    }
+    if (source.sourceType === 'node') {
+      return zh
+        ? `${name}附近容易形成转向、换乘、排队或等待判断，增加${safeViewMode === 'locomotor' ? '移动阻力' : safeViewMode === 'vitality' ? '连续步行疲劳' : '路线判断成本'}。`
+        : `${name} creates turning, transfer, queueing, or waiting decisions, increasing ${safeViewMode === 'locomotor' ? 'movement friction' : safeViewMode === 'vitality' ? 'continuous-walking fatigue' : 'route-choice cost'}.`;
+    }
+    const descriptor = getReportPressureDescriptionInsight(source, locale);
+    if (descriptor.insight) {
+      return descriptor.insight;
+    }
+    const raw = `${source.name || ''} ${source.categoryLabel || ''} ${source.categoryId || ''} ${source.description || ''}`.toLowerCase();
+    if (/hanging|direction|sign|guide|map|标识|导向|地图/.test(raw)) {
+      return zh
+        ? `${name}进入代理人视野后会增加需要筛选的方向信息，削弱对目标路线的稳定识别。`
+        : `${name} enters the agent's field of view and adds direction information to filter, reducing stable recognition of the target route.`;
+    }
+    if (/advert|ad|lcd|screen|广告|屏/.test(raw)) {
+      return zh
+        ? `${name}的动态视觉变化或声光刺激会抢占注意力，干扰导向阅读和转向判断。`
+        : `${name} uses dynamic visual or sound-light stimulus that captures attention and interferes with sign reading and turning decisions.`;
+    }
+    if (/noise|sound|broadcast|噪音|广播|声音/.test(raw)) {
+      return zh
+        ? `${name}提高局部声压，会降低感知舒适度并干扰路线信息识别。`
+        : `${name} raises local sound pressure, lowering sensory comfort and interfering with route-information recognition.`;
+    }
+    if (/light|lighting|lux|照明|光照|灯/.test(raw)) {
+      return zh
+        ? `${name}改变局部照度或眩光条件，会影响标识阅读和空间判断。`
+        : `${name} changes local illuminance or glare conditions, affecting sign reading and spatial judgement.`;
+    }
+    return zh
+      ? `${name}在该高热区附近参与负担计算，会影响代理人的识别、判断或通行效率。`
+      : `${name} contributes near this hot zone and affects recognition, judgement, or passage efficiency.`;
   }
 
   function buildReportFrontMarkupList(items = []) {
@@ -12297,6 +14397,43 @@
     const points = (card?.regionPressurePoints || [])
       .find((group) => Number(group.index) === Number(regionIndex))?.points || [];
     return points.slice(0, limit);
+  }
+
+  function getTopRegionInfluenceSources(card, regionIndex, limit = 4) {
+    const sources = (card?.regionInfluenceSources || [])
+      .find((group) => Number(group.index) === Number(regionIndex))?.sources || getTopRegionPressurePoints(card, regionIndex, limit);
+    return sources.slice(0, limit);
+  }
+
+  function buildReportInfluenceSourceActionText(source, burdenLabel, locale = getReportLocale()) {
+    const zh = locale !== 'en';
+    if (!source) {
+      return zh
+        ? `优先复核该高热区内的人流、导向、转弯和等待状态，减少${burdenLabel || '局部负担'}。`
+        : `Review crowding, wayfinding, turning, and waiting conditions in this hot zone to reduce ${burdenLabel || 'local burden'}.`;
+    }
+    if (source.sourceType === 'pressure') {
+      const descriptor = getReportPressureDescriptionInsight(source, locale);
+      return descriptor.action || buildReportPressurePointActionText(source, burdenLabel, locale);
+    }
+    if (source.sourceType === 'node') {
+      return zh
+        ? `围绕${source.name}优化转向空间、排队边界和导向连续性，避免换乘或等待影响主行走线。`
+        : `Around ${source.name}, improve turning space, queue boundary, and guidance continuity so transfer or waiting does not interfere with the main walking line.`;
+    }
+    if (source.sourceType === 'area') {
+      if (source.id?.includes('crowd_density')) {
+        return zh ? `在该高热区附近做分流或排队边界控制，降低遮挡、避让和步速下降。` : `Add flow splitting or queue-boundary control near this hot zone to reduce occlusion, avoidance, and speed loss.`;
+      }
+      if (source.id?.includes('decision_delay')) {
+        return zh ? `补强该高热区前后的连续导向，减少代理人在同一点反复比较路线。` : `Strengthen continuous guidance before and after this hot zone so the agent does not repeatedly compare routes at the same point.`;
+      }
+      if (source.id?.includes('fatigue_growth')) {
+        return zh ? `缩短该段连续步行距离，检查休息点间距和垂直交通衔接。` : `Shorten continuous walking distance in this segment and review rest spacing and vertical-circulation links.`;
+      }
+      return zh ? `针对该区域因素调整空间组织和人流控制。` : `Adjust spatial organization and flow control for this area factor.`;
+    }
+    return zh ? `按贡献排序复核该影响源的位置和影响范围。` : `Review this influence source position and impact range by contribution priority.`;
   }
 
   function buildReportPressurePointActionText(point, burdenLabel, locale = getReportLocale()) {
@@ -12586,6 +14723,17 @@
   function buildReportFrontHotZoneProblemItems(reportData) {
     const locale = reportData.locale === 'en' ? 'en' : 'zh-CN';
     const zh = locale !== 'en';
+    const llmProblems = getReportFrontSectionBullets(reportData, [
+      'core problem',
+      'core problems',
+      'problem',
+      'route problem',
+      '核心问题',
+      '问题摘要',
+    ], [], 3);
+    if (llmProblems.length) {
+      return llmProblems.length ? llmProblems.map((text) => ({ html: escapeHtml(text) })) : [];
+    }
     const compositeCard = (reportData.detailBurdenCards || []).find((card) => card.id === COMPOSITE_BURDEN_VIEW) || null;
     const regions = Array.isArray(compositeCard?.regionRankings) ? compositeCard.regionRankings.slice(0, 3) : [];
     if (!regions.length) {
@@ -12594,16 +14742,19 @@
     return regions.map((region) => {
       const label = getReportHotZoneLabel(compositeCard, region.index, locale);
       const burden = region.ranking?.[0]?.burdenLabel || reportData.peakDimension?.burdenLabel || '';
-      const pressurePoints = getTopRegionPressurePoints(compositeCard, region.index, 3);
-      const pressureMarkup = buildReportPressurePointReferenceListMarkup(pressurePoints, 3);
+      const influenceSources = getTopRegionInfluenceSources(compositeCard, region.index, 3);
+      const influenceMarkup = buildReportInfluenceSourceReferenceListMarkup(influenceSources, 3);
+      const explanation = influenceSources[0]
+        ? buildReportInfluenceSourceExplanationText(influenceSources[0], COMPOSITE_BURDEN_VIEW, locale, label)
+        : '';
       const text = zh
         ? `${label}以${burden || '综合负担'}为主，主要由`
         : `${label} is dominated by ${burden || 'composite burden'}, mainly driven by `;
       const tail = zh
-        ? (pressureMarkup ? `叠加影响。` : `路线转折、等待或导向不确定叠加影响。`)
-        : (pressureMarkup ? `.` : `route turning, waiting, or wayfinding uncertainty.`);
+        ? (influenceMarkup ? `叠加影响。${explanation}` : `路线转折、等待或导向不确定叠加影响。`)
+        : (influenceMarkup ? `. ${explanation}` : `route turning, waiting, or wayfinding uncertainty.`);
       return {
-        html: `${escapeHtml(text)}${pressureMarkup || ''}${escapeHtml(tail)}`,
+        html: `${escapeHtml(text)}${influenceMarkup || ''}${escapeHtml(tail)}`,
       };
     });
   }
@@ -12611,22 +14762,35 @@
   function buildReportFrontModificationItems(reportData) {
     const locale = reportData.locale === 'en' ? 'en' : 'zh-CN';
     const zh = locale !== 'en';
+    const llmModifications = getReportFrontSectionBullets(reportData, [
+      'key modification',
+      'key modifications',
+      'modification',
+      'priority action',
+      'priority modification',
+      '重点修改',
+      '修改内容',
+      '优先修改',
+    ], [], 3);
+    if (llmModifications.length) {
+      return llmModifications.length ? llmModifications.map((text) => ({ html: escapeHtml(text) })) : [];
+    }
     const compositeCard = (reportData.detailBurdenCards || []).find((card) => card.id === COMPOSITE_BURDEN_VIEW) || null;
     const regions = Array.isArray(compositeCard?.regionRankings) ? compositeCard.regionRankings.slice(0, 3) : [];
     const items = regions.map((region, index) => {
       const label = getReportHotZoneLabel(compositeCard, region.index, locale);
       const burden = region.ranking?.[0]?.burdenLabel || reportData.peakDimension?.burdenLabel || '';
-      const point = getTopRegionPressurePoints(compositeCard, region.index, 1)[0] || null;
-      const pressureMarkup = buildReportPressurePointReferenceMarkup(point);
-      const action = buildReportPressurePointActionText(point, burden, locale);
+      const source = getTopRegionInfluenceSources(compositeCard, region.index, 1)[0] || null;
+      const sourceMarkup = buildReportInfluenceSourceReferenceMarkup(source);
+      const action = buildReportInfluenceSourceActionText(source, burden, locale);
       const prefix = zh
-        ? `优先级${index + 1}: 修改${label}${pressureMarkup ? '中的' : '的主要压力源'}`
-        : `Priority ${index + 1}: adjust the main stressor in ${label}${pressureMarkup ? ', ' : ': '}`;
+        ? `优先级${index + 1}: 修改${label}${sourceMarkup ? '中的' : '的主要影响源'}`
+        : `Priority ${index + 1}: adjust the main influence source in ${label}${sourceMarkup ? ', ' : ': '}`;
       const connector = zh
         ? `。调整方式：${action}`
         : ` Adjustment: ${action}`;
       return {
-        html: `${escapeHtml(prefix)}${pressureMarkup}${escapeHtml(connector)}`,
+        html: `${escapeHtml(prefix)}${sourceMarkup}${escapeHtml(connector)}`,
       };
     });
     if (items.length) {
@@ -12648,21 +14812,21 @@
     const topRegion = Array.isArray(compositeCard?.regionRankings) ? compositeCard.regionRankings[0] : null;
     const hotZoneLabel = topRegion ? getReportHotZoneLabel(compositeCard, topRegion.index, locale) : '';
     const topBurden = topRegion?.ranking?.[0]?.burdenLabel || dominant?.burdenLabel || '';
-    const pressureMarkup = topRegion
-      ? buildReportPressurePointReferenceListMarkup(getTopRegionPressurePoints(compositeCard, topRegion.index, 3), 3)
+    const influenceMarkup = topRegion
+      ? buildReportInfluenceSourceReferenceListMarkup(getTopRegionInfluenceSources(compositeCard, topRegion.index, 3), 3)
       : buildReportPressurePointReferenceListMarkup(reportData.routePressurePoints || [], 3);
     const intro = zh
       ? `本路线友好度为${formatReportMetric(routeScore.routeFriendlyScore || 0)}，总体负担为${formatReportMetric(routeScore.overallBurdenScore || 0)}（${burdenLevel.label}），主导负担为${dominant?.burdenLabel || '--'}。`
       : `The route friendliness score is ${formatReportMetric(routeScore.routeFriendlyScore || 0)}. Overall burden is ${formatReportMetric(routeScore.overallBurdenScore || 0)} (${burdenLevel.label}), led by ${dominant?.burdenLabel || '--'}.`;
     const evidence = hotZoneLabel
       ? (zh
-        ? `${hotZoneLabel}是当前最需要优先查看的位置，${topBurden || '综合负担'}贡献最高${pressureMarkup ? '，主要关联' : '。'}`
-        : `${hotZoneLabel} is the first area to review; ${topBurden || 'composite burden'} contributes most${pressureMarkup ? ', mainly associated with ' : '.'}`)
+        ? `${hotZoneLabel}是当前最需要优先查看的位置，${topBurden || '综合负担'}贡献最高${influenceMarkup ? '，主要关联' : '。'}`
+        : `${hotZoneLabel} is the first area to review; ${topBurden || 'composite burden'} contributes most${influenceMarkup ? ', mainly associated with ' : '.'}`)
       : (fallbackSummary || '');
-    const tail = hotZoneLabel && pressureMarkup ? (zh ? `。` : `.`) : '';
+    const tail = hotZoneLabel && influenceMarkup ? (zh ? `。` : `.`) : '';
     return `
       <p>${escapeHtml(intro)}</p>
-      ${evidence ? `<p>${escapeHtml(evidence)}${pressureMarkup || ''}${escapeHtml(tail)}</p>` : ''}
+      ${evidence ? `<p>${escapeHtml(evidence)}${influenceMarkup || ''}${escapeHtml(tail)}</p>` : ''}
     `;
   }
 
@@ -12849,7 +15013,6 @@
     const agentAttributes = buildReportAgentAttributesMarkup(reportData);
     const thoughtFlow = buildReportThoughtFlowMarkup(reportData);
     const pressureGroups = buildReportNumberedPressureGroupsMarkup(reportData);
-    const routePressurePointCount = (reportData.routePressurePoints || []).length;
     const heatmapCards = buildReportHeatmapCardsMarkup(reportData);
     const detailCardPages = buildReportDetailCardPagesMarkup(reportData);
     const coverPage = buildReportCoverPageMarkup(reportData);
@@ -12989,23 +15152,24 @@
       .report-node-marker circle { stroke:#111; stroke-width:0.32; fill-opacity:0.9; }
       .report-area-marker circle { stroke:#111; stroke-width:0.24; fill-opacity:0.26; stroke-dasharray:1.2 0.8; }
       .report-node-marker text, .report-area-marker text { fill:#111; font-size:2.2px; text-anchor:middle; dominant-baseline:central; font-weight:900; stroke:none; }
+      .report-route-endpoint { fill:#111; font-size:4.8px; text-anchor:middle; dominant-baseline:central; font-weight:950; stroke:none; }
       .report-pressure-number { display:inline-grid; place-items:center; min-width:14px; height:14px; margin-right:4px; border-radius:999px; border:1px solid #111; font-size:8px; font-weight:800; }
       .report-pressure-number--filled { width:14px; min-width:14px; color:#111; font-size:9px; font-weight:900; line-height:1; }
       .report-influence-number { font-size:8px; padding:0 1px; }
       .report-influence-number--area { color:#111; }
       .report-influence-number--node { color:#111; }
-      .report-pressure-ref { display:inline-flex; align-items:center; gap:1mm; margin:0 1mm 0.8mm 0; vertical-align:middle; font-weight:800; white-space:nowrap; }
+      .report-pressure-ref { display:inline-flex; align-items:center; gap:1mm; margin:0 1mm 0.8mm 0; vertical-align:middle; font-weight:800; white-space:normal; line-height:1.25; }
       .report-pressure-ref .report-pressure-number { margin-right:0; }
       .report-heat-raster { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
       .report-swatch { display:inline-block; width:10px; height:10px; border-radius:999px; margin-right:6px; vertical-align:middle; border:1px solid #5f6970; }
-      .report-pressure-groups { display:grid; grid-template-columns:1fr 1fr; gap:3mm 5mm; align-items:start; }
-      .report-pressure-group { display:grid; gap:1.2mm; break-inside:avoid; page-break-inside:avoid; }
+      .report-pressure-groups { columns:2; column-gap:8mm; }
+      .report-pressure-group { display:grid; gap:1.2mm; break-inside:avoid; page-break-inside:avoid; margin:0 0 4mm; }
       .report-pressure-group-title { font-size:10.4px; font-weight:700; }
-      .report-pressure-table { width:100%; border-collapse:collapse; table-layout:fixed; }
-      .report-pressure-table td { padding:0.8mm 0.8mm; vertical-align:top; font-size:10.2px; line-height:1.45; border:none; }
-      .report-pressure-table__name { width:32%; font-weight:700; }
-      .report-pressure-table__desc { width:68%; color:var(--muted); }
-      .report-heat-grid { display:grid; grid-template-columns:1fr 1fr; gap:3mm; }
+      .report-pressure-table { width:100%; border-collapse:separate; border-spacing:0 1mm; table-layout:fixed; }
+      .report-pressure-table td { padding:1mm 0.8mm; vertical-align:top; font-size:10.2px; line-height:1.45; border:none; }
+      .report-pressure-table__name { width:38%; font-weight:700; }
+      .report-pressure-table__desc { width:62%; color:var(--muted); }
+      .report-heat-grid { display:grid; grid-template-columns:1fr 1fr; column-gap:3mm; row-gap:6.5mm; }
       .report-heat-card { border:1px solid #111; padding:1.6mm; display:grid; gap:1mm; align-content:start; }
       .report-heat-stage { position:relative; overflow:hidden; background:#eef1f4; }
       .report-heat-header { position:absolute; left:6px; top:6px; font-size:10px; font-weight:700; color:#17262f; background:rgba(255,255,255,0.78); padding:1px 4px 1px 0; }
@@ -13117,7 +15281,7 @@
       </section>
       <section class="report-page report-page--stressors">
         <section class="report-section">
-          <h2 class="report-section-title">${escapeHtml(copy.pageTwoPressureTitle)} · ${escapeHtml(formatReportNumber(routePressurePointCount, 0))}</h2>
+          <h2 class="report-section-title">${escapeHtml(copy.pageTwoPressureTitle)}</h2>
           <div class="report-pressure-groups">${pressureGroups}</div>
         </section>
       </section>
@@ -13847,9 +16011,32 @@
         };
       })
       .filter((section) => section.title && section.bullets.length);
+    const localizedDetailRegionAnalyses = (Array.isArray(analysis.detailRegionAnalyses) ? analysis.detailRegionAnalyses : [])
+      .map((item) => {
+        const pattern = locale === 'en'
+          ? (item.patternEn || item.pattern_en || item.pattern || item.patternZh || item.pattern_zh)
+          : (item.patternZh || item.pattern_zh || item.pattern || item.patternEn || item.pattern_en);
+        const cause = locale === 'en'
+          ? (item.causeEn || item.cause_en || item.cause || item.causeZh || item.cause_zh)
+          : (item.causeZh || item.cause_zh || item.cause || item.causeEn || item.cause_en);
+        const advice = locale === 'en'
+          ? (item.adviceEn || item.advice_en || item.advice || item.adviceZh || item.advice_zh)
+          : (item.adviceZh || item.advice_zh || item.advice || item.adviceEn || item.advice_en);
+        return {
+          ...item,
+          burdenId: String(item.burdenId || item.burden_id || '').trim(),
+          regionIndex: Number(item.regionIndex ?? item.region_index ?? item.index),
+          pattern: String(pattern || '').trim(),
+          cause: String(cause || '').trim(),
+          advice: String(advice || '').trim(),
+          overallImportance: Number(item.overallImportance ?? item.importance ?? 0),
+        };
+      })
+      .filter((item) => item.burdenId && Number.isFinite(item.regionIndex) && (item.pattern || item.cause || item.advice));
     return {
       ...analysis,
       sections: localizedSections,
+      localizedDetailRegionAnalyses,
     };
   }
 
@@ -15438,10 +17625,14 @@
       if (exportFormat !== 'pdf') {
         reservedHtmlFileHandle = await reserveReportHtmlFileHandle(fileName);
       }
-      await ensureRouteAnalysisForCurrentState(reportLocale);
+      await ensureRouteAnalysisForCurrentState(reportLocale, { throwOnError: true });
       if (getReportLocale() !== reportLocale) {
         return;
       }
+      let exportReportData = buildRouteReportData(reportLocale);
+      await ensureReportDetailRegionAnalysisForCurrentState(exportReportData, { throwOnError: false });
+      exportReportData = buildRouteReportData(reportLocale);
+      assertReportLlmAnalysisReady(exportReportData, reportLocale);
       rebuildReportModalContent(reportLocale);
       if (exportFormat === 'pdf') {
         await exportReportPdf(pdfFileName, uiLocale);
@@ -15964,6 +18155,18 @@
     elements.spatialEditorToolButtons.forEach((button) => {
       button.addEventListener('click', () => setSpatialEditorTool(button.dataset.spatialEditorTool));
     });
+    [elements.spatialEditorObjectName, elements.spatialEditorObjectCoord, elements.spatialEditorObjectType]
+      .filter(Boolean)
+      .forEach((container) => {
+        container.addEventListener('input', handleSpatialEditorPropertyInput);
+        container.addEventListener('change', handleSpatialEditorPropertyInput);
+      });
+    [elements.spatialEditorNoise, elements.spatialEditorNoiseValue, elements.spatialEditorLight, elements.spatialEditorLightValue]
+      .filter(Boolean)
+      .forEach((input) => {
+        input.addEventListener('input', handleSpatialEditorParameterInput);
+        input.addEventListener('change', handleSpatialEditorParameterInput);
+      });
     elements.spatialEditorActionButtons.forEach((button) => {
       button.addEventListener('click', () => handleSpatialEditorAction(button.dataset.spatialEditorAction));
     });
@@ -15974,13 +18177,27 @@
         requestRender();
       });
     });
-    if (elements.spatialEditorMap) {
-      elements.spatialEditorMap.addEventListener('pointerdown', handleSpatialEditorMapPointerDown);
-      elements.spatialEditorMap.addEventListener('pointermove', handleSpatialEditorMapPointerMove);
-      elements.spatialEditorMap.addEventListener('pointerup', handleSpatialEditorMapPointerEnd);
-      elements.spatialEditorMap.addEventListener('pointercancel', handleSpatialEditorMapPointerEnd);
-      elements.spatialEditorMap.addEventListener('lostpointercapture', handleSpatialEditorMapPointerEnd);
+    const spatialEditorPointerTarget = elements.spatialEditorInteractionLayer || elements.spatialEditorRouteMapStage;
+    if (spatialEditorPointerTarget) {
+      spatialEditorPointerTarget.addEventListener('pointerdown', handleSpatialEditorStageMouseDown, true);
+      spatialEditorPointerTarget.addEventListener('mousedown', handleSpatialEditorStageMouseDown, true);
+      spatialEditorPointerTarget.addEventListener('click', handleSpatialEditorStageClick, true);
+      window.addEventListener('pointermove', handleSpatialEditorMapPointerMove);
+      window.addEventListener('pointerup', handleSpatialEditorMapPointerEnd);
+      window.addEventListener('pointercancel', handleSpatialEditorMapPointerEnd);
+      window.addEventListener('mousemove', handleSpatialEditorMapPointerMove);
+      window.addEventListener('mouseup', handleSpatialEditorMapPointerEnd);
     }
+    document.addEventListener('pointerdown', handleSpatialEditorDocumentPointerDown, true);
+    document.addEventListener('mousedown', handleSpatialEditorDocumentPointerDown, true);
+    document.addEventListener('pointermove', handleSpatialEditorDocumentPointerMove, true);
+    document.addEventListener('mousemove', handleSpatialEditorDocumentPointerMove, true);
+    document.addEventListener('pointerup', handleSpatialEditorDocumentPointerEnd, true);
+    document.addEventListener('mouseup', handleSpatialEditorDocumentPointerEnd, true);
+    document.addEventListener('pointercancel', handleSpatialEditorDocumentPointerEnd, true);
+    document.addEventListener('click', handleSpatialEditorDocumentClick, true);
+    document.addEventListener('input', handleSpatialEditorDocumentInput, true);
+    document.addEventListener('change', handleSpatialEditorDocumentInput, true);
     if (elements.settingsRoutePickBtn) {
       elements.settingsRoutePickBtn.addEventListener('click', handleRoutePickToggle);
     }

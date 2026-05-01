@@ -21,7 +21,7 @@ const {
 } = require('./heatmap-runner.js');
 
 const EXPECTED_BACKGROUND_FIELD_ENGINE_VERSION = 'background-field-v27';
-const EXPECTED_HEATMAP_ENGINE_VERSION = 'node-cache-v47';
+const EXPECTED_HEATMAP_ENGINE_VERSION = 'node-cache-v48';
 const EXPECTED_LLM_DECISION_PLAN_CACHE_VERSION = 'llm-decision-chain-v2';
 const DEFAULT_BACKGROUND_FIELD_PREWARM_BUCKETS = Object.freeze([500, 1000, 1500, 2000]);
 const BACKGROUND_FIELD_PREWARM_IDLE_POLL_MS = 250;
@@ -412,7 +412,10 @@ function buildRouteAnalysisUserPrompt(payload = {}, locale = 'zh-CN') {
   const schemaHint = locale === 'en'
     ? 'Required JSON shape: {"summary":"...","sections":[{"title":"...","bullets":["..."]}]}.'
     : '必须输出的 JSON 结构：{"summary":"...","sections":[{"title":"...","bullets":["..."]}]。';
-  return `${label}\n${schemaHint}\n\n${JSON.stringify(payload, null, 2)}`;
+  const detailSchemaHint = locale === 'en'
+    ? 'detailRegionAnalyses must cover targetDetailRegionAnalyses. burdenId must be exactly one of: locomotor, sensory, cognitive, psychological, vitality. Do not translate burdenId.'
+    : 'detailRegionAnalyses 必须覆盖 targetDetailRegionAnalyses。burdenId must be exactly one of: locomotor, sensory, cognitive, psychological, vitality。Do not translate burdenId。';
+  return `${label}\n${schemaHint}\n${detailSchemaHint}\n\n${JSON.stringify(payload, null, 2)}`;
 }
 
 function normalizeRouteAnalysisContent(parsed, locale = 'zh-CN') {
@@ -438,6 +441,20 @@ function normalizeRouteAnalysisContent(parsed, locale = 'zh-CN') {
     }))
     .filter((section) => section.title && section.bullets.length)
     .slice(0, 4);
+  const detailRegionAnalyses = (Array.isArray(parsed?.detailRegionAnalyses) ? parsed.detailRegionAnalyses : [])
+    .map((item) => ({
+      burdenId: String(item?.burdenId || item?.burden_id || '').trim(),
+      regionIndex: Number(item?.regionIndex ?? item?.region_index ?? item?.index),
+      patternZh: String(item?.pattern_zh || item?.patternZh || item?.pattern || '').trim(),
+      patternEn: String(item?.pattern_en || item?.patternEn || item?.pattern || '').trim(),
+      causeZh: String(item?.cause_zh || item?.causeZh || item?.cause || '').trim(),
+      causeEn: String(item?.cause_en || item?.causeEn || item?.cause || '').trim(),
+      adviceZh: String(item?.advice_zh || item?.adviceZh || item?.advice || '').trim(),
+      adviceEn: String(item?.advice_en || item?.adviceEn || item?.advice || '').trim(),
+      overallImportance: Number(item?.overallImportance ?? item?.importance ?? 0),
+    }))
+    .filter((item) => item.burdenId && Number.isFinite(item.regionIndex) && (item.patternZh || item.patternEn || item.causeZh || item.causeEn || item.adviceZh || item.adviceEn))
+    .slice(0, 18);
   return {
     summary: summary || (locale === 'en' ? 'Structured route analysis is ready.' : '结构化路线分析已生成。'),
     sections,
@@ -474,6 +491,7 @@ function normalizeRouteAnalysisContent(parsed, locale = 'zh-CN') {
       title: locale === 'en' ? 'Intelligent Summary' : '智能总结',
       bullets: [fallbackSummary],
     }],
+    detailRegionAnalyses,
   };
 }
 
@@ -481,7 +499,7 @@ function buildRouteAnalysisSchema() {
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['summary_zh', 'summary_en', 'sections'],
+    required: ['summary_zh', 'summary_en', 'sections', 'detailRegionAnalyses'],
     properties: {
       summary_zh: { type: 'string' },
       summary_en: { type: 'string' },
@@ -511,6 +529,27 @@ function buildRouteAnalysisSchema() {
           },
         },
       },
+      detailRegionAnalyses: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 18,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['burdenId', 'regionIndex', 'pattern_zh', 'pattern_en', 'cause_zh', 'cause_en', 'advice_zh', 'advice_en', 'overallImportance'],
+          properties: {
+            burdenId: { type: 'string', enum: ['locomotor', 'sensory', 'cognitive', 'psychological', 'vitality'] },
+            regionIndex: { type: 'number' },
+            pattern_zh: { type: 'string' },
+            pattern_en: { type: 'string' },
+            cause_zh: { type: 'string' },
+            cause_en: { type: 'string' },
+            advice_zh: { type: 'string' },
+            advice_en: { type: 'string' },
+            overallImportance: { type: 'number' },
+          },
+        },
+      },
     },
   };
 }
@@ -522,8 +561,8 @@ function buildRouteAnalysisSystemPrompt(locale = 'zh-CN') {
       : '你是地铁站老年出行负担分析助手。',
     locale === 'en' ? 'Return JSON only.' : '只返回 JSON。',
     locale === 'en'
-      ? 'The JSON must contain exactly three top-level fields: "summary_zh", "summary_en", and "sections".'
-      : 'JSON 顶层必须且只能包含 summary_zh、summary_en 和 sections 三个字段。',
+      ? 'The JSON must contain exactly four top-level fields: "summary_zh", "summary_en", "sections", and "detailRegionAnalyses".'
+      : 'JSON 顶层必须且只能包含 summary_zh、summary_en、sections 和 detailRegionAnalyses 四个字段。',
     locale === 'en'
       ? '"summary_zh" and "summary_en" must describe the same route judgement in Chinese and English.'
       : 'summary_zh 与 summary_en 必须分别用中文和英文概括同一条路线判断。',
@@ -543,13 +582,21 @@ function buildRouteAnalysisSystemPrompt(locale = 'zh-CN') {
   ];
   prompt.push(
     'For the front summary page after the cover, write one executive route diagnosis that combines route judgement, core problems, and model adjustment recommendations.',
+    'sections must include one section with title_en exactly "Core Problems" and title_zh exactly "核心问题摘要".',
+    'sections must include one section with title_en exactly "Key Modifications" and title_zh exactly "重点修改内容".',
     'Avoid vague advice; name the route segment, hot zone, spatial element, facility, or numbered pressure point whenever the input provides it.',
     'Only refer to stressors by the supplied global pressure-point numbers.',
     'Do not use ambiguous Zone labels; use the supplied hot-zone labels such as Composite hot zone 1 or Decision hot zone 2.',
     'Every recommendation must be traceable to the supplied route, hot zones, burden scores, influence sources, or numbered pressure points.',
     'For exported reports, prefer these section meanings: route score interpretation, spatial model changes, priority modification areas, and priority facilities.',
     'Use route score, five burden scores, high-heat zones, influenceSources, ranked stressors, and pressure-point numbers as evidence.',
+    'Rank front-page core problems by average score, peak, area, duration, and clear influence evidence; do not simply list every local high-zone derivative.',
+    'Do not promote a low-average burden as a core problem merely because one local derivative changes quickly; mention it only as a secondary observation unless it also has high score, area, or duration.',
     'When a hot zone is driven by area factors or facility nodes instead of pressure points, explain those sources directly instead of saying no explicit pressure point is associated.',
+    'For detailRegionAnalyses, burdenId must be exactly one of: locomotor, sensory, cognitive, psychological, vitality. Do not translate burdenId.',
+    'Use targetDetailRegionAnalyses as the required list of detailed hot zones to cover.',
+    'For detailRegionAnalyses, write unique phenomenon, cause, and advice for every supplied detailed burden hot zone. Use burdenId, regionIndex, region ranking, influenceSources, formulaContribution, pressure-point descriptions, area factors, and node sources. Avoid repeating the same sentence across regions.',
+    'Each detailRegionAnalyses item must explain why the listed pressure point, node, or area factor raises that specific burden; do not only name the source.',
     'Facility recommendations must mention numbered pressure points when available and must not repeat one generic sentence for every facility.',
     'Write evidence-dense professional diagnosis with concrete modification intent; avoid filler, slogans, or generic score restatement.',
     'Do not invent new geometry, formulas, heatmap values, or pressure points.'
@@ -562,9 +609,12 @@ function buildRouteAnalysisUserPrompt(payload = {}, locale = 'zh-CN') {
     ? 'Analyze the following route-analysis input and generate a concise bilingual structured summary.'
     : '请分析以下路线诊断输入，并生成简洁的双语结构化摘要。';
   const schemaHint = locale === 'en'
-    ? 'Required JSON shape: {"summary_zh":"...","summary_en":"...","sections":[{"title_zh":"...","title_en":"...","bullets_zh":["..."],"bullets_en":["..."]}]}.'
-    : '必须输出 JSON 结构：{"summary_zh":"...","summary_en":"...","sections":[{"title_zh":"...","title_en":"...","bullets_zh":["..."],"bullets_en":["..."]}]}.';
-  return `${label}\n${schemaHint}\n\n${JSON.stringify(payload, null, 2)}`;
+    ? 'Required JSON shape: {"summary_zh":"...","summary_en":"...","sections":[{"title_zh":"核心问题摘要","title_en":"Core Problems","bullets_zh":["..."],"bullets_en":["..."]}],"detailRegionAnalyses":[{"burdenId":"locomotor","regionIndex":1,"pattern_zh":"...","pattern_en":"...","cause_zh":"...","cause_en":"...","advice_zh":"...","advice_en":"...","overallImportance":0.7}]}.'
+    : '必须输出 JSON 结构：{"summary_zh":"...","summary_en":"...","sections":[{"title_zh":"核心问题摘要","title_en":"Core Problems","bullets_zh":["..."],"bullets_en":["..."]}],"detailRegionAnalyses":[{"burdenId":"locomotor","regionIndex":1,"pattern_zh":"...","pattern_en":"...","cause_zh":"...","cause_en":"...","advice_zh":"...","advice_en":"...","overallImportance":0.7}]}。';
+  const detailSchemaHint = locale === 'en'
+    ? 'detailRegionAnalyses must cover targetDetailRegionAnalyses. burdenId must be exactly one of: locomotor, sensory, cognitive, psychological, vitality. Do not translate burdenId.'
+    : 'detailRegionAnalyses 必须覆盖 targetDetailRegionAnalyses。burdenId must be exactly one of: locomotor, sensory, cognitive, psychological, vitality。Do not translate burdenId。';
+  return `${label}\n${schemaHint}\n${detailSchemaHint}\n\n${JSON.stringify(payload, null, 2)}`;
 }
 
 function normalizeRouteAnalysisContent(parsed, locale = 'zh-CN') {
@@ -597,6 +647,20 @@ function normalizeRouteAnalysisContent(parsed, locale = 'zh-CN') {
     }))
     .filter((section) => (section.titleZh || section.titleEn) && (section.bulletsZh.length || section.bulletsEn.length))
     .slice(0, 4);
+  const detailRegionAnalyses = (Array.isArray(parsed?.detailRegionAnalyses) ? parsed.detailRegionAnalyses : [])
+    .map((item) => ({
+      burdenId: String(item?.burdenId || item?.burden_id || '').trim(),
+      regionIndex: Number(item?.regionIndex ?? item?.region_index ?? item?.index),
+      patternZh: String(item?.pattern_zh || item?.patternZh || item?.pattern || '').trim(),
+      patternEn: String(item?.pattern_en || item?.patternEn || item?.pattern || '').trim(),
+      causeZh: String(item?.cause_zh || item?.causeZh || item?.cause || '').trim(),
+      causeEn: String(item?.cause_en || item?.causeEn || item?.cause || '').trim(),
+      adviceZh: String(item?.advice_zh || item?.adviceZh || item?.advice || '').trim(),
+      adviceEn: String(item?.advice_en || item?.adviceEn || item?.advice || '').trim(),
+      overallImportance: Number(item?.overallImportance ?? item?.importance ?? 0),
+    }))
+    .filter((item) => item.burdenId && Number.isFinite(item.regionIndex) && (item.patternZh || item.patternEn || item.causeZh || item.causeEn || item.adviceZh || item.adviceEn))
+    .slice(0, 18);
   const fallbackSummaryZh = summaryZh || '结构化路线分析已生成。';
   const fallbackSummaryEn = summaryEn || 'Structured route analysis is ready.';
   return {
@@ -609,6 +673,7 @@ function normalizeRouteAnalysisContent(parsed, locale = 'zh-CN') {
       bulletsZh: [fallbackSummaryZh],
       bulletsEn: [fallbackSummaryEn],
     }],
+    detailRegionAnalyses,
   };
 }
 
@@ -627,6 +692,17 @@ function buildLocalizedRouteAnalysisPayload(parsed, provider, locale = 'zh-CN') 
       titleEn: String(section?.titleEn || ''),
       bulletsZh: Array.isArray(section?.bulletsZh) ? section.bulletsZh.map((item) => String(item || '')) : [],
       bulletsEn: Array.isArray(section?.bulletsEn) ? section.bulletsEn.map((item) => String(item || '')) : [],
+    })),
+    detailRegionAnalyses: (Array.isArray(parsed.detailRegionAnalyses) ? parsed.detailRegionAnalyses : []).map((item) => ({
+      burdenId: String(item?.burdenId || ''),
+      regionIndex: Number(item?.regionIndex || 0),
+      patternZh: String(item?.patternZh || ''),
+      patternEn: String(item?.patternEn || ''),
+      causeZh: String(item?.causeZh || ''),
+      causeEn: String(item?.causeEn || ''),
+      adviceZh: String(item?.adviceZh || ''),
+      adviceEn: String(item?.adviceEn || ''),
+      overallImportance: Number(item?.overallImportance || 0),
     })),
   };
 }
@@ -660,7 +736,7 @@ async function requestOpenAiRouteAnalysis(payload = {}, locale = 'zh-CN') {
           { role: 'user', content: buildRouteAnalysisUserPrompt(payload, locale) },
         ],
         response_format: { type: 'json_object' },
-        max_tokens: 1200,
+        max_tokens: 6000,
         stream: false,
       }),
     });
@@ -794,7 +870,7 @@ async function requestOpenAiRouteAnalysis(payload = {}, locale = 'zh-CN') {
           { role: 'user', content: buildRouteAnalysisUserPrompt(payload, locale) },
         ],
         response_format: { type: 'json_object' },
-        max_tokens: 1200,
+        max_tokens: 6000,
         stream: false,
       }),
     });

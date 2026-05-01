@@ -18,7 +18,8 @@ assert(
 );
 
 assert(
-  /await ensureRouteAnalysisForCurrentState\(reportLocale\);[\s\S]*if \(getReportLocale\(\) !== reportLocale\)/.test(appJs)
+  /await ensureRouteAnalysisForCurrentState\(reportLocale, \{ throwOnError: true \}\);[\s\S]*if \(getReportLocale\(\) !== reportLocale\)/.test(appJs)
+    && appJs.includes('assertReportLlmAnalysisReady(exportReportData, reportLocale);')
     && appJs.includes('rebuildReportModalContent(reportLocale);')
     && /await exportReportHtml\(fileName, reportLocale(?:, [^)]+)?\);/.test(appJs),
   'Expected export to rebuild and save the report using the selected report language, not the main UI language'
