@@ -13431,11 +13431,21 @@
     };
   }
 
+  function getReportDetailCardRegionsForLlm(card) {
+    const candidates = [
+      card?.regionRankings,
+      card?.regionIssues,
+      card?.highRegions,
+      card?.regions,
+    ];
+    return candidates.find((items) => Array.isArray(items) && items.length) || [];
+  }
+
   function buildSharedRouteAnalysisLlmInput({ reportData }) {
     const detailBurdenCards = (reportData?.detailBurdenCards || []).map((card) => ({
       id: card.id,
       title: card.title,
-      regions: (card.regionRankings || card.regionIssues || []).slice(0, 3).map((region) => ({
+      regions: getReportDetailCardRegionsForLlm(card).slice(0, 3).map((region) => ({
         index: region.index,
         peakMetric: Number(region.peakMetric || 0),
         averageMetric: Number(region.averageMetric || 0),
